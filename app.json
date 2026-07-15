@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "FC Rival",
+    "slug": "fc-rival",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fcrival.app"
+    },
+    "android": {
+      "package": "com.fcrival.app"
+    },
+    "extra": {
+      "eas": {}
+    }
+  }
+}

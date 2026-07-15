@@ -1,0 +1,26 @@
+# Links this local project to the FC Rival Supabase project.
+# Run `supabase login` then `supabase link --project-ref axytjgrlttbjcmflvmph`
+# (or just leave this file as-is and `supabase link` will pick it up).
+project_id = "axytjgrlttbjcmflvmph"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 17
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = []
+jwt_expiry = 3600
+enable_signup = true
