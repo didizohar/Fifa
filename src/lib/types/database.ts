@@ -3,6 +3,41 @@ export type SideResult = "win" | "loss" | "draw";
 export type GroupRole = "owner" | "admin" | "member";
 export type EloField = "singles_elo" | "doubles_elo";
 
+export interface Group {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  invite_code: string;
+  default_game_version_id: string | null;
+  timezone: string;
+  created_at: string;
+}
+
+export interface GroupMembership {
+  group: Group;
+  role: GroupRole;
+}
+
+export interface GameVersion {
+  id: string;
+  name: string;
+  is_default: boolean;
+}
+
+export interface Club {
+  id: string;
+  name: string;
+  country: string | null;
+}
+
+export interface ClubVersion {
+  id: string;
+  club_id: string;
+  game_version_id: string;
+  star_rating: number;
+  club: Club;
+}
+
 export interface PlayerProfile {
   id: string;
   group_id: string;

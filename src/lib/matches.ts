@@ -1,0 +1,104 @@
+import { supabase } from "./supabase";
+import type { MatchType, SideResult } from "./types/database";
+
+export interface MatchSidePlayer {
+  id: string;
+  display_name: string;
+  avatar_url: string | null;
+  custom_color: string;
+}
+
+export interface MatchSideSummary {
+  id: string;
+  side_number: 1 | 2;
+  score: number;
+  penalty_score: number | null;
+  result: SideResult;
+  club: { id: string; name: string } | null;
+  players: MatchSidePlayer[];
+}
+
+export interface MatchSummary {
+  id: string;
+  match_type: MatchType;
+  is_overtime: boolean;
+  is_penalties: boolean;
+  notes: string | null;
+  played_at: string;
+  sides: [MatchSideSummary, MatchSideSummary];
+}
+
+const MATCH_SELECT = `
+  id, match_type, is_overtime, is_penalties, notes, played_at,
+  match_sides (
+    id, side_number, score, penalty_score, result,
+    club_version:club_versions ( club:clubs ( id, name ) ),
+    match_players ( player:player_profiles ( id, display_name, avatar_url, custom_color ) )
+  )
+`;
+
+// Raw shape returned by Supabase's nested-select for MATCH_SELECT, before
+// being normalized into MatchSummary.
+interface RawMatch {
+  id: string;
+  match_type: MatchType;
+  is_overtime: boolean;
+  is_penalties: boolean;
+  notes: string | null;
+  played_at: string;
+  match_sides: {
+    id: string;
+    side_number: number;
+    score: number;
+    penalty_score: number | null;
+    result: SideResult;
+    club_version: { club: { id: string; name: string } | null } | null;
+    match_players: { player: MatchSidePlayer | null }[];
+  }[];
+}
+
+function normalizeMatch(raw: RawMatch): MatchSummary | null {
+  const sides = [...raw.match_sides].sort((a, b) => a.side_number - b.side_number);
+  if (sides.length !== 2) return null;
+
+  const [s1, s2] = sides;
+  const toSide = (s: RawMatch["match_sides"][number]): MatchSideSummary => ({
+    id: s.id,
+    side_number: s.side_number as 1 | 2,
+    score: s.score,
+    penalty_score: s.penalty_score,
+    result: s.result,
+    club: s.club_version?.club ?? null,
+    players: s.match_players.map((mp) => mp.player).filter((p): p is MatchSidePlayer => p !== null),
+  });
+
+  return {
+    id: raw.id,
+    match_type: raw.match_type,
+    is_overtime: raw.is_overtime,
+    is_penalties: raw.is_penalties,
+    notes: raw.notes,
+    played_at: raw.played_at,
+    sides: [toSide(s1!), toSide(s2!)],
+  };
+}
+
+export async function fetchRecentMatches(groupId: string, limit = 20): Promise<MatchSummary[]> {
+  const { data, error } = await supabase
+    .from("matches")
+    .select(MATCH_SELECT)
+    .eq("group_id", groupId)
+    .order("played_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(`Failed to load matches: ${error.message}`);
+  return ((data ?? []) as unknown as RawMatch[]).map(normalizeMatch).filter((m): m is MatchSummary => m !== null);
+}
+
+export async function fetchMatchDetail(matchId: string): Promise<MatchSummary> {
+  const { data, error } = await supabase.from("matches").select(MATCH_SELECT).eq("id", matchId).single();
+  if (error) throw new Error(`Failed to load match: ${error.message}`);
+  const normalized = normalizeMatch(data as unknown as RawMatch);
+  if (!normalized) throw new Error("Match data is incomplete.");
+  return normalized;
+}

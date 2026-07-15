@@ -6,7 +6,10 @@ web-build/
 *.log
 .env
 .env.local
+.env.*
+!.env.example
 .DS_Store
 coverage/
 supabase/.branches/
 supabase/.temp/
+.claude/scheduled_tasks.lock

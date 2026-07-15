@@ -2,19 +2,30 @@
   "expo": {
     "name": "FC Rival",
     "slug": "fc-rival",
+    "scheme": "fcrival",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.fcrival.app"
+      "bundleIdentifier": "com.fcrival.app",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "FC Rival needs access to your photos so you can set a player's avatar."
+      }
     },
     "android": {
       "package": "com.fcrival.app"
     },
     "extra": {
       "eas": {}
-    }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-image",
+      "expo-splash-screen"
+    ]
   }
 }
