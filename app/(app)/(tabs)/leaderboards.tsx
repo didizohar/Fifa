@@ -8,6 +8,7 @@ import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
 import { RankingRow } from "../../../src/components/RankingRow";
 import { Screen } from "../../../src/components/Screen";
+import { SegmentedControl } from "../../../src/components/SegmentedControl";
 import { SkeletonList } from "../../../src/components/Skeleton";
 import { useAuth } from "../../../src/hooks/useAuth";
 import { useGroup } from "../../../src/hooks/useGroup";
@@ -181,9 +182,11 @@ export default function LeaderboardsScreen() {
 
       {showMatchTypeFilter ? (
         <View style={styles.subToggleRow}>
-          {MATCH_TYPE_FILTERS.map((f) => (
-            <SubToggle key={f.id} label={f.label} active={matchTypeFilter === f.id} onPress={() => setMatchTypeFilter(f.id)} />
-          ))}
+          <SegmentedControl
+            options={MATCH_TYPE_FILTERS.map((f) => ({ value: f.id, label: f.label }))}
+            value={matchTypeFilter}
+            onChange={setMatchTypeFilter}
+          />
         </View>
       ) : null}
 
@@ -264,19 +267,6 @@ export default function LeaderboardsScreen() {
   );
 }
 
-function SubToggle({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={[styles.subToggle, active && styles.subToggleActive]}
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-    >
-      <Text style={[styles.subToggleLabel, active && styles.subToggleLabelActive]}>{label}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
@@ -325,29 +315,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   subToggleRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
     paddingBottom: spacing.sm,
-  },
-  subToggle: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  subToggleActive: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accentSubtle,
-  },
-  subToggleLabel: {
-    ...typography.caption,
-  },
-  subToggleLabelActive: {
-    color: colors.accent,
-    fontWeight: "700",
   },
   monthNav: {
     flexDirection: "row",
