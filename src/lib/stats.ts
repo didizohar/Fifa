@@ -185,13 +185,21 @@ export function computeBiggestLoss(playerId: string, matches: MatchSummary[]): M
   return findBiggestByResult(playerId, matches, "loss");
 }
 
-/** playerId's record in matches played directly against opponentId. */
-export function computeHeadToHead(playerId: string, opponentId: string, matches: MatchSummary[]): PlayerStats {
+export interface HeadToHeadStats extends PlayerStats {
+  goalsFor: number;
+  goalsAgainst: number;
+  goalDifference: number;
+}
+
+/** playerId's record, plus goal tally, in matches played directly against opponentId. */
+export function computeHeadToHead(playerId: string, opponentId: string, matches: MatchSummary[]): HeadToHeadStats {
   const shared = matches.filter((m) => {
     const sides = findSides(playerId, m);
     return sides !== null && sides.opponent.players.some((p) => p.id === opponentId);
   });
-  return computePlayerStats(playerId, shared);
+  const record = computePlayerStats(playerId, shared);
+  const goals = computeGoalStats(playerId, shared);
+  return { ...record, goalsFor: goals.goalsScored, goalsAgainst: goals.goalsConceded, goalDifference: goals.goalsScored - goals.goalsConceded };
 }
 
 export interface ClubPerformanceRow {

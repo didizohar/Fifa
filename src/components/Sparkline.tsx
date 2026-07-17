@@ -5,12 +5,17 @@ interface SparklineProps {
   /** Chronological, oldest first. */
   values: number[];
   height?: number;
+  /** Below this many points a trend line isn't meaningful -- show a friendly message instead. */
+  minPoints?: number;
 }
 
 /** Plain-View column trend chart -- no SVG/chart library dependency. */
-export function Sparkline({ values, height = 64 }: SparklineProps) {
+export function Sparkline({ values, height = 64, minPoints = 3 }: SparklineProps) {
   if (values.length === 0) {
     return <Text style={styles.empty}>No history yet</Text>;
+  }
+  if (values.length < minPoints) {
+    return <Text style={styles.empty}>Not enough matches yet</Text>;
   }
 
   const min = Math.min(...values);

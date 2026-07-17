@@ -33,6 +33,8 @@ import { pickAndUploadAvatar } from "../../../../src/lib/storage";
 import { colors, spacing, typography } from "../../../../src/theme";
 
 const EMPTY_MATCHES: MatchSummary[] = [];
+/** Below this many matches, a bar-chart comparison isn't meaningful -- show a friendly message instead. */
+const MIN_CHART_SAMPLE = 3;
 
 function opponentLabel(playerId: string, match: MatchSummary): string {
   const sides = findSides(playerId, match);
@@ -66,6 +68,8 @@ export default function PlayerDetailScreen() {
   const biggestLoss = useMemo(() => computeBiggestLoss(playerId, matches), [playerId, matches]);
   const clubPerformance = useMemo(() => computeClubPerformance(playerId, matches), [playerId, matches]);
   const partnerships = useMemo(() => computeDoublesPartnerships(playerId, matches), [playerId, matches]);
+  const totalClubMatches = useMemo(() => clubPerformance.reduce((sum, c) => sum + c.played, 0), [clubPerformance]);
+  const totalPartnershipMatches = useMemo(() => partnerships.reduce((sum, p) => sum + p.played, 0), [partnerships]);
   const opponents = useMemo(() => {
     const map = new Map<string, { id: string; displayName: string; avatarUrl: string | null; color: string }>();
     for (const match of matches) {
@@ -276,26 +280,34 @@ export default function PlayerDetailScreen() {
         {clubPerformance.length > 0 ? (
           <Card>
             <Text style={styles.sectionTitle}>By Club</Text>
-            <BarChart
-              rows={clubPerformance.slice(0, 6).map((c) => ({
-                label: c.clubName,
-                value: c.played,
-                valueLabel: `${c.wins}-${c.losses}-${c.draws}`,
-              }))}
-            />
+            {totalClubMatches < MIN_CHART_SAMPLE ? (
+              <Text style={styles.insufficientData}>Not enough matches yet</Text>
+            ) : (
+              <BarChart
+                rows={clubPerformance.slice(0, 6).map((c) => ({
+                  label: c.clubName,
+                  value: c.played,
+                  valueLabel: `${c.wins}-${c.losses}-${c.draws}`,
+                }))}
+              />
+            )}
           </Card>
         ) : null}
 
         {partnerships.length > 0 ? (
           <Card>
             <Text style={styles.sectionTitle}>Doubles Partners</Text>
-            <BarChart
-              rows={partnerships.slice(0, 6).map((p) => ({
-                label: p.teammateName,
-                value: p.played,
-                valueLabel: `${p.wins}-${p.losses}-${p.draws}`,
-              }))}
-            />
+            {totalPartnershipMatches < MIN_CHART_SAMPLE ? (
+              <Text style={styles.insufficientData}>Not enough matches yet</Text>
+            ) : (
+              <BarChart
+                rows={partnerships.slice(0, 6).map((p) => ({
+                  label: p.teammateName,
+                  value: p.played,
+                  valueLabel: `${p.wins}-${p.losses}-${p.draws}`,
+                }))}
+              />
+            )}
           </Card>
         ) : null}
 
@@ -309,11 +321,22 @@ export default function PlayerDetailScreen() {
               maxSelected={1}
             />
             {headToHead ? (
-              <View style={[styles.recordRow, styles.h2hRow]}>
-                <RecordStat label="Played" value={headToHead.played} />
-                <RecordStat label="Wins" value={headToHead.wins} color={colors.win} />
-                <RecordStat label="Losses" value={headToHead.losses} color={colors.loss} />
-                <RecordStat label="Draws" value={headToHead.draws} color={colors.draw} />
+              <View style={styles.h2hRow}>
+                <View style={styles.recordRow}>
+                  <RecordStat label="Played" value={headToHead.played} />
+                  <RecordStat label="Wins" value={headToHead.wins} color={colors.win} />
+                  <RecordStat label="Losses" value={headToHead.losses} color={colors.loss} />
+                  <RecordStat label="Draws" value={headToHead.draws} color={colors.draw} />
+                </View>
+                <View style={styles.recordRow}>
+                  <RecordStat label="Goals For" value={headToHead.goalsFor} />
+                  <RecordStat label="Goals Against" value={headToHead.goalsAgainst} />
+                  <RecordStat
+                    label="Goal Diff"
+                    value={headToHead.goalDifference > 0 ? `+${headToHead.goalDifference}` : headToHead.goalDifference}
+                    color={headToHead.goalDifference > 0 ? colors.win : headToHead.goalDifference < 0 ? colors.loss : undefined}
+                  />
+                </View>
               </View>
             ) : null}
           </Card>
@@ -348,9 +371,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.xxl,
   },
   content: {
-    gap: spacing.lg,
-    paddingVertical: spacing.lg,
-    paddingBottom: spacing.xxl,
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingBottom: spacing.xl,
   },
   header: {
     alignItems: "center",
@@ -392,7 +415,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...typography.heading,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   recordRow: {
     flexDirection: "row",
@@ -418,7 +441,7 @@ const styles = StyleSheet.create({
   },
   streakRow: {
     gap: spacing.xs,
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
   },
   streakText: {
     ...typography.caption,
@@ -432,7 +455,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   bestWorst: {
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   bestWorstRow: {
     gap: 2,
@@ -447,13 +470,17 @@ const styles = StyleSheet.create({
     ...typography.caption,
   },
   eloSection: {
-    gap: spacing.lg,
+    gap: spacing.md,
   },
   subLabel: {
     ...typography.small,
     marginBottom: spacing.xs,
   },
+  insufficientData: {
+    ...typography.caption,
+  },
   h2hRow: {
-    marginTop: spacing.md,
+    gap: spacing.sm,
+    marginTop: spacing.sm,
   },
 });

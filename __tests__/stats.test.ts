@@ -216,8 +216,26 @@ describe("computeHeadToHead", () => {
       makeDetailedMatch({ playerIds: ["p1"], score: 0, result: "loss" }, { playerIds: ["p3"], score: 1, result: "win" }),
       makeDetailedMatch({ playerIds: ["p1"], score: 2, result: "win" }, { playerIds: ["p2"], score: 1, result: "loss" }),
     ];
-    expect(computeHeadToHead("p1", "p2", matches)).toEqual({ played: 2, wins: 2, losses: 0, draws: 0, winRate: 1 });
-    expect(computeHeadToHead("p1", "p3", matches)).toEqual({ played: 1, wins: 0, losses: 1, draws: 0, winRate: 0 });
+    expect(computeHeadToHead("p1", "p2", matches)).toEqual({
+      played: 2,
+      wins: 2,
+      losses: 0,
+      draws: 0,
+      winRate: 1,
+      goalsFor: 3,
+      goalsAgainst: 1,
+      goalDifference: 2,
+    });
+    expect(computeHeadToHead("p1", "p3", matches)).toEqual({
+      played: 1,
+      wins: 0,
+      losses: 1,
+      draws: 0,
+      winRate: 0,
+      goalsFor: 0,
+      goalsAgainst: 1,
+      goalDifference: -1,
+    });
   });
 });
 
