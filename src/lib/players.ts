@@ -1,6 +1,26 @@
 import { supabase } from "./supabase";
 import type { PlayerProfile } from "./types/database";
 
+export interface PickablePlayer {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+  color: string;
+}
+
+/** Minimal shape toPickablePlayer needs -- satisfied by both a full PlayerProfile and the lighter MatchSidePlayer embedded in match rows. */
+interface DisplayableProfile {
+  id: string;
+  display_name: string;
+  avatar_url: string | null;
+  custom_color: string;
+}
+
+/** Projects a player-ish record down to what PlayerPicker (and similar player-choosing UI) needs. */
+export function toPickablePlayer(player: DisplayableProfile): PickablePlayer {
+  return { id: player.id, displayName: player.display_name, avatarUrl: player.avatar_url, color: player.custom_color };
+}
+
 export interface CreatePlayerInput {
   groupId: string;
   displayName: string;

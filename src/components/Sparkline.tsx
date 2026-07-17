@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
+import { MIN_SAMPLE_SIZE } from "../lib/stats";
 import { colors, radius, spacing, typography } from "../theme";
 
 interface SparklineProps {
@@ -10,7 +11,7 @@ interface SparklineProps {
 }
 
 /** Plain-View column trend chart -- no SVG/chart library dependency. */
-export function Sparkline({ values, height = 64, minPoints = 3 }: SparklineProps) {
+export function Sparkline({ values, height = 64, minPoints = MIN_SAMPLE_SIZE }: SparklineProps) {
   if (values.length === 0) {
     return <Text style={styles.empty}>No history yet</Text>;
   }

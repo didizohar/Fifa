@@ -11,6 +11,7 @@ import { useClubVersions } from "../../src/hooks/useClubVersions";
 import { useGroup } from "../../src/hooks/useGroup";
 import { usePlayers } from "../../src/hooks/usePlayers";
 import { useRecordMatch } from "../../src/hooks/useRecordMatch";
+import { toPickablePlayer } from "../../src/lib/players";
 import type { ClubVersion, MatchType } from "../../src/lib/types/database";
 import { validateMatchForm } from "../../src/lib/validation/matchForm";
 import { colors, radius, spacing, typography } from "../../src/theme";
@@ -38,10 +39,7 @@ export default function RecordMatchScreen() {
   const requiredCount = matchType === "singles" ? 1 : 2;
   const scoresLevel = side1Score === side2Score;
 
-  const pickablePlayers = useMemo(
-    () => (players ?? []).map((p) => ({ id: p.id, displayName: p.display_name, avatarUrl: p.avatar_url, color: p.custom_color })),
-    [players],
-  );
+  const pickablePlayers = useMemo(() => (players ?? []).map(toPickablePlayer), [players]);
 
   const changeMatchType = (type: MatchType) => {
     setMatchType(type);

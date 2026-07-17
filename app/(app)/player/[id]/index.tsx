@@ -21,6 +21,7 @@ import { useArchivePlayer, useUpdatePlayer } from "../../../../src/hooks/usePlay
 import { usePlayer, usePlayers } from "../../../../src/hooks/usePlayers";
 import { confirmAction, notify } from "../../../../src/lib/confirm";
 import type { MatchSummary } from "../../../../src/lib/matches";
+import { toPickablePlayer, type PickablePlayer } from "../../../../src/lib/players";
 import {
   computeBiggestLoss,
   computeBiggestWin,
@@ -31,13 +32,12 @@ import {
   computeLastNStats,
   computeStreaks,
   findSides,
+  MIN_SAMPLE_SIZE,
 } from "../../../../src/lib/stats";
 import { pickAndUploadAvatar } from "../../../../src/lib/storage";
 import { colors, spacing, typography } from "../../../../src/theme";
 
 const EMPTY_MATCHES: MatchSummary[] = [];
-/** Below this many matches, a bar-chart comparison isn't meaningful -- show a friendly message instead. */
-const MIN_CHART_SAMPLE = 3;
 
 type ProfileTab = "overview" | "charts" | "h2h";
 const TABS: { value: ProfileTab; label: string }[] = [
@@ -83,12 +83,12 @@ export default function PlayerDetailScreen() {
   const totalClubMatches = useMemo(() => clubPerformance.reduce((sum, c) => sum + c.played, 0), [clubPerformance]);
   const totalPartnershipMatches = useMemo(() => partnerships.reduce((sum, p) => sum + p.played, 0), [partnerships]);
   const opponents = useMemo(() => {
-    const map = new Map<string, { id: string; displayName: string; avatarUrl: string | null; color: string }>();
+    const map = new Map<string, PickablePlayer>();
     for (const match of matches) {
       const sides = findSides(playerId, match);
       if (!sides) continue;
       for (const p of sides.opponent.players) {
-        if (!map.has(p.id)) map.set(p.id, { id: p.id, displayName: p.display_name, avatarUrl: p.avatar_url, color: p.custom_color });
+        if (!map.has(p.id)) map.set(p.id, toPickablePlayer(p));
       }
     }
     return [...map.values()].sort((a, b) => a.displayName.localeCompare(b.displayName));
@@ -315,7 +315,7 @@ export default function PlayerDetailScreen() {
             {clubPerformance.length > 0 ? (
               <Card>
                 <Text style={styles.sectionTitle}>By Club</Text>
-                {totalClubMatches < MIN_CHART_SAMPLE ? (
+                {totalClubMatches < MIN_SAMPLE_SIZE ? (
                   <Text style={styles.insufficientData}>Not enough matches yet</Text>
                 ) : (
                   <BarChart
@@ -332,7 +332,7 @@ export default function PlayerDetailScreen() {
             {partnerships.length > 0 ? (
               <Card>
                 <Text style={styles.sectionTitle}>Doubles Partners</Text>
-                {totalPartnershipMatches < MIN_CHART_SAMPLE ? (
+                {totalPartnershipMatches < MIN_SAMPLE_SIZE ? (
                   <Text style={styles.insufficientData}>Not enough matches yet</Text>
                 ) : (
                   <BarChart

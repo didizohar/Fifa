@@ -1,14 +1,8 @@
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import type { PickablePlayer } from "../lib/players";
 import { colors, radius, spacing, typography } from "../theme";
 import { Avatar } from "./Avatar";
-
-export interface PickablePlayer {
-  id: string;
-  displayName: string;
-  avatarUrl: string | null;
-  color: string;
-}
 
 interface PlayerPickerProps {
   players: PickablePlayer[];

@@ -1,6 +1,9 @@
 import type { MatchSidePlayer, MatchSideSummary, MatchSummary, PlayerRecordRow } from "./matches";
 import type { SideResult } from "./types/database";
 
+/** Below this many matches, a computed stat (win rate, best defense, doubles pair, chart) isn't a reliable sample. */
+export const MIN_SAMPLE_SIZE = 3;
+
 export interface PlayerStats {
   played: number;
   wins: number;
@@ -311,7 +314,7 @@ function recordDetail(stats: PlayerStats): string {
 }
 
 /** Win-rate leaderboard, restricted to players with at least minPlayed matches so a 1-0 record can't top the board. */
-export function computeWinRateLeaderboard(players: MatchSidePlayer[], matches: MatchSummary[], minPlayed = 3): LeaderboardRow[] {
+export function computeWinRateLeaderboard(players: MatchSidePlayer[], matches: MatchSummary[], minPlayed = MIN_SAMPLE_SIZE): LeaderboardRow[] {
   return players
     .map((p) => ({ player: p, stats: computePlayerStats(p.id, matches) }))
     .filter((r) => r.stats.played >= minPlayed)
@@ -392,7 +395,7 @@ export function computeGoalsScoredLeaderboard(players: MatchSidePlayer[], matche
 }
 
 /** Fewest goals conceded (best defensive record), restricted to players with at least minPlayed matches. */
-export function computeFewestConcededLeaderboard(players: MatchSidePlayer[], matches: MatchSummary[], minPlayed = 3): LeaderboardRow[] {
+export function computeFewestConcededLeaderboard(players: MatchSidePlayer[], matches: MatchSummary[], minPlayed = MIN_SAMPLE_SIZE): LeaderboardRow[] {
   return players
     .map((p) => ({ player: p, stats: computePlayerStats(p.id, matches), goals: computeGoalStats(p.id, matches) }))
     .filter((r) => r.stats.played >= minPlayed)
@@ -481,7 +484,7 @@ export interface DoublesPairRow {
 }
 
 /** Group-wide doubles pair leaderboard (pair vs. pair, not one player's perspective), sorted by win rate then most played. */
-export function computeBestDoublesPairs(matches: MatchSummary[], minPlayed = 3): DoublesPairRow[] {
+export function computeBestDoublesPairs(matches: MatchSummary[], minPlayed = MIN_SAMPLE_SIZE): DoublesPairRow[] {
   const byPair = new Map<string, { ids: [string, string]; names: [string, string]; wins: number; losses: number; draws: number }>();
 
   for (const match of matches) {

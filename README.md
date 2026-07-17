@@ -4,8 +4,22 @@ Group stats & Elo tracking for FIFA/EA FC matches. Expo (React Native) + Supabas
 
 ## Status
 
-Stage 1 (Core Infrastructure) only: database schema, RLS, and the atomic
-match + Elo write path. No screens yet — see `App.tsx` placeholder.
+- **Stage 1** — database schema, RLS, and the atomic match + Elo write path.
+- **Stage 2** — mobile MVP: auth, groups, players (with avatars), match
+  recording (singles + doubles), a dark "premium sports" theme, and the
+  core Home/Players/History/Settings tabs.
+- **Stage 3** — advanced statistics (player profile: goals, streaks,
+  head-to-head, club/doubles-partner breakdowns, Elo progression charts),
+  a Leaderboards tab (11 ranked categories with sorting and an
+  Overall/Singles/Doubles filter), combinable match-history filters,
+  dashboard widgets, CSV export (matches/leaderboards/player stats), and a
+  visual refresh (shared card shadows/glow, podium medals, tabbed player
+  profile).
+
+App entry is `expo-router/entry`; screens live under `app/`. The mobile
+SDK version outruns what App Store Expo Go supports, so day-to-day
+development uses an EAS development build (`eas.json`) rather than plain
+Expo Go — see `npx expo start --dev-client`.
 
 ## Setup
 
@@ -63,8 +77,30 @@ wraps it: reads current ratings, computes the new ones, and calls
 concurrency conflict (another match for one of the same players landed in
 between).
 
+## Statistics, filters, and export (Stage 3)
+
+All business logic is pure and I/O-free, mirroring `elo.ts`'s testable
+style — every function below is unit tested, no component-rendering
+tests needed:
+
+- `src/lib/stats.ts` — per-player stats (goals, streaks, head-to-head,
+  club/doubles-partner breakdowns) and group-wide leaderboard functions.
+  `MIN_SAMPLE_SIZE` (3) is the shared threshold below which a computed
+  stat or chart isn't a reliable sample.
+- `src/lib/matchFilters.ts` — combinable match-history filters (player,
+  opponent, club, date range, type, result, search).
+- `src/lib/csv.ts` — CSV serialization for matches/leaderboards/player
+  stats; `src/lib/exportFile.ts` hands the result to a browser download
+  (web) or the native share sheet via `expo-sharing` (iOS/Android).
+
+Data fetching (`fetchGroupMatchHistory`, `fetchEloHistory`, etc.) lives in
+`src/lib/matches.ts` and is uncapped — leaderboards and filters need a
+player's/group's whole history, not a recency-limited preview list.
+
 ## Testing
 
 ```bash
-npm test
+npm test           # jest -- all pure business logic
+npx tsc --noEmit    # typecheck
+npx expo-doctor     # SDK/dependency alignment
 ```

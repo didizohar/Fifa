@@ -18,6 +18,7 @@ import { matchesToCsv } from "../../../src/lib/csv";
 import { matchSideLabel, formatRelativeDate } from "../../../src/lib/format";
 import { DEFAULT_MATCH_FILTERS, distinctClubs, filterMatches, hasActiveFilters, type DateRangeFilter, type MatchFilters } from "../../../src/lib/matchFilters";
 import type { MatchSummary } from "../../../src/lib/matches";
+import { toPickablePlayer } from "../../../src/lib/players";
 import type { MatchType, SideResult } from "../../../src/lib/types/database";
 import { colors, radius, spacing, typography } from "../../../src/theme";
 
@@ -49,10 +50,7 @@ export default function HistoryScreen() {
   const filtered = useMemo(() => filterMatches(allMatches, filters), [allMatches, filters]);
   const filtersActive = hasActiveFilters(filters);
 
-  const pickablePlayers = useMemo(
-    () => (players.data ?? []).map((p) => ({ id: p.id, displayName: p.display_name, avatarUrl: p.avatar_url, color: p.custom_color })),
-    [players.data],
-  );
+  const pickablePlayers = useMemo(() => (players.data ?? []).map(toPickablePlayer), [players.data]);
   const opponentChoices = useMemo(() => pickablePlayers.filter((p) => p.id !== filters.playerId), [pickablePlayers, filters.playerId]);
 
   const resultOptions: { value: "all" | SideResult; label: string; disabled?: boolean }[] = [
