@@ -3,10 +3,13 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "rea
 import { Avatar } from "../../../src/components/Avatar";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
+import { ExportButton } from "../../../src/components/ExportButton";
 import { Screen } from "../../../src/components/Screen";
 import { SkeletonList } from "../../../src/components/Skeleton";
 import { useGroup } from "../../../src/hooks/useGroup";
+import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
+import { playerStatsToCsv } from "../../../src/lib/csv";
 import type { PlayerProfile } from "../../../src/lib/types/database";
 import { colors, radius, spacing, typography } from "../../../src/theme";
 
@@ -14,14 +17,24 @@ export default function PlayersScreen() {
   const router = useRouter();
   const { currentGroupId } = useGroup();
   const { data: players, isLoading, isError, refetch, isRefetching } = usePlayers(currentGroupId);
+  const matchHistory = useGroupMatchHistory(currentGroupId);
 
   return (
     <Screen padded={false}>
       <View style={styles.header}>
         <Text style={styles.title}>Players</Text>
-        <Pressable onPress={() => router.push("/player/new")} style={styles.addButton}>
-          <Text style={styles.addButtonLabel}>+ Add</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          {players && players.length > 0 ? (
+            <ExportButton
+              label="Export"
+              filename="fc-rival-player-stats.csv"
+              getCsv={() => playerStatsToCsv(players, matchHistory.data ?? [])}
+            />
+          ) : null}
+          <Pressable onPress={() => router.push("/player/new")} style={styles.addButton}>
+            <Text style={styles.addButtonLabel}>+ Add</Text>
+          </Pressable>
+        </View>
       </View>
 
       {isLoading ? (
@@ -81,6 +94,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
   },
   title: {
     ...typography.title,

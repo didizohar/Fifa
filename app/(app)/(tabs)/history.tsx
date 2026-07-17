@@ -5,6 +5,7 @@ import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, Text
 import { Button } from "../../../src/components/Button";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
+import { ExportButton } from "../../../src/components/ExportButton";
 import { MatchRow } from "../../../src/components/MatchRow";
 import { PlayerPicker } from "../../../src/components/PlayerPicker";
 import { Screen } from "../../../src/components/Screen";
@@ -13,6 +14,7 @@ import { SkeletonList } from "../../../src/components/Skeleton";
 import { useGroup } from "../../../src/hooks/useGroup";
 import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
+import { matchesToCsv } from "../../../src/lib/csv";
 import { matchSideLabel, formatRelativeDate } from "../../../src/lib/format";
 import { DEFAULT_MATCH_FILTERS, distinctClubs, filterMatches, hasActiveFilters, type DateRangeFilter, type MatchFilters } from "../../../src/lib/matchFilters";
 import type { MatchSummary } from "../../../src/lib/matches";
@@ -66,16 +68,19 @@ export default function HistoryScreen() {
     <Screen padded={false}>
       <View style={styles.header}>
         <Text style={styles.title}>Match history</Text>
-        <Pressable
-          onPress={() => setShowFilters((s) => !s)}
-          style={[styles.filterButton, filtersActive && styles.filterButtonActive]}
-          accessibilityRole="button"
-          accessibilityLabel="Toggle filters"
-        >
-          <Ionicons name="filter" size={16} color={filtersActive ? colors.accent : colors.textSecondary} />
-          <Text style={[styles.filterButtonLabel, filtersActive && styles.filterButtonLabelActive]}>Filters</Text>
-          {filtersActive ? <View style={styles.filterDot} /> : null}
-        </Pressable>
+        <View style={styles.headerActions}>
+          <ExportButton filename={`fc-rival-matches-${Date.now()}.csv`} getCsv={() => matchesToCsv(filtered)} />
+          <Pressable
+            onPress={() => setShowFilters((s) => !s)}
+            style={[styles.filterButton, filtersActive && styles.filterButtonActive]}
+            accessibilityRole="button"
+            accessibilityLabel="Toggle filters"
+          >
+            <Ionicons name="filter" size={16} color={filtersActive ? colors.accent : colors.textSecondary} />
+            <Text style={[styles.filterButtonLabel, filtersActive && styles.filterButtonLabelActive]}>Filters</Text>
+            {filtersActive ? <View style={styles.filterDot} /> : null}
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.searchRow}>
@@ -244,6 +249,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
   },
   title: {
     ...typography.title,

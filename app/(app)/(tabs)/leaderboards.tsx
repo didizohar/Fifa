@@ -6,6 +6,7 @@ import { Avatar } from "../../../src/components/Avatar";
 import { Card } from "../../../src/components/Card";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
+import { ExportButton } from "../../../src/components/ExportButton";
 import { RankingRow } from "../../../src/components/RankingRow";
 import { Screen } from "../../../src/components/Screen";
 import { SegmentedControl } from "../../../src/components/SegmentedControl";
@@ -14,6 +15,7 @@ import { useAuth } from "../../../src/hooks/useAuth";
 import { useGroup } from "../../../src/hooks/useGroup";
 import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
+import { leaderboardToCsv } from "../../../src/lib/csv";
 import type { MatchSummary } from "../../../src/lib/matches";
 import {
   computeBestDoublesPairs,
@@ -151,19 +153,38 @@ export default function LeaderboardsScreen() {
   const isFutureMonth = monthOffset <= 0;
   const showMatchTypeFilter = category !== "doublesPairs";
 
+  const getLeaderboardCsv = () => {
+    if (category === "doublesPairs") {
+      const pairRows: LeaderboardRow[] = displayPairs.map((pair) => ({
+        playerId: pair.playerIds.join(":"),
+        playerName: `${pair.playerNames[0]} & ${pair.playerNames[1]}`,
+        avatarUrl: null,
+        color: colors.accent,
+        value: pair.winRate ?? 0,
+        valueLabel: pair.winRate !== null ? `${Math.round(pair.winRate * 100)}%` : "-",
+        detail: `${pair.wins}W-${pair.losses}L-${pair.draws}D`,
+      }));
+      return leaderboardToCsv(pairRows);
+    }
+    return leaderboardToCsv(displayRows);
+  };
+
   return (
     <Screen>
       <View style={styles.header}>
         <Text style={styles.title}>Leaderboards</Text>
-        <Pressable
-          onPress={() => setDescending((d) => !d)}
-          style={styles.sortButton}
-          accessibilityRole="button"
-          accessibilityLabel={descending ? "Sort ascending" : "Sort descending"}
-        >
-          <Ionicons name={descending ? "arrow-down" : "arrow-up"} size={16} color={colors.accent} />
-          <Text style={styles.sortLabel}>{descending ? "Best first" : "Worst first"}</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          <ExportButton filename={`fc-rival-leaderboard-${category}.csv`} getCsv={getLeaderboardCsv} />
+          <Pressable
+            onPress={() => setDescending((d) => !d)}
+            style={styles.sortButton}
+            accessibilityRole="button"
+            accessibilityLabel={descending ? "Sort ascending" : "Sort descending"}
+          >
+            <Ionicons name={descending ? "arrow-down" : "arrow-up"} size={16} color={colors.accent} />
+            <Text style={styles.sortLabel}>{descending ? "Best first" : "Worst first"}</Text>
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
@@ -273,6 +294,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingBottom: spacing.sm,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
   },
   title: {
     ...typography.title,

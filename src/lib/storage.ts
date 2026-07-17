@@ -1,5 +1,8 @@
 import { decode } from "base64-arraybuffer";
-import * as FileSystem from "expo-file-system";
+// SDK 57's top-level "expo-file-system" export only ships typed-but-throwing
+// deprecation shims for readAsStringAsync/writeAsStringAsync/etc -- the
+// actual working implementation now lives under the /legacy subpath.
+import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import { supabase } from "./supabase";
 
