@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../src/components/Avatar";
 import { BarChart } from "../../../../src/components/BarChart";
@@ -9,13 +10,15 @@ import { ErrorState } from "../../../../src/components/ErrorState";
 import { FormStrip } from "../../../../src/components/FormStrip";
 import { PlayerPicker } from "../../../../src/components/PlayerPicker";
 import { Screen } from "../../../../src/components/Screen";
+import { SegmentedControl } from "../../../../src/components/SegmentedControl";
 import { Skeleton } from "../../../../src/components/Skeleton";
 import { Sparkline } from "../../../../src/components/Sparkline";
+import { StatTile } from "../../../../src/components/StatTile";
 import { useAuth } from "../../../../src/hooks/useAuth";
 import { useGroup } from "../../../../src/hooks/useGroup";
 import { useEloHistory, usePlayerMatchHistory, usePlayerRecords } from "../../../../src/hooks/useMatches";
 import { useArchivePlayer, useUpdatePlayer } from "../../../../src/hooks/usePlayerMutations";
-import { usePlayer } from "../../../../src/hooks/usePlayers";
+import { usePlayer, usePlayers } from "../../../../src/hooks/usePlayers";
 import { confirmAction, notify } from "../../../../src/lib/confirm";
 import type { MatchSummary } from "../../../../src/lib/matches";
 import {
@@ -36,6 +39,13 @@ const EMPTY_MATCHES: MatchSummary[] = [];
 /** Below this many matches, a bar-chart comparison isn't meaningful -- show a friendly message instead. */
 const MIN_CHART_SAMPLE = 3;
 
+type ProfileTab = "overview" | "charts" | "h2h";
+const TABS: { value: ProfileTab; label: string }[] = [
+  { value: "overview", label: "Overview" },
+  { value: "charts", label: "Charts" },
+  { value: "h2h", label: "Head-to-Head" },
+];
+
 function opponentLabel(playerId: string, match: MatchSummary): string {
   const sides = findSides(playerId, match);
   if (!sides) return "Unknown opponent";
@@ -52,10 +62,12 @@ export default function PlayerDetailScreen() {
   const records = usePlayerRecords(id ? [id] : []);
   const matchHistory = usePlayerMatchHistory(id);
   const eloHistoryQuery = useEloHistory(id);
+  const roster = usePlayers(currentGroupId);
   const updatePlayer = useUpdatePlayer(currentGroupId);
   const archivePlayer = useArchivePlayer(currentGroupId);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [headToHeadOpponentId, setHeadToHeadOpponentId] = useState<string | null>(null);
+  const [tab, setTab] = useState<ProfileTab>("overview");
 
   const playerId = id ?? "";
   const matches = matchHistory.data ?? EMPTY_MATCHES;
@@ -93,6 +105,13 @@ export default function PlayerDetailScreen() {
     () => eloEntries.filter((e) => e.match_type === "doubles").map((e) => e.rating_after),
     [eloEntries],
   );
+  const rank = useMemo(() => {
+    const list = roster.data ?? [];
+    if (list.length === 0) return null;
+    const sorted = [...list].sort((a, b) => b.singles_elo - a.singles_elo);
+    const index = sorted.findIndex((p) => p.id === playerId);
+    return index >= 0 ? { position: index + 1, of: sorted.length } : null;
+  }, [roster.data, playerId]);
 
   if (isLoading) {
     return (
@@ -145,9 +164,9 @@ export default function PlayerDetailScreen() {
   };
 
   return (
-    <Screen>
+    <Screen padded={false}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
+        <LinearGradient colors={[colors.surfaceElevated, colors.surface]} style={styles.hero}>
           <Pressable onPress={handleAvatarPress} disabled={!canManage || isUploadingAvatar}>
             <Avatar uri={player.avatar_url} name={player.display_name} color={player.custom_color} size={96} />
             {canManage ? <Text style={styles.changePhoto}>{isUploadingAvatar ? "Uploading…" : "Change photo"}</Text> : null}
@@ -155,191 +174,225 @@ export default function PlayerDetailScreen() {
           <Text style={styles.name}>{player.display_name}</Text>
           {player.nickname ? <Text style={styles.nickname}>"{player.nickname}"</Text> : null}
           {!player.is_active ? <Text style={styles.archivedBadge}>Archived</Text> : null}
+
+          {matchHistory.isLoading ? (
+            <View style={styles.formPlaceholder} />
+          ) : (
+            <FormStrip results={last10.form.slice(0, 5).map((f) => f.result)} />
+          )}
+        </LinearGradient>
+
+        <View style={styles.tileGrid}>
+          <StatTile label="Singles Elo" value={player.singles_elo} style={styles.tile} />
+          <StatTile label="Doubles Elo" value={player.doubles_elo} style={styles.tile} />
+          <StatTile label="Rank" value={rank ? `#${rank.position} of ${rank.of}` : "–"} style={styles.tile} />
+          <StatTile
+            label="Win Rate"
+            value={stats?.winRate !== null && stats?.winRate !== undefined ? `${Math.round(stats.winRate * 100)}%` : "–"}
+            style={styles.tile}
+          />
         </View>
 
-        <View style={styles.statsRow}>
-          <Card style={styles.statCard}>
-            <Text style={styles.statValue}>{player.singles_elo}</Text>
-            <Text style={styles.statLabel}>Singles Elo</Text>
-          </Card>
-          <Card style={styles.statCard}>
-            <Text style={styles.statValue}>{player.doubles_elo}</Text>
-            <Text style={styles.statLabel}>Doubles Elo</Text>
-          </Card>
+        <View style={styles.tabRow}>
+          <SegmentedControl options={TABS} value={tab} onChange={setTab} />
         </View>
 
-        <Card>
-          <Text style={styles.sectionTitle}>Record</Text>
-          {stats ? (
-            <View style={styles.recordRow}>
-              <RecordStat label="Played" value={stats.played} />
-              <RecordStat label="Wins" value={stats.wins} color={colors.win} />
-              <RecordStat label="Losses" value={stats.losses} color={colors.loss} />
-              <RecordStat label="Draws" value={stats.draws} color={colors.draw} />
-            </View>
-          ) : (
-            <Skeleton height={40} />
-          )}
-        </Card>
-
-        <Card>
-          <Text style={styles.sectionTitle}>Form (last 10)</Text>
-          {matchHistory.isLoading ? (
-            <Skeleton height={40} />
-          ) : matchHistory.isError ? (
-            <Text style={styles.errorText}>Couldn't load match history.</Text>
-          ) : (
-            <>
-              <FormStrip results={last10.form.map((f) => f.result)} />
-              <View style={styles.streakRow}>
-                <Text style={styles.streakText}>
-                  Current streak:{" "}
-                  <Text
-                    style={
-                      streaks.currentStreak.result === "win"
-                        ? styles.streakWin
-                        : streaks.currentStreak.result === "loss"
-                          ? styles.streakLoss
-                          : undefined
-                    }
-                  >
-                    {streaks.currentStreak.count > 0
-                      ? `${streaks.currentStreak.count} ${streaks.currentStreak.result}${streaks.currentStreak.count > 1 ? "s" : ""}`
-                      : "—"}
-                  </Text>
-                </Text>
-                <Text style={styles.streakText}>Best win streak: {streaks.longestWinStreak}</Text>
-                <Text style={styles.streakText}>Worst losing streak: {streaks.longestLossStreak}</Text>
-              </View>
-            </>
-          )}
-        </Card>
-
-        <Card>
-          <Text style={styles.sectionTitle}>Goals</Text>
-          {matchHistory.isLoading ? (
-            <Skeleton height={40} />
-          ) : (
-            <View style={styles.recordRow}>
-              <RecordStat label="Scored" value={goalStats.goalsScored} />
-              <RecordStat label="Conceded" value={goalStats.goalsConceded} />
-              <RecordStat label="Per match" value={goalStats.goalsPerMatch !== null ? goalStats.goalsPerMatch.toFixed(2) : "–"} />
-              <RecordStat label="Clean sheets" value={goalStats.cleanSheets} color={colors.accent} />
-            </View>
-          )}
-        </Card>
-
-        <Card>
-          <Text style={styles.sectionTitle}>Best & Worst</Text>
-          {matchHistory.isLoading ? (
-            <Skeleton height={40} />
-          ) : (
-            <View style={styles.bestWorst}>
-              <View style={styles.bestWorstRow}>
-                <Text style={styles.bestWorstLabel}>Biggest win</Text>
-                {biggestWin ? (
-                  <Text style={styles.bestWorstValue} numberOfLines={1}>
-                    {biggestWin.ownScore}-{biggestWin.opponentScore} vs {opponentLabel(playerId, biggestWin.match)}
-                  </Text>
-                ) : (
-                  <Text style={styles.bestWorstEmpty}>No wins yet</Text>
-                )}
-              </View>
-              <View style={styles.bestWorstRow}>
-                <Text style={styles.bestWorstLabel}>Biggest loss</Text>
-                {biggestLoss ? (
-                  <Text style={styles.bestWorstValue} numberOfLines={1}>
-                    {biggestLoss.ownScore}-{biggestLoss.opponentScore} vs {opponentLabel(playerId, biggestLoss.match)}
-                  </Text>
-                ) : (
-                  <Text style={styles.bestWorstEmpty}>No losses yet</Text>
-                )}
-              </View>
-            </View>
-          )}
-        </Card>
-
-        <Card>
-          <Text style={styles.sectionTitle}>Elo Progression</Text>
-          {eloHistoryQuery.isLoading ? (
-            <Skeleton height={80} />
-          ) : (
-            <View style={styles.eloSection}>
-              <View>
-                <Text style={styles.subLabel}>Singles</Text>
-                <Sparkline values={singlesEloSeries} />
-              </View>
-              <View>
-                <Text style={styles.subLabel}>Doubles</Text>
-                <Sparkline values={doublesEloSeries} />
-              </View>
-            </View>
-          )}
-        </Card>
-
-        {clubPerformance.length > 0 ? (
-          <Card>
-            <Text style={styles.sectionTitle}>By Club</Text>
-            {totalClubMatches < MIN_CHART_SAMPLE ? (
-              <Text style={styles.insufficientData}>Not enough matches yet</Text>
-            ) : (
-              <BarChart
-                rows={clubPerformance.slice(0, 6).map((c) => ({
-                  label: c.clubName,
-                  value: c.played,
-                  valueLabel: `${c.wins}-${c.losses}-${c.draws}`,
-                }))}
-              />
-            )}
-          </Card>
-        ) : null}
-
-        {partnerships.length > 0 ? (
-          <Card>
-            <Text style={styles.sectionTitle}>Doubles Partners</Text>
-            {totalPartnershipMatches < MIN_CHART_SAMPLE ? (
-              <Text style={styles.insufficientData}>Not enough matches yet</Text>
-            ) : (
-              <BarChart
-                rows={partnerships.slice(0, 6).map((p) => ({
-                  label: p.teammateName,
-                  value: p.played,
-                  valueLabel: `${p.wins}-${p.losses}-${p.draws}`,
-                }))}
-              />
-            )}
-          </Card>
-        ) : null}
-
-        {opponents.length > 0 ? (
-          <Card>
-            <Text style={styles.sectionTitle}>Head-to-Head</Text>
-            <PlayerPicker
-              players={opponents}
-              selectedIds={headToHeadOpponentId ? [headToHeadOpponentId] : []}
-              onToggle={(opponentId) => setHeadToHeadOpponentId((prev) => (prev === opponentId ? null : opponentId))}
-              maxSelected={1}
-            />
-            {headToHead ? (
-              <View style={styles.h2hRow}>
+        {tab === "overview" ? (
+          <View style={styles.tabContent}>
+            <Card>
+              <Text style={styles.sectionTitle}>Record</Text>
+              {stats ? (
                 <View style={styles.recordRow}>
-                  <RecordStat label="Played" value={headToHead.played} />
-                  <RecordStat label="Wins" value={headToHead.wins} color={colors.win} />
-                  <RecordStat label="Losses" value={headToHead.losses} color={colors.loss} />
-                  <RecordStat label="Draws" value={headToHead.draws} color={colors.draw} />
+                  <RecordStat label="Played" value={stats.played} />
+                  <RecordStat label="Wins" value={stats.wins} color={colors.win} />
+                  <RecordStat label="Losses" value={stats.losses} color={colors.loss} />
+                  <RecordStat label="Draws" value={stats.draws} color={colors.draw} />
                 </View>
+              ) : (
+                <Skeleton height={40} />
+              )}
+            </Card>
+
+            <Card>
+              <Text style={styles.sectionTitle}>Form (last 10)</Text>
+              {matchHistory.isLoading ? (
+                <Skeleton height={40} />
+              ) : matchHistory.isError ? (
+                <Text style={styles.errorText}>Couldn't load match history.</Text>
+              ) : (
+                <>
+                  <FormStrip results={last10.form.map((f) => f.result)} />
+                  <View style={styles.streakRow}>
+                    <Text style={styles.streakText}>
+                      Current streak:{" "}
+                      <Text
+                        style={
+                          streaks.currentStreak.result === "win"
+                            ? styles.streakWin
+                            : streaks.currentStreak.result === "loss"
+                              ? styles.streakLoss
+                              : undefined
+                        }
+                      >
+                        {streaks.currentStreak.count > 0
+                          ? `${streaks.currentStreak.count} ${streaks.currentStreak.result}${streaks.currentStreak.count > 1 ? "s" : ""}`
+                          : "—"}
+                      </Text>
+                    </Text>
+                    <Text style={styles.streakText}>Best win streak: {streaks.longestWinStreak}</Text>
+                    <Text style={styles.streakText}>Worst losing streak: {streaks.longestLossStreak}</Text>
+                  </View>
+                </>
+              )}
+            </Card>
+
+            <Card>
+              <Text style={styles.sectionTitle}>Goals</Text>
+              {matchHistory.isLoading ? (
+                <Skeleton height={40} />
+              ) : (
                 <View style={styles.recordRow}>
-                  <RecordStat label="Goals For" value={headToHead.goalsFor} />
-                  <RecordStat label="Goals Against" value={headToHead.goalsAgainst} />
-                  <RecordStat
-                    label="Goal Diff"
-                    value={headToHead.goalDifference > 0 ? `+${headToHead.goalDifference}` : headToHead.goalDifference}
-                    color={headToHead.goalDifference > 0 ? colors.win : headToHead.goalDifference < 0 ? colors.loss : undefined}
+                  <RecordStat label="Scored" value={goalStats.goalsScored} />
+                  <RecordStat label="Conceded" value={goalStats.goalsConceded} />
+                  <RecordStat label="Per match" value={goalStats.goalsPerMatch !== null ? goalStats.goalsPerMatch.toFixed(2) : "–"} />
+                  <RecordStat label="Clean sheets" value={goalStats.cleanSheets} color={colors.accent} />
+                </View>
+              )}
+            </Card>
+
+            <Card>
+              <Text style={styles.sectionTitle}>Best & Worst</Text>
+              {matchHistory.isLoading ? (
+                <Skeleton height={40} />
+              ) : (
+                <View style={styles.bestWorst}>
+                  <View style={styles.bestWorstRow}>
+                    <Text style={styles.bestWorstLabel}>Biggest win</Text>
+                    {biggestWin ? (
+                      <Text style={styles.bestWorstValue} numberOfLines={1}>
+                        {biggestWin.ownScore}-{biggestWin.opponentScore} vs {opponentLabel(playerId, biggestWin.match)}
+                      </Text>
+                    ) : (
+                      <Text style={styles.bestWorstEmpty}>No wins yet</Text>
+                    )}
+                  </View>
+                  <View style={styles.bestWorstRow}>
+                    <Text style={styles.bestWorstLabel}>Biggest loss</Text>
+                    {biggestLoss ? (
+                      <Text style={styles.bestWorstValue} numberOfLines={1}>
+                        {biggestLoss.ownScore}-{biggestLoss.opponentScore} vs {opponentLabel(playerId, biggestLoss.match)}
+                      </Text>
+                    ) : (
+                      <Text style={styles.bestWorstEmpty}>No losses yet</Text>
+                    )}
+                  </View>
+                </View>
+              )}
+            </Card>
+          </View>
+        ) : null}
+
+        {tab === "charts" ? (
+          <View style={styles.tabContent}>
+            <Card>
+              <Text style={styles.sectionTitle}>Elo Progression</Text>
+              {eloHistoryQuery.isLoading ? (
+                <Skeleton height={80} />
+              ) : (
+                <View style={styles.eloSection}>
+                  <View>
+                    <Text style={styles.subLabel}>Singles</Text>
+                    <Sparkline values={singlesEloSeries} />
+                  </View>
+                  <View>
+                    <Text style={styles.subLabel}>Doubles</Text>
+                    <Sparkline values={doublesEloSeries} />
+                  </View>
+                </View>
+              )}
+            </Card>
+
+            {clubPerformance.length > 0 ? (
+              <Card>
+                <Text style={styles.sectionTitle}>By Club</Text>
+                {totalClubMatches < MIN_CHART_SAMPLE ? (
+                  <Text style={styles.insufficientData}>Not enough matches yet</Text>
+                ) : (
+                  <BarChart
+                    rows={clubPerformance.slice(0, 6).map((c) => ({
+                      label: c.clubName,
+                      value: c.played,
+                      valueLabel: `${c.wins}-${c.losses}-${c.draws}`,
+                    }))}
                   />
-                </View>
-              </View>
+                )}
+              </Card>
             ) : null}
-          </Card>
+
+            {partnerships.length > 0 ? (
+              <Card>
+                <Text style={styles.sectionTitle}>Doubles Partners</Text>
+                {totalPartnershipMatches < MIN_CHART_SAMPLE ? (
+                  <Text style={styles.insufficientData}>Not enough matches yet</Text>
+                ) : (
+                  <BarChart
+                    rows={partnerships.slice(0, 6).map((p) => ({
+                      label: p.teammateName,
+                      value: p.played,
+                      valueLabel: `${p.wins}-${p.losses}-${p.draws}`,
+                    }))}
+                  />
+                )}
+              </Card>
+            ) : null}
+
+            {clubPerformance.length === 0 && partnerships.length === 0 && !matchHistory.isLoading ? (
+              <Card>
+                <Text style={styles.emptyChartsTitle}>No club or partnership data yet</Text>
+                <Text style={styles.emptyChartsMessage}>Record a few matches to see club performance and doubles partnerships here.</Text>
+              </Card>
+            ) : null}
+          </View>
+        ) : null}
+
+        {tab === "h2h" ? (
+          <View style={styles.tabContent}>
+            {opponents.length > 0 ? (
+              <Card>
+                <Text style={styles.sectionTitle}>Head-to-Head</Text>
+                <PlayerPicker
+                  players={opponents}
+                  selectedIds={headToHeadOpponentId ? [headToHeadOpponentId] : []}
+                  onToggle={(opponentId) => setHeadToHeadOpponentId((prev) => (prev === opponentId ? null : opponentId))}
+                  maxSelected={1}
+                />
+                {headToHead ? (
+                  <View style={styles.h2hRow}>
+                    <View style={styles.recordRow}>
+                      <RecordStat label="Played" value={headToHead.played} />
+                      <RecordStat label="Wins" value={headToHead.wins} color={colors.win} />
+                      <RecordStat label="Losses" value={headToHead.losses} color={colors.loss} />
+                      <RecordStat label="Draws" value={headToHead.draws} color={colors.draw} />
+                    </View>
+                    <View style={styles.recordRow}>
+                      <RecordStat label="Goals For" value={headToHead.goalsFor} />
+                      <RecordStat label="Goals Against" value={headToHead.goalsAgainst} />
+                      <RecordStat
+                        label="Goal Diff"
+                        value={headToHead.goalDifference > 0 ? `+${headToHead.goalDifference}` : headToHead.goalDifference}
+                        color={headToHead.goalDifference > 0 ? colors.win : headToHead.goalDifference < 0 ? colors.loss : undefined}
+                      />
+                    </View>
+                  </View>
+                ) : null}
+              </Card>
+            ) : (
+              <Card>
+                <Text style={styles.emptyChartsTitle}>No opponents yet</Text>
+                <Text style={styles.emptyChartsMessage}>Once {player.display_name} has played a match, opponents will show up here.</Text>
+              </Card>
+            )}
+          </View>
         ) : null}
 
         {canManage ? (
@@ -371,13 +424,15 @@ const styles = StyleSheet.create({
     marginTop: spacing.xxl,
   },
   content: {
-    gap: spacing.md,
-    paddingVertical: spacing.md,
     paddingBottom: spacing.xl,
   },
-  header: {
+  hero: {
     alignItems: "center",
     gap: spacing.xs,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
   },
   changePhoto: {
     ...typography.small,
@@ -397,21 +452,28 @@ const styles = StyleSheet.create({
     color: colors.warning,
     marginTop: spacing.xs,
   },
-  statsRow: {
+  formPlaceholder: {
+    height: 28,
+    marginTop: spacing.sm,
+  },
+  tileGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.md,
+  },
+  tile: {
+    flexBasis: "47%",
+  },
+  tabRow: {
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.lg,
+  },
+  tabContent: {
     gap: spacing.md,
-  },
-  statCard: {
-    flex: 1,
-    alignItems: "center",
-  },
-  statValue: {
-    ...typography.stat,
-    color: colors.accent,
-  },
-  statLabel: {
-    ...typography.caption,
-    marginTop: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.md,
   },
   sectionTitle: {
     ...typography.heading,
@@ -433,7 +495,8 @@ const styles = StyleSheet.create({
   },
   actions: {
     gap: spacing.md,
-    marginTop: spacing.sm,
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.lg,
   },
   errorText: {
     ...typography.caption,
@@ -482,5 +545,14 @@ const styles = StyleSheet.create({
   h2hRow: {
     gap: spacing.sm,
     marginTop: spacing.sm,
+  },
+  emptyChartsTitle: {
+    ...typography.bodyStrong,
+    textAlign: "center",
+  },
+  emptyChartsMessage: {
+    ...typography.caption,
+    textAlign: "center",
+    marginTop: spacing.xs,
   },
 });

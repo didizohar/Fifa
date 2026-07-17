@@ -17,7 +17,9 @@ export function Screen({ children, style, padded = true }: ScreenProps) {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
       >
-        <View style={[styles.container, padded && styles.padded, style]}>{children}</View>
+        <View style={styles.webCenter}>
+          <View style={[styles.container, styles.webMaxWidth, padded && styles.padded, style]}>{children}</View>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -33,5 +35,16 @@ const styles = StyleSheet.create({
   },
   padded: {
     paddingHorizontal: spacing.lg,
+  },
+  // On web, content stays centered with a sensible max width instead of
+  // stretching cards/charts across a wide browser window; native platforms
+  // are unaffected (width: "100%" is a no-op at any mobile screen size).
+  webCenter: {
+    flex: 1,
+    alignItems: Platform.OS === "web" ? "center" : "stretch",
+  },
+  webMaxWidth: {
+    width: "100%",
+    maxWidth: Platform.OS === "web" ? 560 : undefined,
   },
 });

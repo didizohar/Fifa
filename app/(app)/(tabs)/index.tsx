@@ -11,6 +11,7 @@ import { MatchRow } from "../../../src/components/MatchRow";
 import { RankingRow } from "../../../src/components/RankingRow";
 import { Screen } from "../../../src/components/Screen";
 import { SkeletonList } from "../../../src/components/Skeleton";
+import { StatTile } from "../../../src/components/StatTile";
 import { useAuth } from "../../../src/hooks/useAuth";
 import { useGroup } from "../../../src/hooks/useGroup";
 import { useGroupMatchHistory, useMatches, usePlayerRecords } from "../../../src/hooks/useMatches";
@@ -94,6 +95,7 @@ export default function HomeScreen() {
               <StatTile label="Players" value={roster.length} />
               <StatTile label="This month" value={matchesThisMonth.length} />
             </View>
+
 
             {myPlayer && myStreak && myForm ? (
               <Card variant="glow">
@@ -226,15 +228,6 @@ function QuickAction({ icon, label, onPress }: { icon: ComponentProps<typeof Ion
   );
 }
 
-function StatTile({ label, value }: { label: string; value: number }) {
-  return (
-    <Card compact style={styles.statTile}>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </Card>
-  );
-}
-
 function Section({
   title,
   onSeeAll,
@@ -309,19 +302,6 @@ const styles = StyleSheet.create({
   statTileRow: {
     flexDirection: "row",
     gap: spacing.sm,
-  },
-  statTile: {
-    flex: 1,
-    alignItems: "center",
-  },
-  statValue: {
-    ...typography.stat,
-    fontSize: 22,
-    color: colors.accent,
-  },
-  statLabel: {
-    ...typography.small,
-    marginTop: 2,
   },
   yourFormRow: {
     flexDirection: "row",
