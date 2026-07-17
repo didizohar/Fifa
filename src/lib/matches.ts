@@ -103,6 +103,65 @@ export async function fetchMatchDetail(matchId: string): Promise<MatchSummary> {
   return normalized;
 }
 
+/**
+ * Every match a given set of players has ever taken part in, as full
+ * MatchSummary objects (both sides, scores, clubs, rosters) -- unlike
+ * fetchRecentMatches this is uncapped, since lifetime/advanced stats must
+ * reflect a player's whole history, not just a recency window. Two-step
+ * fetch (match ids first, then full match rows) because Supabase's nested
+ * embed filters restrict which *nested* rows come back, not which parent
+ * rows match -- a single query can't cleanly say "only matches where one of
+ * these players appears on either side."
+ */
+export async function fetchPlayerMatchHistory(playerIds: string[]): Promise<MatchSummary[]> {
+  if (playerIds.length === 0) return [];
+
+  const { data: idRows, error: idError } = await supabase
+    .from("match_players")
+    .select("match_side:match_sides(match_id)")
+    .in("player_id", playerIds);
+
+  if (idError) throw new Error(`Failed to load match history: ${idError.message}`);
+
+  const matchIds = [
+    ...new Set(
+      ((idRows ?? []) as unknown as { match_side: { match_id: string } | null }[])
+        .map((row) => row.match_side?.match_id)
+        .filter((id): id is string => !!id),
+    ),
+  ];
+  if (matchIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("matches")
+    .select(MATCH_SELECT)
+    .in("id", matchIds)
+    .order("played_at", { ascending: false });
+
+  if (error) throw new Error(`Failed to load match history: ${error.message}`);
+  return ((data ?? []) as unknown as RawMatch[]).map(normalizeMatch).filter((m): m is MatchSummary => m !== null);
+}
+
+export interface EloHistoryEntry {
+  match_id: string;
+  match_type: MatchType;
+  rating_before: number;
+  rating_after: number;
+  recorded_at: string;
+}
+
+/** Full rating timeline for one player, oldest first -- source for Elo progression charts. */
+export async function fetchEloHistory(playerId: string): Promise<EloHistoryEntry[]> {
+  const { data, error } = await supabase
+    .from("elo_history")
+    .select("match_id, match_type, rating_before, rating_after, recorded_at")
+    .eq("player_id", playerId)
+    .order("recorded_at", { ascending: true });
+
+  if (error) throw new Error(`Failed to load Elo history: ${error.message}`);
+  return (data ?? []) as EloHistoryEntry[];
+}
+
 export interface PlayerRecordRow {
   player_id: string;
   result: SideResult;

@@ -1,20 +1,45 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../src/components/Avatar";
+import { BarChart } from "../../../../src/components/BarChart";
 import { Button } from "../../../../src/components/Button";
 import { Card } from "../../../../src/components/Card";
 import { ErrorState } from "../../../../src/components/ErrorState";
+import { FormStrip } from "../../../../src/components/FormStrip";
+import { PlayerPicker } from "../../../../src/components/PlayerPicker";
 import { Screen } from "../../../../src/components/Screen";
 import { Skeleton } from "../../../../src/components/Skeleton";
+import { Sparkline } from "../../../../src/components/Sparkline";
 import { useAuth } from "../../../../src/hooks/useAuth";
 import { useGroup } from "../../../../src/hooks/useGroup";
-import { usePlayerRecords } from "../../../../src/hooks/useMatches";
+import { useEloHistory, usePlayerMatchHistory, usePlayerRecords } from "../../../../src/hooks/useMatches";
 import { useArchivePlayer, useUpdatePlayer } from "../../../../src/hooks/usePlayerMutations";
 import { usePlayer } from "../../../../src/hooks/usePlayers";
 import { confirmAction, notify } from "../../../../src/lib/confirm";
+import type { MatchSummary } from "../../../../src/lib/matches";
+import {
+  computeBiggestLoss,
+  computeBiggestWin,
+  computeClubPerformance,
+  computeDoublesPartnerships,
+  computeGoalStats,
+  computeHeadToHead,
+  computeLastNStats,
+  computeStreaks,
+  findSides,
+} from "../../../../src/lib/stats";
 import { pickAndUploadAvatar } from "../../../../src/lib/storage";
 import { colors, spacing, typography } from "../../../../src/theme";
+
+const EMPTY_MATCHES: MatchSummary[] = [];
+
+function opponentLabel(playerId: string, match: MatchSummary): string {
+  const sides = findSides(playerId, match);
+  if (!sides) return "Unknown opponent";
+  const names = sides.opponent.players.map((p) => p.display_name).join(" & ");
+  return sides.opponent.club ? `${names} (${sides.opponent.club.name})` : names;
+}
 
 export default function PlayerDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -23,9 +48,47 @@ export default function PlayerDetailScreen() {
   const { currentGroupId, currentRole } = useGroup();
   const { data: player, isLoading, isError, refetch } = usePlayer(id);
   const records = usePlayerRecords(id ? [id] : []);
+  const matchHistory = usePlayerMatchHistory(id);
+  const eloHistoryQuery = useEloHistory(id);
   const updatePlayer = useUpdatePlayer(currentGroupId);
   const archivePlayer = useArchivePlayer(currentGroupId);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [headToHeadOpponentId, setHeadToHeadOpponentId] = useState<string | null>(null);
+
+  const playerId = id ?? "";
+  const matches = matchHistory.data ?? EMPTY_MATCHES;
+  const eloEntries = eloHistoryQuery.data ?? [];
+
+  const goalStats = useMemo(() => computeGoalStats(playerId, matches), [playerId, matches]);
+  const streaks = useMemo(() => computeStreaks(playerId, matches), [playerId, matches]);
+  const last10 = useMemo(() => computeLastNStats(playerId, matches, 10), [playerId, matches]);
+  const biggestWin = useMemo(() => computeBiggestWin(playerId, matches), [playerId, matches]);
+  const biggestLoss = useMemo(() => computeBiggestLoss(playerId, matches), [playerId, matches]);
+  const clubPerformance = useMemo(() => computeClubPerformance(playerId, matches), [playerId, matches]);
+  const partnerships = useMemo(() => computeDoublesPartnerships(playerId, matches), [playerId, matches]);
+  const opponents = useMemo(() => {
+    const map = new Map<string, { id: string; displayName: string; avatarUrl: string | null; color: string }>();
+    for (const match of matches) {
+      const sides = findSides(playerId, match);
+      if (!sides) continue;
+      for (const p of sides.opponent.players) {
+        if (!map.has(p.id)) map.set(p.id, { id: p.id, displayName: p.display_name, avatarUrl: p.avatar_url, color: p.custom_color });
+      }
+    }
+    return [...map.values()].sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }, [playerId, matches]);
+  const headToHead = useMemo(
+    () => (headToHeadOpponentId ? computeHeadToHead(playerId, headToHeadOpponentId, matches) : null),
+    [playerId, headToHeadOpponentId, matches],
+  );
+  const singlesEloSeries = useMemo(
+    () => eloEntries.filter((e) => e.match_type === "singles").map((e) => e.rating_after),
+    [eloEntries],
+  );
+  const doublesEloSeries = useMemo(
+    () => eloEntries.filter((e) => e.match_type === "doubles").map((e) => e.rating_after),
+    [eloEntries],
+  );
 
   if (isLoading) {
     return (
@@ -115,6 +178,147 @@ export default function PlayerDetailScreen() {
           )}
         </Card>
 
+        <Card>
+          <Text style={styles.sectionTitle}>Form (last 10)</Text>
+          {matchHistory.isLoading ? (
+            <Skeleton height={40} />
+          ) : matchHistory.isError ? (
+            <Text style={styles.errorText}>Couldn't load match history.</Text>
+          ) : (
+            <>
+              <FormStrip results={last10.form.map((f) => f.result)} />
+              <View style={styles.streakRow}>
+                <Text style={styles.streakText}>
+                  Current streak:{" "}
+                  <Text
+                    style={
+                      streaks.currentStreak.result === "win"
+                        ? styles.streakWin
+                        : streaks.currentStreak.result === "loss"
+                          ? styles.streakLoss
+                          : undefined
+                    }
+                  >
+                    {streaks.currentStreak.count > 0
+                      ? `${streaks.currentStreak.count} ${streaks.currentStreak.result}${streaks.currentStreak.count > 1 ? "s" : ""}`
+                      : "—"}
+                  </Text>
+                </Text>
+                <Text style={styles.streakText}>Best win streak: {streaks.longestWinStreak}</Text>
+                <Text style={styles.streakText}>Worst losing streak: {streaks.longestLossStreak}</Text>
+              </View>
+            </>
+          )}
+        </Card>
+
+        <Card>
+          <Text style={styles.sectionTitle}>Goals</Text>
+          {matchHistory.isLoading ? (
+            <Skeleton height={40} />
+          ) : (
+            <View style={styles.recordRow}>
+              <RecordStat label="Scored" value={goalStats.goalsScored} />
+              <RecordStat label="Conceded" value={goalStats.goalsConceded} />
+              <RecordStat label="Per match" value={goalStats.goalsPerMatch !== null ? goalStats.goalsPerMatch.toFixed(2) : "–"} />
+              <RecordStat label="Clean sheets" value={goalStats.cleanSheets} color={colors.accent} />
+            </View>
+          )}
+        </Card>
+
+        <Card>
+          <Text style={styles.sectionTitle}>Best & Worst</Text>
+          {matchHistory.isLoading ? (
+            <Skeleton height={40} />
+          ) : (
+            <View style={styles.bestWorst}>
+              <View style={styles.bestWorstRow}>
+                <Text style={styles.bestWorstLabel}>Biggest win</Text>
+                {biggestWin ? (
+                  <Text style={styles.bestWorstValue} numberOfLines={1}>
+                    {biggestWin.ownScore}-{biggestWin.opponentScore} vs {opponentLabel(playerId, biggestWin.match)}
+                  </Text>
+                ) : (
+                  <Text style={styles.bestWorstEmpty}>No wins yet</Text>
+                )}
+              </View>
+              <View style={styles.bestWorstRow}>
+                <Text style={styles.bestWorstLabel}>Biggest loss</Text>
+                {biggestLoss ? (
+                  <Text style={styles.bestWorstValue} numberOfLines={1}>
+                    {biggestLoss.ownScore}-{biggestLoss.opponentScore} vs {opponentLabel(playerId, biggestLoss.match)}
+                  </Text>
+                ) : (
+                  <Text style={styles.bestWorstEmpty}>No losses yet</Text>
+                )}
+              </View>
+            </View>
+          )}
+        </Card>
+
+        <Card>
+          <Text style={styles.sectionTitle}>Elo Progression</Text>
+          {eloHistoryQuery.isLoading ? (
+            <Skeleton height={80} />
+          ) : (
+            <View style={styles.eloSection}>
+              <View>
+                <Text style={styles.subLabel}>Singles</Text>
+                <Sparkline values={singlesEloSeries} />
+              </View>
+              <View>
+                <Text style={styles.subLabel}>Doubles</Text>
+                <Sparkline values={doublesEloSeries} />
+              </View>
+            </View>
+          )}
+        </Card>
+
+        {clubPerformance.length > 0 ? (
+          <Card>
+            <Text style={styles.sectionTitle}>By Club</Text>
+            <BarChart
+              rows={clubPerformance.slice(0, 6).map((c) => ({
+                label: c.clubName,
+                value: c.played,
+                valueLabel: `${c.wins}-${c.losses}-${c.draws}`,
+              }))}
+            />
+          </Card>
+        ) : null}
+
+        {partnerships.length > 0 ? (
+          <Card>
+            <Text style={styles.sectionTitle}>Doubles Partners</Text>
+            <BarChart
+              rows={partnerships.slice(0, 6).map((p) => ({
+                label: p.teammateName,
+                value: p.played,
+                valueLabel: `${p.wins}-${p.losses}-${p.draws}`,
+              }))}
+            />
+          </Card>
+        ) : null}
+
+        {opponents.length > 0 ? (
+          <Card>
+            <Text style={styles.sectionTitle}>Head-to-Head</Text>
+            <PlayerPicker
+              players={opponents}
+              selectedIds={headToHeadOpponentId ? [headToHeadOpponentId] : []}
+              onToggle={(opponentId) => setHeadToHeadOpponentId((prev) => (prev === opponentId ? null : opponentId))}
+              maxSelected={1}
+            />
+            {headToHead ? (
+              <View style={[styles.recordRow, styles.h2hRow]}>
+                <RecordStat label="Played" value={headToHead.played} />
+                <RecordStat label="Wins" value={headToHead.wins} color={colors.win} />
+                <RecordStat label="Losses" value={headToHead.losses} color={colors.loss} />
+                <RecordStat label="Draws" value={headToHead.draws} color={colors.draw} />
+              </View>
+            ) : null}
+          </Card>
+        ) : null}
+
         {canManage ? (
           <View style={styles.actions}>
             <Button label="Edit player" variant="secondary" onPress={() => router.push(`/player/${player.id}/edit`)} />
@@ -128,7 +332,7 @@ export default function PlayerDetailScreen() {
   );
 }
 
-function RecordStat({ label, value, color }: { label: string; value: number; color?: string }) {
+function RecordStat({ label, value, color }: { label: string; value: number | string; color?: string }) {
   return (
     <View style={styles.recordStat}>
       <Text style={[styles.recordValue, color ? { color } : null]}>{value}</Text>
@@ -207,5 +411,49 @@ const styles = StyleSheet.create({
   actions: {
     gap: spacing.md,
     marginTop: spacing.sm,
+  },
+  errorText: {
+    ...typography.caption,
+    color: colors.danger,
+  },
+  streakRow: {
+    gap: spacing.xs,
+    marginTop: spacing.md,
+  },
+  streakText: {
+    ...typography.caption,
+  },
+  streakWin: {
+    color: colors.win,
+    fontWeight: "700",
+  },
+  streakLoss: {
+    color: colors.loss,
+    fontWeight: "700",
+  },
+  bestWorst: {
+    gap: spacing.md,
+  },
+  bestWorstRow: {
+    gap: 2,
+  },
+  bestWorstLabel: {
+    ...typography.small,
+  },
+  bestWorstValue: {
+    ...typography.bodyStrong,
+  },
+  bestWorstEmpty: {
+    ...typography.caption,
+  },
+  eloSection: {
+    gap: spacing.lg,
+  },
+  subLabel: {
+    ...typography.small,
+    marginBottom: spacing.xs,
+  },
+  h2hRow: {
+    marginTop: spacing.md,
   },
 });

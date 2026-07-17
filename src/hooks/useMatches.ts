@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchMatchDetail, fetchPlayerRecordRows, fetchRecentMatches } from "../lib/matches";
+import { fetchEloHistory, fetchMatchDetail, fetchPlayerMatchHistory, fetchPlayerRecordRows, fetchRecentMatches } from "../lib/matches";
 import { matchKeys } from "../lib/queryClient";
 import { computeAllRecordsFromRows } from "../lib/stats";
 
@@ -31,5 +31,26 @@ export function usePlayerRecords(playerIds: string[]) {
     queryKey: matchKeys.records(sortedIds),
     queryFn: async () => computeAllRecordsFromRows(sortedIds, await fetchPlayerRecordRows(sortedIds)),
     enabled: sortedIds.length > 0,
+  });
+}
+
+/**
+ * Full match history (uncapped) for one player -- the source data for
+ * advanced/lifetime stats (goals, streaks, club performance, etc.), which
+ * all need every match, not fetchMatches's recency-limited list.
+ */
+export function usePlayerMatchHistory(playerId: string | undefined) {
+  return useQuery({
+    queryKey: matchKeys.history(playerId ? [playerId] : []),
+    queryFn: () => fetchPlayerMatchHistory([playerId!]),
+    enabled: !!playerId,
+  });
+}
+
+export function useEloHistory(playerId: string | undefined) {
+  return useQuery({
+    queryKey: matchKeys.eloHistory(playerId ?? ""),
+    queryFn: () => fetchEloHistory(playerId!),
+    enabled: !!playerId,
   });
 }
