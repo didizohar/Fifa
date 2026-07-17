@@ -20,13 +20,17 @@
       "package": "com.fcrival.app"
     },
     "extra": {
-      "eas": {}
+      "eas": {
+        "projectId": "2230efa2-657c-4678-897d-e34ebe9cd7a0"
+      },
+      "router": {}
     },
     "plugins": [
       "expo-router",
       "expo-image",
       "expo-splash-screen",
       "expo-font"
-    ]
+    ],
+    "owner": "didizzz"
   }
 }
