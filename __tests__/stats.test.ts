@@ -1,18 +1,26 @@
 import {
   computeAllRecordsFromRows,
+  computeBestDoublesPairs,
   computeBiggestLoss,
   computeBiggestWin,
   computeClubPerformance,
   computeDoublesPartnerships,
+  computeEloLeaderboard,
+  computeFewestConcededLeaderboard,
+  computeGoalsScoredLeaderboard,
   computeGoalStats,
   computeHeadToHead,
   computeLastNStats,
+  computeLongestStreakLeaderboard,
+  computeMonthlyLeaderboard,
+  computeMostMatchesLeaderboard,
   computePlayerStats,
   computeRecordFromRows,
   computeStreaks,
+  computeWinRateLeaderboard,
   findSides,
 } from "../src/lib/stats";
-import type { MatchSummary, PlayerRecordRow } from "../src/lib/matches";
+import type { MatchSidePlayer, MatchSummary, PlayerRecordRow } from "../src/lib/matches";
 
 function makeMatch(playerIdsBySide: [string[], string[]], results: ["win" | "loss" | "draw", "win" | "loss" | "draw"]): MatchSummary {
   return {
@@ -275,5 +283,138 @@ describe("computeDoublesPartnerships", () => {
     expect(computeDoublesPartnerships("p1", matches)).toEqual([
       { teammateId: "mate1", teammateName: "mate1", played: 2, wins: 1, losses: 1, draws: 0, winRate: 0.5 },
     ]);
+  });
+});
+
+function roster(ids: string[]): MatchSidePlayer[] {
+  return ids.map((id) => ({ id, display_name: id, avatar_url: null, custom_color: "#000" }));
+}
+
+describe("computeEloLeaderboard", () => {
+  it("sorts players by Elo descending", () => {
+    const players = [
+      { id: "p1", displayName: "p1", avatarUrl: null, color: "#000", elo: 1000 },
+      { id: "p2", displayName: "p2", avatarUrl: null, color: "#000", elo: 1200 },
+      { id: "p3", displayName: "p3", avatarUrl: null, color: "#000", elo: 1100 },
+    ];
+    expect(computeEloLeaderboard(players).map((r) => r.playerId)).toEqual(["p2", "p3", "p1"]);
+    expect(computeEloLeaderboard(players)[0]).toMatchObject({ value: 1200, valueLabel: "1200" });
+  });
+});
+
+describe("computeWinRateLeaderboard", () => {
+  it("excludes players below the minPlayed threshold and sorts by win rate", () => {
+    const matches = [
+      // p1 beats p2 three times (100% for p1, 0% for p2, both with 3 played).
+      ...[0, 1, 2].map(() => makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" })),
+      // p4 has a single win -- below the minPlayed threshold of 3, so excluded.
+      makeDetailedMatch({ playerIds: ["p4"], score: 1, result: "win" }, { playerIds: ["p3"], score: 0, result: "loss" }),
+    ];
+    const rows = computeWinRateLeaderboard(roster(["p1", "p2", "p3", "p4"]), matches, 3);
+    expect(rows.map((r) => r.playerId)).toEqual(["p1", "p2"]);
+    expect(rows[0]).toMatchObject({ value: 1, valueLabel: "100%", detail: "3W-0L-0D" });
+    expect(rows[1]).toMatchObject({ value: 0, valueLabel: "0%", detail: "0W-3L-0D" });
+  });
+});
+
+describe("computeMostMatchesLeaderboard", () => {
+  it("sorts by matches played descending and excludes players with none", () => {
+    const matches = [
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 0, result: "loss" }, { playerIds: ["p2"], score: 1, result: "win" }),
+    ];
+    const rows = computeMostMatchesLeaderboard(roster(["p1", "p2", "p3"]), matches);
+    expect(rows.map((r) => r.playerId)).toEqual(["p1", "p2"]);
+    expect(rows[0]!.value).toBe(2);
+  });
+});
+
+describe("computeLongestStreakLeaderboard", () => {
+  it("ranks by longest win streak, excluding players with no wins", () => {
+    const base = Date.now();
+    const day = (n: number) => new Date(base + n * 86_400_000).toISOString();
+    const matches = [
+      // p1 beats p2 twice (win streak of 2).
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }, { playedAt: day(0) }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }, { playedAt: day(1) }),
+      // p2 then beats p3 once (win streak of 1). p3 has no wins at all, so it's excluded.
+      makeDetailedMatch({ playerIds: ["p3"], score: 0, result: "loss" }, { playerIds: ["p2"], score: 1, result: "win" }, { playedAt: day(2) }),
+    ];
+    const rows = computeLongestStreakLeaderboard(roster(["p1", "p2", "p3"]), matches);
+    expect(rows.map((r) => r.playerId)).toEqual(["p1", "p2"]);
+    expect(rows[0]).toMatchObject({ value: 2, valueLabel: "2" });
+    expect(rows[1]).toMatchObject({ value: 1, valueLabel: "1" });
+  });
+});
+
+describe("computeGoalsScoredLeaderboard", () => {
+  it("sorts by total goals scored descending", () => {
+    const matches = [
+      makeDetailedMatch({ playerIds: ["p1"], score: 5, result: "win" }, { playerIds: ["p2"], score: 1, result: "loss" }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "loss" }, { playerIds: ["p2"], score: 2, result: "win" }),
+    ];
+    const rows = computeGoalsScoredLeaderboard(roster(["p1", "p2"]), matches);
+    expect(rows.map((r) => r.playerId)).toEqual(["p1", "p2"]);
+    expect(rows[0]).toMatchObject({ value: 6, valueLabel: "6", detail: "3.00 per match" });
+  });
+});
+
+describe("computeFewestConcededLeaderboard", () => {
+  it("sorts ascending by goals conceded, excluding players below minPlayed", () => {
+    const matches = [
+      makeDetailedMatch({ playerIds: ["p1"], score: 3, result: "win" }, { playerIds: ["p2"], score: 1, result: "loss" }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 2, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 4, result: "win" }, { playerIds: ["p2"], score: 1, result: "loss" }),
+    ];
+    // p1 concedes 1+0+1=2 across 3 matches; p2 concedes 3+2+4=9.
+    const rows = computeFewestConcededLeaderboard(roster(["p1", "p2"]), matches, 3);
+    expect(rows.map((r) => r.playerId)).toEqual(["p1", "p2"]);
+    expect(rows[0]!.value).toBe(2);
+    expect(rows[1]!.value).toBe(9);
+  });
+});
+
+describe("computeMonthlyLeaderboard", () => {
+  it("only counts matches played in the given month/year, ranked by wins", () => {
+    const inMonth = new Date(2026, 2, 15).toISOString();
+    const outOfMonth = new Date(2026, 1, 15).toISOString();
+    const matches = [
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }, { playedAt: inMonth }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }, { playedAt: outOfMonth }),
+    ];
+    const rows = computeMonthlyLeaderboard(roster(["p1", "p2"]), matches, 2026, 2);
+    expect(rows.map((r) => r.playerId)).toEqual(["p1", "p2"]);
+    expect(rows[0]).toMatchObject({ value: 1, valueLabel: "1 win" });
+    expect(rows[1]).toMatchObject({ value: 0, valueLabel: "0 wins" });
+  });
+});
+
+describe("computeBestDoublesPairs", () => {
+  it("aggregates each side's pair across doubles matches, ignoring singles, sorted by win rate then played", () => {
+    const matches = [
+      ...[0, 1, 2].map(() =>
+        makeDetailedMatch(
+          { playerIds: ["p1", "p2"], score: 2, result: "win" },
+          { playerIds: ["p3", "p4"], score: 1, result: "loss" },
+          { matchType: "doubles" },
+        ),
+      ),
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p3"], score: 0, result: "loss" }, { matchType: "singles" }),
+    ];
+    const rows = computeBestDoublesPairs(matches, 3);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ playerIds: ["p1", "p2"], played: 3, wins: 3, losses: 0, winRate: 1 });
+    expect(rows[1]).toMatchObject({ playerIds: ["p3", "p4"], played: 3, wins: 0, losses: 3, winRate: 0 });
+  });
+
+  it("excludes pairs below the minPlayed threshold", () => {
+    const matches = [
+      makeDetailedMatch(
+        { playerIds: ["p1", "p2"], score: 2, result: "win" },
+        { playerIds: ["p3", "p4"], score: 1, result: "loss" },
+        { matchType: "doubles" },
+      ),
+    ];
+    expect(computeBestDoublesPairs(matches, 3)).toEqual([]);
   });
 });

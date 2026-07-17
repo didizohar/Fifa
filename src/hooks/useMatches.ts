@@ -1,5 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchEloHistory, fetchMatchDetail, fetchPlayerMatchHistory, fetchPlayerRecordRows, fetchRecentMatches } from "../lib/matches";
+import {
+  fetchEloHistory,
+  fetchGroupMatchHistory,
+  fetchMatchDetail,
+  fetchPlayerMatchHistory,
+  fetchPlayerRecordRows,
+  fetchRecentMatches,
+} from "../lib/matches";
 import { matchKeys } from "../lib/queryClient";
 import { computeAllRecordsFromRows } from "../lib/stats";
 
@@ -52,5 +59,14 @@ export function useEloHistory(playerId: string | undefined) {
     queryKey: matchKeys.eloHistory(playerId ?? ""),
     queryFn: () => fetchEloHistory(playerId!),
     enabled: !!playerId,
+  });
+}
+
+/** Full, uncapped match history for a whole group -- source data for leaderboards. */
+export function useGroupMatchHistory(groupId: string | null) {
+  return useQuery({
+    queryKey: matchKeys.groupHistory(groupId ?? ""),
+    queryFn: () => fetchGroupMatchHistory(groupId!),
+    enabled: !!groupId,
   });
 }

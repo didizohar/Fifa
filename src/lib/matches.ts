@@ -95,6 +95,22 @@ export async function fetchRecentMatches(groupId: string, limit = 20): Promise<M
   return ((data ?? []) as unknown as RawMatch[]).map(normalizeMatch).filter((m): m is MatchSummary => m !== null);
 }
 
+/**
+ * Every match ever played in a group, uncapped -- unlike fetchRecentMatches
+ * (which caps for dashboard/history previews), leaderboards need the whole
+ * group history to rank fairly across a player's full career.
+ */
+export async function fetchGroupMatchHistory(groupId: string): Promise<MatchSummary[]> {
+  const { data, error } = await supabase
+    .from("matches")
+    .select(MATCH_SELECT)
+    .eq("group_id", groupId)
+    .order("played_at", { ascending: false });
+
+  if (error) throw new Error(`Failed to load group match history: ${error.message}`);
+  return ((data ?? []) as unknown as RawMatch[]).map(normalizeMatch).filter((m): m is MatchSummary => m !== null);
+}
+
 export async function fetchMatchDetail(matchId: string): Promise<MatchSummary> {
   const { data, error } = await supabase.from("matches").select(MATCH_SELECT).eq("id", matchId).single();
   if (error) throw new Error(`Failed to load match: ${error.message}`);

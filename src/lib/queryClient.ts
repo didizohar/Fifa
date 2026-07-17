@@ -21,6 +21,7 @@ export const matchKeys = {
   records: (playerIds: string[]) => ["matches", "records", ...playerIds] as const,
   history: (playerIds: string[]) => ["matches", "history", ...playerIds] as const,
   eloHistory: (playerId: string) => ["matches", "eloHistory", playerId] as const,
+  groupHistory: (groupId: string) => ["matches", "groupHistory", groupId] as const,
 };
 
 export const groupKeys = {

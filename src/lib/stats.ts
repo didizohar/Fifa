@@ -1,4 +1,4 @@
-import type { MatchSideSummary, MatchSummary, PlayerRecordRow } from "./matches";
+import type { MatchSidePlayer, MatchSideSummary, MatchSummary, PlayerRecordRow } from "./matches";
 import type { SideResult } from "./types/database";
 
 export interface PlayerStats {
@@ -268,4 +268,190 @@ export function computeDoublesPartnerships(playerId: string, matches: MatchSumma
       return { teammateId, teammateName: e.name, played, wins: e.wins, losses: e.losses, draws: e.draws, winRate: played === 0 ? null : e.wins / played };
     })
     .sort((a, b) => b.played - a.played);
+}
+
+export interface LeaderboardRow {
+  playerId: string;
+  playerName: string;
+  avatarUrl: string | null;
+  color: string;
+  /** Raw metric this leaderboard is ranked by -- for sorting/testing, not display. */
+  value: number;
+  /** Formatted primary metric, e.g. "1050", "62%", "5". */
+  valueLabel: string;
+  /** Secondary line, e.g. "12W-3L-1D". */
+  detail: string;
+}
+
+export interface EloLeaderboardPlayer {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+  color: string;
+  elo: number;
+}
+
+export function computeEloLeaderboard(players: EloLeaderboardPlayer[]): LeaderboardRow[] {
+  return players
+    .slice()
+    .sort((a, b) => b.elo - a.elo)
+    .map((p) => ({
+      playerId: p.id,
+      playerName: p.displayName,
+      avatarUrl: p.avatarUrl,
+      color: p.color,
+      value: p.elo,
+      valueLabel: `${p.elo}`,
+      detail: "Elo rating",
+    }));
+}
+
+function recordDetail(stats: PlayerStats): string {
+  return `${stats.wins}W-${stats.losses}L-${stats.draws}D`;
+}
+
+/** Win-rate leaderboard, restricted to players with at least minPlayed matches so a 1-0 record can't top the board. */
+export function computeWinRateLeaderboard(players: MatchSidePlayer[], matches: MatchSummary[], minPlayed = 3): LeaderboardRow[] {
+  return players
+    .map((p) => ({ player: p, stats: computePlayerStats(p.id, matches) }))
+    .filter((r) => r.stats.played >= minPlayed)
+    .sort((a, b) => (b.stats.winRate ?? 0) - (a.stats.winRate ?? 0))
+    .map((r) => ({
+      playerId: r.player.id,
+      playerName: r.player.display_name,
+      avatarUrl: r.player.avatar_url,
+      color: r.player.custom_color,
+      value: r.stats.winRate ?? 0,
+      valueLabel: `${Math.round((r.stats.winRate ?? 0) * 100)}%`,
+      detail: recordDetail(r.stats),
+    }));
+}
+
+export function computeMostMatchesLeaderboard(players: MatchSidePlayer[], matches: MatchSummary[]): LeaderboardRow[] {
+  return players
+    .map((p) => ({ player: p, stats: computePlayerStats(p.id, matches) }))
+    .filter((r) => r.stats.played > 0)
+    .sort((a, b) => b.stats.played - a.stats.played)
+    .map((r) => ({
+      playerId: r.player.id,
+      playerName: r.player.display_name,
+      avatarUrl: r.player.avatar_url,
+      color: r.player.custom_color,
+      value: r.stats.played,
+      valueLabel: `${r.stats.played}`,
+      detail: recordDetail(r.stats),
+    }));
+}
+
+export function computeLongestStreakLeaderboard(players: MatchSidePlayer[], matches: MatchSummary[]): LeaderboardRow[] {
+  return players
+    .map((p) => ({ player: p, streaks: computeStreaks(p.id, matches) }))
+    .filter((r) => r.streaks.longestWinStreak > 0)
+    .sort((a, b) => b.streaks.longestWinStreak - a.streaks.longestWinStreak)
+    .map((r) => ({
+      playerId: r.player.id,
+      playerName: r.player.display_name,
+      avatarUrl: r.player.avatar_url,
+      color: r.player.custom_color,
+      value: r.streaks.longestWinStreak,
+      valueLabel: `${r.streaks.longestWinStreak}`,
+      detail: r.streaks.longestWinStreak === 1 ? "1 match" : `${r.streaks.longestWinStreak} matches`,
+    }));
+}
+
+export function computeGoalsScoredLeaderboard(players: MatchSidePlayer[], matches: MatchSummary[]): LeaderboardRow[] {
+  return players
+    .map((p) => ({ player: p, goals: computeGoalStats(p.id, matches) }))
+    .filter((r) => r.goals.goalsScored > 0)
+    .sort((a, b) => b.goals.goalsScored - a.goals.goalsScored)
+    .map((r) => ({
+      playerId: r.player.id,
+      playerName: r.player.display_name,
+      avatarUrl: r.player.avatar_url,
+      color: r.player.custom_color,
+      value: r.goals.goalsScored,
+      valueLabel: `${r.goals.goalsScored}`,
+      detail: `${(r.goals.goalsPerMatch ?? 0).toFixed(2)} per match`,
+    }));
+}
+
+/** Fewest goals conceded (best defensive record), restricted to players with at least minPlayed matches. */
+export function computeFewestConcededLeaderboard(players: MatchSidePlayer[], matches: MatchSummary[], minPlayed = 3): LeaderboardRow[] {
+  return players
+    .map((p) => ({ player: p, stats: computePlayerStats(p.id, matches), goals: computeGoalStats(p.id, matches) }))
+    .filter((r) => r.stats.played >= minPlayed)
+    .sort((a, b) => a.goals.goalsConceded - b.goals.goalsConceded)
+    .map((r) => ({
+      playerId: r.player.id,
+      playerName: r.player.display_name,
+      avatarUrl: r.player.avatar_url,
+      color: r.player.custom_color,
+      value: r.goals.goalsConceded,
+      valueLabel: `${r.goals.goalsConceded}`,
+      detail: `${(r.goals.goalsConceded / r.stats.played).toFixed(2)} per match`,
+    }));
+}
+
+/** Ranking restricted to matches played in the given month (JS Date convention: month is 0-indexed), ranked by wins. */
+export function computeMonthlyLeaderboard(
+  players: MatchSidePlayer[],
+  matches: MatchSummary[],
+  year: number,
+  month: number,
+): LeaderboardRow[] {
+  const inMonth = matches.filter((m) => {
+    const d = new Date(m.played_at);
+    return d.getFullYear() === year && d.getMonth() === month;
+  });
+
+  return players
+    .map((p) => ({ player: p, stats: computePlayerStats(p.id, inMonth) }))
+    .filter((r) => r.stats.played > 0)
+    .sort((a, b) => b.stats.wins - a.stats.wins || (b.stats.winRate ?? 0) - (a.stats.winRate ?? 0))
+    .map((r) => ({
+      playerId: r.player.id,
+      playerName: r.player.display_name,
+      avatarUrl: r.player.avatar_url,
+      color: r.player.custom_color,
+      value: r.stats.wins,
+      valueLabel: r.stats.wins === 1 ? "1 win" : `${r.stats.wins} wins`,
+      detail: `${r.stats.played} played · ${Math.round((r.stats.winRate ?? 0) * 100)}% win`,
+    }));
+}
+
+export interface DoublesPairRow {
+  playerIds: [string, string];
+  playerNames: [string, string];
+  played: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  winRate: number | null;
+}
+
+/** Group-wide doubles pair leaderboard (pair vs. pair, not one player's perspective), sorted by win rate then most played. */
+export function computeBestDoublesPairs(matches: MatchSummary[], minPlayed = 3): DoublesPairRow[] {
+  const byPair = new Map<string, { ids: [string, string]; names: [string, string]; wins: number; losses: number; draws: number }>();
+
+  for (const match of matches) {
+    if (match.match_type !== "doubles") continue;
+    for (const side of match.sides) {
+      if (side.players.length !== 2) continue;
+      const [p1, p2] = [...side.players].sort((a, b) => a.id.localeCompare(b.id)) as [MatchSidePlayer, MatchSidePlayer];
+      const key = `${p1.id}:${p2.id}`;
+      const entry = byPair.get(key) ?? { ids: [p1.id, p2.id], names: [p1.display_name, p2.display_name], wins: 0, losses: 0, draws: 0 };
+      if (side.result === "win") entry.wins++;
+      else if (side.result === "loss") entry.losses++;
+      else entry.draws++;
+      byPair.set(key, entry);
+    }
+  }
+
+  return [...byPair.values()]
+    .map((e) => {
+      const played = e.wins + e.losses + e.draws;
+      return { playerIds: e.ids, playerNames: e.names, played, wins: e.wins, losses: e.losses, draws: e.draws, winRate: played === 0 ? null : e.wins / played };
+    })
+    .filter((row) => row.played >= minPlayed)
+    .sort((a, b) => (b.winRate ?? 0) - (a.winRate ?? 0) || b.played - a.played);
 }

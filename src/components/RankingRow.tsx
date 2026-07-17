@@ -7,24 +7,23 @@ interface RankingRowProps {
   name: string;
   avatarUrl?: string | null;
   color: string;
-  elo: number;
-  winRate: number | null;
-  matchesPlayed: number;
+  /** Prominent right-aligned metric, e.g. an Elo rating, win %, or goal count. */
+  value: number | string;
+  /** Secondary line under the name, e.g. "12 played · 60% win". */
+  detail: string;
   onPress?: () => void;
 }
 
-export function RankingRow({ rank, name, avatarUrl, color, elo, winRate, matchesPlayed, onPress }: RankingRowProps) {
+export function RankingRow({ rank, name, avatarUrl, color, value, detail, onPress }: RankingRowProps) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
       <Text style={styles.rank}>{rank}</Text>
       <Avatar uri={avatarUrl} name={name} color={color} size={40} />
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={1}>{name}</Text>
-        <Text style={styles.meta}>
-          {matchesPlayed === 0 ? "No matches yet" : `${matchesPlayed} played · ${winRate !== null ? Math.round(winRate * 100) : 0}% win`}
-        </Text>
+        <Text style={styles.meta}>{detail}</Text>
       </View>
-      <Text style={styles.elo}>{elo}</Text>
+      <Text style={styles.elo}>{value}</Text>
     </Pressable>
   );
 }

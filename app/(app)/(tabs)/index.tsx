@@ -61,7 +61,7 @@ export default function HomeScreen() {
           <>
             <Section
               title="Rankings"
-              onSeeAll={() => router.push("/players")}
+              onSeeAll={() => router.push("/leaderboards")}
               isEmpty={(players.data ?? []).length === 0}
               emptyProps={{
                 icon: "🏆",
@@ -73,6 +73,8 @@ export default function HomeScreen() {
             >
               {(players.data ?? []).slice(0, RANKINGS_PREVIEW).map((player, index) => {
                 const stats = records.data?.get(player.id) ?? null;
+                const matchesPlayed = stats?.played ?? 0;
+                const winRate = stats?.winRate ?? null;
                 return (
                   <RankingRow
                     key={player.id}
@@ -80,9 +82,8 @@ export default function HomeScreen() {
                     name={player.display_name}
                     avatarUrl={player.avatar_url}
                     color={player.custom_color}
-                    elo={player.singles_elo}
-                    winRate={stats?.winRate ?? null}
-                    matchesPlayed={stats?.played ?? 0}
+                    value={player.singles_elo}
+                    detail={matchesPlayed === 0 ? "No matches yet" : `${matchesPlayed} played · ${winRate !== null ? Math.round(winRate * 100) : 0}% win`}
                     onPress={() => router.push(`/player/${player.id}`)}
                   />
                 );
