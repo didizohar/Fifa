@@ -102,3 +102,35 @@ export async function fetchMatchDetail(matchId: string): Promise<MatchSummary> {
   if (!normalized) throw new Error("Match data is incomplete.");
   return normalized;
 }
+
+export interface PlayerRecordRow {
+  player_id: string;
+  result: SideResult;
+}
+
+interface RawPlayerRecordRow {
+  player_id: string;
+  match_side: { result: SideResult } | null;
+}
+
+/**
+ * Every match_players row (join-through-match_sides result only) for the
+ * given players -- no recency cap, unlike fetchRecentMatches. Used for
+ * win/loss/draw records, which must reflect a player's whole history, not
+ * just whatever window a recent-matches list happens to be showing. Lean
+ * payload (no club/player nesting) since only the result enum is needed.
+ */
+export async function fetchPlayerRecordRows(playerIds: string[]): Promise<PlayerRecordRow[]> {
+  if (playerIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("match_players")
+    .select("player_id, match_side:match_sides(result)")
+    .in("player_id", playerIds);
+
+  if (error) throw new Error(`Failed to load player records: ${error.message}`);
+
+  return ((data ?? []) as unknown as RawPlayerRecordRow[])
+    .filter((row): row is RawPlayerRecordRow & { match_side: { result: SideResult } } => row.match_side !== null)
+    .map((row) => ({ player_id: row.player_id, result: row.match_side.result }));
+}

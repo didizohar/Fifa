@@ -11,6 +11,7 @@ export function useRecordMatch(groupId: string | null) {
       if (!groupId) return;
       queryClient.invalidateQueries({ queryKey: playerKeys.list(groupId) });
       queryClient.invalidateQueries({ queryKey: matchKeys.list(groupId) });
+      queryClient.invalidateQueries({ queryKey: ["matches", "records"] });
     },
   });
 }

@@ -3,6 +3,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { StatusBar } from "expo-status-bar";
+import { ErrorBoundary } from "../src/components/ErrorBoundary";
 import { AuthProvider } from "../src/lib/context/AuthProvider";
 import { GroupProvider } from "../src/lib/context/GroupProvider";
 import { queryClient } from "../src/lib/queryClient";
@@ -45,13 +46,15 @@ function RootNavigator() {
 
 export default function RootLayout() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <GroupProvider>
-          <StatusBar style="light" />
-          <RootNavigator />
-        </GroupProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <GroupProvider>
+            <StatusBar style="light" />
+            <RootNavigator />
+          </GroupProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }

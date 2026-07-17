@@ -33,19 +33,29 @@ export async function fetchDefaultGameVersion(): Promise<GameVersion | null> {
   return data;
 }
 
+const DUPLICATE_KEY_CODE = "23505";
+const MAX_INVITE_CODE_ATTEMPTS = 3;
+
 export async function createGroup(name: string): Promise<string> {
   const defaultGameVersion = await fetchDefaultGameVersion();
-  const inviteCode = generateInviteCode();
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-  const { data, error } = await supabase.rpc("create_group", {
-    p_name: name,
-    p_invite_code: inviteCode,
-    p_default_game_version_id: defaultGameVersion?.id ?? null,
-    p_timezone: "Asia/Jerusalem",
-  });
+  for (let attempt = 0; attempt < MAX_INVITE_CODE_ATTEMPTS; attempt++) {
+    const { data, error } = await supabase.rpc("create_group", {
+      p_name: name,
+      p_invite_code: generateInviteCode(),
+      p_default_game_version_id: defaultGameVersion?.id ?? null,
+      p_timezone: timezone,
+    });
 
-  if (error) throw new Error(`Failed to create group: ${error.message}`);
-  return data as string;
+    if (!error) return data as string;
+    // A generated invite code collided with an existing group's -- vanishingly
+    // rare (31^6 combinations), but retry with a fresh code rather than
+    // surfacing a raw constraint-violation message.
+    if (error.code !== DUPLICATE_KEY_CODE) throw new Error(`Failed to create group: ${error.message}`);
+  }
+
+  throw new Error("Failed to create group: couldn't generate a unique invite code. Please try again.");
 }
 
 export async function joinGroupByInviteCode(inviteCode: string): Promise<string> {

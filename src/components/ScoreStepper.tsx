@@ -17,14 +17,18 @@ export function ScoreStepper({ label, value, onChange, max = 99 }: ScoreStepperP
           onPress={() => onChange(Math.max(0, value - 1))}
           style={styles.button}
           disabled={value <= 0}
+          accessibilityRole="button"
+          accessibilityLabel={`Decrease ${label}`}
         >
           <Text style={[styles.buttonLabel, value <= 0 && styles.buttonLabelDisabled]}>–</Text>
         </Pressable>
-        <Text style={styles.value}>{value}</Text>
+        <Text style={styles.value} accessibilityLabel={`${label}: ${value}`}>{value}</Text>
         <Pressable
           onPress={() => onChange(Math.min(max, value + 1))}
           style={styles.button}
           disabled={value >= max}
+          accessibilityRole="button"
+          accessibilityLabel={`Increase ${label}`}
         >
           <Text style={[styles.buttonLabel, value >= max && styles.buttonLabelDisabled]}>+</Text>
         </Pressable>

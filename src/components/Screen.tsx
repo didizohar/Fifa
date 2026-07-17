@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { StyleSheet, View, ViewStyle } from "react-native";
+import { KeyboardAvoidingView, Platform, StyleSheet, View, ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, spacing } from "../theme";
 
@@ -12,7 +12,13 @@ interface ScreenProps {
 export function Screen({ children, style, padded = true }: ScreenProps) {
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <View style={[styles.container, padded && styles.padded, style]}>{children}</View>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
+      >
+        <View style={[styles.container, padded && styles.padded, style]}>{children}</View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

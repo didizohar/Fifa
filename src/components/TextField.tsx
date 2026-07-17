@@ -13,6 +13,7 @@ export function TextField({ label, error, style, ...inputProps }: TextFieldProps
       <TextInput
         style={[styles.input, error ? styles.inputError : null, style]}
         placeholderTextColor={colors.textMuted}
+        accessibilityLabel={label ?? inputProps.placeholder}
         {...inputProps}
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}

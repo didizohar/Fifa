@@ -9,12 +9,11 @@ import { Screen } from "../../../../src/components/Screen";
 import { Skeleton } from "../../../../src/components/Skeleton";
 import { useAuth } from "../../../../src/hooks/useAuth";
 import { useGroup } from "../../../../src/hooks/useGroup";
-import { useMatches } from "../../../../src/hooks/useMatches";
+import { usePlayerRecords } from "../../../../src/hooks/useMatches";
 import { useArchivePlayer, useUpdatePlayer } from "../../../../src/hooks/usePlayerMutations";
 import { usePlayer } from "../../../../src/hooks/usePlayers";
 import { confirmAction, notify } from "../../../../src/lib/confirm";
 import { pickAndUploadAvatar } from "../../../../src/lib/storage";
-import { computePlayerStats } from "../../../../src/lib/stats";
 import { colors, spacing, typography } from "../../../../src/theme";
 
 export default function PlayerDetailScreen() {
@@ -23,7 +22,7 @@ export default function PlayerDetailScreen() {
   const { user } = useAuth();
   const { currentGroupId, currentRole } = useGroup();
   const { data: player, isLoading, isError, refetch } = usePlayer(id);
-  const { data: matches } = useMatches(currentGroupId);
+  const records = usePlayerRecords(id ? [id] : []);
   const updatePlayer = useUpdatePlayer(currentGroupId);
   const archivePlayer = useArchivePlayer(currentGroupId);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -49,7 +48,7 @@ export default function PlayerDetailScreen() {
   }
 
   const canManage = currentRole === "owner" || currentRole === "admin" || player.linked_user_id === user?.id;
-  const stats = matches ? computePlayerStats(player.id, matches) : null;
+  const stats = records.data?.get(player.id) ?? null;
 
   const handleAvatarPress = async () => {
     if (!canManage || !currentGroupId || isUploadingAvatar) return;

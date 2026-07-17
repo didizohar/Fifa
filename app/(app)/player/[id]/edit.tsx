@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Button } from "../../../../src/components/Button";
@@ -25,8 +25,14 @@ export default function EditPlayerScreen() {
   const [color, setColor] = useState(COLOR_SWATCHES[0]!);
   const [error, setError] = useState<string | null>(null);
 
+  // Seed the form from server data exactly once, the first time it loads --
+  // not on every subsequent refetch (e.g. React Query's default
+  // refetch-on-window-focus, which is live on the web build), or an
+  // in-progress edit gets silently overwritten with stale server values.
+  const hasSeededForm = useRef(false);
   useEffect(() => {
-    if (player) {
+    if (player && !hasSeededForm.current) {
+      hasSeededForm.current = true;
       setDisplayName(player.display_name);
       setNickname(player.nickname ?? "");
       setColor(player.custom_color);

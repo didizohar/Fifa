@@ -9,10 +9,9 @@ import { RankingRow } from "../../../src/components/RankingRow";
 import { Screen } from "../../../src/components/Screen";
 import { SkeletonList } from "../../../src/components/Skeleton";
 import { useGroup } from "../../../src/hooks/useGroup";
-import { useMatches } from "../../../src/hooks/useMatches";
+import { useMatches, usePlayerRecords } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
 import { matchSideLabel, formatRelativeDate } from "../../../src/lib/format";
-import { computePlayerStats } from "../../../src/lib/stats";
 import { colors, spacing, typography } from "../../../src/theme";
 
 const RANKINGS_PREVIEW = 5;
@@ -24,7 +23,9 @@ export default function HomeScreen() {
   const groupId = currentGroup?.id ?? null;
 
   const players = usePlayers(groupId);
-  const matches = useMatches(groupId, 100);
+  const matches = useMatches(groupId, MATCHES_PREVIEW);
+  const rankingPreviewIds = (players.data ?? []).slice(0, RANKINGS_PREVIEW).map((p) => p.id);
+  const records = usePlayerRecords(rankingPreviewIds);
 
   const isLoading = players.isLoading || matches.isLoading;
   const isError = players.isError || matches.isError;
@@ -33,6 +34,7 @@ export default function HomeScreen() {
   const handleRefresh = () => {
     players.refetch();
     matches.refetch();
+    records.refetch();
   };
 
   return (
@@ -70,7 +72,7 @@ export default function HomeScreen() {
               }}
             >
               {(players.data ?? []).slice(0, RANKINGS_PREVIEW).map((player, index) => {
-                const stats = computePlayerStats(player.id, matches.data ?? []);
+                const stats = records.data?.get(player.id) ?? null;
                 return (
                   <RankingRow
                     key={player.id}
@@ -79,8 +81,8 @@ export default function HomeScreen() {
                     avatarUrl={player.avatar_url}
                     color={player.custom_color}
                     elo={player.singles_elo}
-                    winRate={stats.winRate}
-                    matchesPlayed={stats.played}
+                    winRate={stats?.winRate ?? null}
+                    matchesPlayed={stats?.played ?? 0}
                     onPress={() => router.push(`/player/${player.id}`)}
                   />
                 );

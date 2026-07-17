@@ -45,6 +45,9 @@ export function PlayerPicker({ players, selectedIds, onToggle, disabledIds = [],
               key={player.id}
               onPress={() => !isDisabled && onToggle(player.id)}
               disabled={isDisabled}
+              accessibilityRole="checkbox"
+              accessibilityLabel={player.displayName}
+              accessibilityState={{ checked: isSelected, disabled: isDisabled }}
               style={({ pressed }) => [
                 styles.row,
                 isSelected && styles.rowSelected,
