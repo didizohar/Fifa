@@ -3,14 +3,17 @@ import {
   computeBestDoublesPairs,
   computeBiggestLoss,
   computeBiggestWin,
+  computeCleanSheetsLeaderboard,
   computeClubPerformance,
   computeDoublesPartnerships,
   computeEloLeaderboard,
   computeFewestConcededLeaderboard,
+  computeGoalDifferenceLeaderboard,
   computeGoalsScoredLeaderboard,
   computeGoalStats,
   computeHeadToHead,
   computeLastNStats,
+  computeLongestLossStreakLeaderboard,
   computeLongestStreakLeaderboard,
   computeMonthlyLeaderboard,
   computeMostMatchesLeaderboard,
@@ -416,5 +419,47 @@ describe("computeBestDoublesPairs", () => {
       ),
     ];
     expect(computeBestDoublesPairs(matches, 3)).toEqual([]);
+  });
+});
+
+describe("computeLongestLossStreakLeaderboard", () => {
+  it("ranks by longest losing streak, excluding players with no losses", () => {
+    const base = Date.now();
+    const day = (n: number) => new Date(base + n * 86_400_000).toISOString();
+    const matches = [
+      makeDetailedMatch({ playerIds: ["p1"], score: 0, result: "loss" }, { playerIds: ["p2"], score: 1, result: "win" }, { playedAt: day(0) }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 0, result: "loss" }, { playerIds: ["p2"], score: 1, result: "win" }, { playedAt: day(1) }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 0, result: "loss" }, { playerIds: ["p3"], score: 1, result: "win" }, { playedAt: day(2) }),
+    ];
+    const rows = computeLongestLossStreakLeaderboard(roster(["p1", "p2", "p3"]), matches);
+    expect(rows.map((r) => r.playerId)).toEqual(["p1"]);
+    expect(rows[0]).toMatchObject({ value: 3, valueLabel: "3" });
+  });
+});
+
+describe("computeGoalDifferenceLeaderboard", () => {
+  it("ranks by goals-for minus goals-against, including negative differences", () => {
+    const matches = [
+      makeDetailedMatch({ playerIds: ["p1"], score: 3, result: "win" }, { playerIds: ["p2"], score: 1, result: "loss" }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "loss" }, { playerIds: ["p2"], score: 2, result: "win" }),
+    ];
+    // p1: scored 4, conceded 3 -> +1. p2: scored 3, conceded 4 -> -1.
+    const rows = computeGoalDifferenceLeaderboard(roster(["p1", "p2"]), matches);
+    expect(rows.map((r) => r.playerId)).toEqual(["p1", "p2"]);
+    expect(rows[0]).toMatchObject({ value: 1, valueLabel: "+1" });
+    expect(rows[1]).toMatchObject({ value: -1, valueLabel: "-1" });
+  });
+});
+
+describe("computeCleanSheetsLeaderboard", () => {
+  it("ranks by clean sheet count, excluding players with none", () => {
+    const matches = [
+      makeDetailedMatch({ playerIds: ["p1"], score: 2, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }),
+      makeDetailedMatch({ playerIds: ["p2"], score: 1, result: "win" }, { playerIds: ["p1"], score: 1, result: "loss" }),
+    ];
+    const rows = computeCleanSheetsLeaderboard(roster(["p1", "p2"]), matches);
+    expect(rows.map((r) => r.playerId)).toEqual(["p1"]);
+    expect(rows[0]).toMatchObject({ value: 2, valueLabel: "2", detail: "in 3 matches" });
   });
 });

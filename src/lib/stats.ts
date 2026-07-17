@@ -359,6 +359,22 @@ export function computeLongestStreakLeaderboard(players: MatchSidePlayer[], matc
     }));
 }
 
+export function computeLongestLossStreakLeaderboard(players: MatchSidePlayer[], matches: MatchSummary[]): LeaderboardRow[] {
+  return players
+    .map((p) => ({ player: p, streaks: computeStreaks(p.id, matches) }))
+    .filter((r) => r.streaks.longestLossStreak > 0)
+    .sort((a, b) => b.streaks.longestLossStreak - a.streaks.longestLossStreak)
+    .map((r) => ({
+      playerId: r.player.id,
+      playerName: r.player.display_name,
+      avatarUrl: r.player.avatar_url,
+      color: r.player.custom_color,
+      value: r.streaks.longestLossStreak,
+      valueLabel: `${r.streaks.longestLossStreak}`,
+      detail: r.streaks.longestLossStreak === 1 ? "1 match" : `${r.streaks.longestLossStreak} matches`,
+    }));
+}
+
 export function computeGoalsScoredLeaderboard(players: MatchSidePlayer[], matches: MatchSummary[]): LeaderboardRow[] {
   return players
     .map((p) => ({ player: p, goals: computeGoalStats(p.id, matches) }))
@@ -389,6 +405,41 @@ export function computeFewestConcededLeaderboard(players: MatchSidePlayer[], mat
       value: r.goals.goalsConceded,
       valueLabel: `${r.goals.goalsConceded}`,
       detail: `${(r.goals.goalsConceded / r.stats.played).toFixed(2)} per match`,
+    }));
+}
+
+export function computeGoalDifferenceLeaderboard(players: MatchSidePlayer[], matches: MatchSummary[]): LeaderboardRow[] {
+  return players
+    .map((p) => ({ player: p, stats: computePlayerStats(p.id, matches), goals: computeGoalStats(p.id, matches) }))
+    .filter((r) => r.stats.played > 0)
+    .sort((a, b) => b.goals.goalsScored - b.goals.goalsConceded - (a.goals.goalsScored - a.goals.goalsConceded))
+    .map((r) => {
+      const diff = r.goals.goalsScored - r.goals.goalsConceded;
+      return {
+        playerId: r.player.id,
+        playerName: r.player.display_name,
+        avatarUrl: r.player.avatar_url,
+        color: r.player.custom_color,
+        value: diff,
+        valueLabel: diff > 0 ? `+${diff}` : `${diff}`,
+        detail: `${r.goals.goalsScored} for, ${r.goals.goalsConceded} against`,
+      };
+    });
+}
+
+export function computeCleanSheetsLeaderboard(players: MatchSidePlayer[], matches: MatchSummary[]): LeaderboardRow[] {
+  return players
+    .map((p) => ({ player: p, stats: computePlayerStats(p.id, matches), goals: computeGoalStats(p.id, matches) }))
+    .filter((r) => r.goals.cleanSheets > 0)
+    .sort((a, b) => b.goals.cleanSheets - a.goals.cleanSheets)
+    .map((r) => ({
+      playerId: r.player.id,
+      playerName: r.player.display_name,
+      avatarUrl: r.player.avatar_url,
+      color: r.player.custom_color,
+      value: r.goals.cleanSheets,
+      valueLabel: `${r.goals.cleanSheets}`,
+      detail: `in ${r.stats.played} matches`,
     }));
 }
 

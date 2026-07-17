@@ -2,6 +2,8 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors, radius, spacing, typography } from "../theme";
 import { Avatar } from "./Avatar";
 
+const MEDALS = ["🥇", "🥈", "🥉"] as const;
+
 interface RankingRowProps {
   rank: number;
   name: string;
@@ -12,12 +14,23 @@ interface RankingRowProps {
   /** Secondary line under the name, e.g. "12 played · 60% win". */
   detail: string;
   onPress?: () => void;
+  /** Marks this row as belonging to the signed-in user, e.g. in a leaderboard. */
+  highlighted?: boolean;
 }
 
-export function RankingRow({ rank, name, avatarUrl, color, value, detail, onPress }: RankingRowProps) {
+export function RankingRow({ rank, name, avatarUrl, color, value, detail, onPress, highlighted = false }: RankingRowProps) {
+  const medal = rank >= 1 && rank <= 3 ? MEDALS[rank - 1] : null;
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
-      <Text style={styles.rank}>{rank}</Text>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole={onPress ? "button" : undefined}
+      style={({ pressed }) => [styles.row, highlighted && styles.highlighted, pressed && styles.pressed]}
+    >
+      {medal ? (
+        <Text style={styles.medal}>{medal}</Text>
+      ) : (
+        <Text style={styles.rank}>{rank}</Text>
+      )}
       <Avatar uri={avatarUrl} name={name} color={color} size={40} />
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={1}>{name}</Text>
@@ -36,6 +49,12 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,
     borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  highlighted: {
+    backgroundColor: colors.accentSubtle,
+    borderColor: colors.accent,
   },
   pressed: {
     backgroundColor: colors.surfaceElevated,
@@ -43,7 +62,12 @@ const styles = StyleSheet.create({
   rank: {
     ...typography.bodyStrong,
     color: colors.textSecondary,
-    width: 20,
+    width: 24,
+    textAlign: "center",
+  },
+  medal: {
+    fontSize: 20,
+    width: 24,
     textAlign: "center",
   },
   info: {

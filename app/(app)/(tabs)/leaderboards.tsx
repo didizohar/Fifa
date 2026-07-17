@@ -9,14 +9,19 @@ import { ErrorState } from "../../../src/components/ErrorState";
 import { RankingRow } from "../../../src/components/RankingRow";
 import { Screen } from "../../../src/components/Screen";
 import { SkeletonList } from "../../../src/components/Skeleton";
+import { useAuth } from "../../../src/hooks/useAuth";
 import { useGroup } from "../../../src/hooks/useGroup";
 import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
+import type { MatchSummary } from "../../../src/lib/matches";
 import {
   computeBestDoublesPairs,
+  computeCleanSheetsLeaderboard,
   computeEloLeaderboard,
   computeFewestConcededLeaderboard,
+  computeGoalDifferenceLeaderboard,
   computeGoalsScoredLeaderboard,
+  computeLongestLossStreakLeaderboard,
   computeLongestStreakLeaderboard,
   computeMonthlyLeaderboard,
   computeMostMatchesLeaderboard,
@@ -25,23 +30,46 @@ import {
 } from "../../../src/lib/stats";
 import { colors, radius, spacing, typography } from "../../../src/theme";
 
-type Category = "elo" | "winRate" | "mostMatches" | "streaks" | "goalsScored" | "goalsConceded" | "doublesPairs" | "monthly";
+type Category =
+  | "elo"
+  | "winRate"
+  | "mostMatches"
+  | "winStreak"
+  | "lossStreak"
+  | "goalsScored"
+  | "goalsConceded"
+  | "goalDifference"
+  | "cleanSheets"
+  | "doublesPairs"
+  | "monthly";
+
+type MatchTypeFilter = "overall" | "singles" | "doubles";
 
 const CATEGORIES: { id: Category; label: string }[] = [
   { id: "elo", label: "Elo" },
   { id: "winRate", label: "Win %" },
   { id: "mostMatches", label: "Most Matches" },
-  { id: "streaks", label: "Streaks" },
+  { id: "winStreak", label: "Win Streak" },
+  { id: "lossStreak", label: "Loss Streak" },
   { id: "goalsScored", label: "Goals Scored" },
-  { id: "goalsConceded", label: "Best Defense" },
+  { id: "goalsConceded", label: "Goals Conceded" },
+  { id: "goalDifference", label: "Goal Diff" },
+  { id: "cleanSheets", label: "Clean Sheets" },
   { id: "doublesPairs", label: "Doubles Pairs" },
   { id: "monthly", label: "Monthly" },
+];
+
+const MATCH_TYPE_FILTERS: { id: MatchTypeFilter; label: string }[] = [
+  { id: "overall", label: "Overall" },
+  { id: "singles", label: "Singles" },
+  { id: "doubles", label: "Doubles" },
 ];
 
 const MONTH_LABEL = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
 
 export default function LeaderboardsScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const { currentGroup } = useGroup();
   const groupId = currentGroup?.id ?? null;
 
@@ -49,11 +77,18 @@ export default function LeaderboardsScreen() {
   const matchHistory = useGroupMatchHistory(groupId);
 
   const [category, setCategory] = useState<Category>("elo");
-  const [eloField, setEloField] = useState<"singles" | "doubles">("singles");
+  const [matchTypeFilter, setMatchTypeFilter] = useState<MatchTypeFilter>("overall");
+  const [descending, setDescending] = useState(true);
   const [monthOffset, setMonthOffset] = useState(0);
 
   const roster = players.data ?? [];
   const matches = matchHistory.data ?? [];
+  const myPlayerId = roster.find((p) => p.linked_user_id === user?.id)?.id ?? null;
+
+  const filteredMatches: MatchSummary[] = useMemo(
+    () => (matchTypeFilter === "overall" ? matches : matches.filter((m) => m.match_type === matchTypeFilter)),
+    [matches, matchTypeFilter],
+  );
 
   const monthTarget = useMemo(() => {
     const d = new Date();
@@ -66,32 +101,43 @@ export default function LeaderboardsScreen() {
     switch (category) {
       case "elo":
         return computeEloLeaderboard(
-          roster.map((p) => ({
-            id: p.id,
-            displayName: p.display_name,
-            avatarUrl: p.avatar_url,
-            color: p.custom_color,
-            elo: eloField === "singles" ? p.singles_elo : p.doubles_elo,
-          })),
+          roster.map((p) => {
+            const elo =
+              matchTypeFilter === "singles"
+                ? p.singles_elo
+                : matchTypeFilter === "doubles"
+                  ? p.doubles_elo
+                  : Math.round((p.singles_elo + p.doubles_elo) / 2);
+            return { id: p.id, displayName: p.display_name, avatarUrl: p.avatar_url, color: p.custom_color, elo };
+          }),
         );
       case "winRate":
-        return computeWinRateLeaderboard(roster, matches);
+        return computeWinRateLeaderboard(roster, filteredMatches);
       case "mostMatches":
-        return computeMostMatchesLeaderboard(roster, matches);
-      case "streaks":
-        return computeLongestStreakLeaderboard(roster, matches);
+        return computeMostMatchesLeaderboard(roster, filteredMatches);
+      case "winStreak":
+        return computeLongestStreakLeaderboard(roster, filteredMatches);
+      case "lossStreak":
+        return computeLongestLossStreakLeaderboard(roster, filteredMatches);
       case "goalsScored":
-        return computeGoalsScoredLeaderboard(roster, matches);
+        return computeGoalsScoredLeaderboard(roster, filteredMatches);
       case "goalsConceded":
-        return computeFewestConcededLeaderboard(roster, matches);
+        return computeFewestConcededLeaderboard(roster, filteredMatches);
+      case "goalDifference":
+        return computeGoalDifferenceLeaderboard(roster, filteredMatches);
+      case "cleanSheets":
+        return computeCleanSheetsLeaderboard(roster, filteredMatches);
       case "monthly":
-        return computeMonthlyLeaderboard(roster, matches, monthTarget.getFullYear(), monthTarget.getMonth());
+        return computeMonthlyLeaderboard(roster, filteredMatches, monthTarget.getFullYear(), monthTarget.getMonth());
       case "doublesPairs":
         return [];
     }
-  }, [category, roster, matches, eloField, monthTarget]);
+  }, [category, roster, filteredMatches, matchTypeFilter, monthTarget]);
 
   const doublesPairs = useMemo(() => (category === "doublesPairs" ? computeBestDoublesPairs(matches) : []), [category, matches]);
+
+  const displayRows = descending ? rows : [...rows].reverse();
+  const displayPairs = descending ? doublesPairs : [...doublesPairs].reverse();
 
   const isLoading = players.isLoading || matchHistory.isLoading;
   const isError = players.isError || matchHistory.isError;
@@ -102,11 +148,21 @@ export default function LeaderboardsScreen() {
   };
 
   const isFutureMonth = monthOffset <= 0;
+  const showMatchTypeFilter = category !== "doublesPairs";
 
   return (
     <Screen>
       <View style={styles.header}>
         <Text style={styles.title}>Leaderboards</Text>
+        <Pressable
+          onPress={() => setDescending((d) => !d)}
+          style={styles.sortButton}
+          accessibilityRole="button"
+          accessibilityLabel={descending ? "Sort ascending" : "Sort descending"}
+        >
+          <Ionicons name={descending ? "arrow-down" : "arrow-up"} size={16} color={colors.accent} />
+          <Text style={styles.sortLabel}>{descending ? "Best first" : "Worst first"}</Text>
+        </Pressable>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
@@ -123,10 +179,11 @@ export default function LeaderboardsScreen() {
         ))}
       </ScrollView>
 
-      {category === "elo" ? (
+      {showMatchTypeFilter ? (
         <View style={styles.subToggleRow}>
-          <SubToggle label="Singles" active={eloField === "singles"} onPress={() => setEloField("singles")} />
-          <SubToggle label="Doubles" active={eloField === "doubles"} onPress={() => setEloField("doubles")} />
+          {MATCH_TYPE_FILTERS.map((f) => (
+            <SubToggle key={f.id} label={f.label} active={matchTypeFilter === f.id} onPress={() => setMatchTypeFilter(f.id)} />
+          ))}
         </View>
       ) : null}
 
@@ -153,12 +210,12 @@ export default function LeaderboardsScreen() {
         ) : isError ? (
           <ErrorState message="Couldn't load leaderboards." onRetry={handleRefresh} />
         ) : category === "doublesPairs" ? (
-          doublesPairs.length === 0 ? (
+          displayPairs.length === 0 ? (
             <EmptyState icon="🤝" title="No doubles pairs yet" message="Play a few doubles matches together to see this leaderboard." />
           ) : (
             <View style={styles.list}>
-              {doublesPairs.map((pair, index) => (
-                <Card key={pair.playerIds.join(":")} style={styles.pairCard}>
+              {displayPairs.map((pair, index) => (
+                <Card key={pair.playerIds.join(":")} style={styles.pairCard} compact>
                   <Text style={styles.pairRank}>{index + 1}</Text>
                   <View style={styles.pairAvatars}>
                     <Avatar name={pair.playerNames[0]} size={32} />
@@ -179,11 +236,15 @@ export default function LeaderboardsScreen() {
               ))}
             </View>
           )
-        ) : rows.length === 0 ? (
-          <EmptyState icon="🏆" title="Not enough data yet" message="Play more matches to populate this leaderboard." />
+        ) : displayRows.length === 0 ? (
+          <EmptyState
+            icon="🏆"
+            title="Not enough data yet"
+            message="Play more matches to populate this leaderboard. Some categories need a minimum number of matches to keep rankings fair."
+          />
         ) : (
           <View style={styles.list}>
-            {rows.map((row, index) => (
+            {displayRows.map((row, index) => (
               <RankingRow
                 key={row.playerId}
                 rank={index + 1}
@@ -192,6 +253,7 @@ export default function LeaderboardsScreen() {
                 color={row.color}
                 value={row.valueLabel}
                 detail={row.detail}
+                highlighted={row.playerId === myPlayerId}
                 onPress={() => router.push(`/player/${row.playerId}`)}
               />
             ))}
@@ -217,10 +279,27 @@ function SubToggle({ label, active, onPress }: { label: string; active: boolean;
 
 const styles = StyleSheet.create({
   header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingBottom: spacing.sm,
   },
   title: {
     ...typography.title,
+  },
+  sortButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  sortLabel: {
+    ...typography.small,
+    color: colors.accent,
   },
   chipRow: {
     gap: spacing.sm,
@@ -292,7 +371,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    padding: spacing.md,
   },
   pairRank: {
     ...typography.bodyStrong,
