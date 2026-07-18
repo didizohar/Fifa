@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { LayoutAnimation, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../src/components/Avatar";
 import { Card } from "../../../src/components/Card";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
 import { ExportButton } from "../../../src/components/ExportButton";
+import { Podium } from "../../../src/components/Podium";
 import { RankingRow } from "../../../src/components/RankingRow";
 import { Screen } from "../../../src/components/Screen";
 import { SegmentedControl } from "../../../src/components/SegmentedControl";
@@ -48,18 +49,18 @@ type Category =
 
 type MatchTypeFilter = "overall" | "singles" | "doubles";
 
-const CATEGORIES: { id: Category; label: string }[] = [
-  { id: "elo", label: "Elo" },
-  { id: "winRate", label: "Win %" },
-  { id: "mostMatches", label: "Most Matches" },
-  { id: "winStreak", label: "Win Streak" },
-  { id: "lossStreak", label: "Loss Streak" },
-  { id: "goalsScored", label: "Goals Scored" },
-  { id: "goalsConceded", label: "Goals Conceded" },
-  { id: "goalDifference", label: "Goal Diff" },
-  { id: "cleanSheets", label: "Clean Sheets" },
-  { id: "doublesPairs", label: "Doubles Pairs" },
-  { id: "monthly", label: "Monthly" },
+const CATEGORIES: { id: Category; label: string; emptyMessage: string }[] = [
+  { id: "elo", label: "Elo", emptyMessage: "Add players to start tracking Elo ratings." },
+  { id: "winRate", label: "Win %", emptyMessage: "Players need a few matches played before a win rate is meaningful." },
+  { id: "mostMatches", label: "Most Matches", emptyMessage: "Record a match to see who's most active." },
+  { id: "winStreak", label: "Win Streak", emptyMessage: "No active win streaks yet -- win a couple in a row to show up here." },
+  { id: "lossStreak", label: "Loss Streak", emptyMessage: "Nobody's on a losing streak yet." },
+  { id: "goalsScored", label: "Goals Scored", emptyMessage: "Record a match to start tallying goals." },
+  { id: "goalsConceded", label: "Goals Conceded", emptyMessage: "Needs a few matches played to rank defenses fairly." },
+  { id: "goalDifference", label: "Goal Diff", emptyMessage: "Record a match to see goal difference." },
+  { id: "cleanSheets", label: "Clean Sheets", emptyMessage: "No clean sheets recorded yet." },
+  { id: "doublesPairs", label: "Doubles Pairs", emptyMessage: "Play a few doubles matches together to see this leaderboard." },
+  { id: "monthly", label: "Monthly", emptyMessage: "No matches played in this month yet." },
 ];
 
 const MATCH_TYPE_FILTERS: { id: MatchTypeFilter; label: string }[] = [
@@ -83,6 +84,9 @@ export default function LeaderboardsScreen() {
   const [matchTypeFilter, setMatchTypeFilter] = useState<MatchTypeFilter>("overall");
   const [descending, setDescending] = useState(true);
   const [monthOffset, setMonthOffset] = useState(0);
+
+  /** Animates the list reordering itself (category/sort/filter change) instead of an abrupt jump -- no rank-history data exists to animate actual movement deltas. */
+  const animateReorder = () => LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 
   const roster = players.data ?? [];
   const matches = matchHistory.data ?? [];
@@ -152,6 +156,7 @@ export default function LeaderboardsScreen() {
 
   const isFutureMonth = monthOffset <= 0;
   const showMatchTypeFilter = category !== "doublesPairs";
+  const activeCategory = CATEGORIES.find((c) => c.id === category)!;
 
   const getLeaderboardCsv = () => {
     if (category === "doublesPairs") {
@@ -176,7 +181,10 @@ export default function LeaderboardsScreen() {
         <View style={styles.headerActions}>
           <ExportButton filename={`fc-rival-leaderboard-${category}.csv`} getCsv={getLeaderboardCsv} />
           <Pressable
-            onPress={() => setDescending((d) => !d)}
+            onPress={() => {
+              animateReorder();
+              setDescending((d) => !d);
+            }}
             style={styles.sortButton}
             accessibilityRole="button"
             accessibilityLabel={descending ? "Sort ascending" : "Sort descending"}
@@ -191,7 +199,10 @@ export default function LeaderboardsScreen() {
         {CATEGORIES.map((c) => (
           <Pressable
             key={c.id}
-            onPress={() => setCategory(c.id)}
+            onPress={() => {
+              animateReorder();
+              setCategory(c.id);
+            }}
             style={[styles.chip, category === c.id && styles.chipActive]}
             accessibilityRole="button"
             accessibilityState={{ selected: category === c.id }}
@@ -206,19 +217,33 @@ export default function LeaderboardsScreen() {
           <SegmentedControl
             options={MATCH_TYPE_FILTERS.map((f) => ({ value: f.id, label: f.label }))}
             value={matchTypeFilter}
-            onChange={setMatchTypeFilter}
+            onChange={(v) => {
+              animateReorder();
+              setMatchTypeFilter(v);
+            }}
           />
         </View>
       ) : null}
 
       {category === "monthly" ? (
         <View style={styles.monthNav}>
-          <Pressable onPress={() => setMonthOffset((m) => m + 1)} accessibilityRole="button" accessibilityLabel="Previous month">
+          <Pressable
+            onPress={() => {
+              animateReorder();
+              setMonthOffset((m) => m + 1);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Previous month"
+          >
             <Ionicons name="chevron-back" size={20} color={colors.textPrimary} />
           </Pressable>
           <Text style={styles.monthLabel}>{MONTH_LABEL.format(monthTarget)}</Text>
           <Pressable
-            onPress={() => !isFutureMonth && setMonthOffset((m) => m - 1)}
+            onPress={() => {
+              if (isFutureMonth) return;
+              animateReorder();
+              setMonthOffset((m) => m - 1);
+            }}
             disabled={isFutureMonth}
             accessibilityRole="button"
             accessibilityLabel="Next month"
@@ -235,7 +260,7 @@ export default function LeaderboardsScreen() {
           <ErrorState message="Couldn't load leaderboards." onRetry={handleRefresh} />
         ) : category === "doublesPairs" ? (
           displayPairs.length === 0 ? (
-            <EmptyState icon="🤝" title="No doubles pairs yet" message="Play a few doubles matches together to see this leaderboard." />
+            <EmptyState icon="🤝" title="No doubles pairs yet" message={activeCategory.emptyMessage} />
           ) : (
             <View style={styles.list}>
               {displayPairs.map((pair, index) => (
@@ -261,27 +286,38 @@ export default function LeaderboardsScreen() {
             </View>
           )
         ) : displayRows.length === 0 ? (
-          <EmptyState
-            icon="🏆"
-            title="Not enough data yet"
-            message="Play more matches to populate this leaderboard. Some categories need a minimum number of matches to keep rankings fair."
-          />
+          <EmptyState icon="🏆" title="Not enough data yet" message={activeCategory.emptyMessage} />
         ) : (
-          <View style={styles.list}>
-            {displayRows.map((row, index) => (
-              <RankingRow
-                key={row.playerId}
-                rank={index + 1}
-                name={row.playerName}
-                avatarUrl={row.avatarUrl}
-                color={row.color}
-                value={row.valueLabel}
-                detail={row.detail}
-                highlighted={row.playerId === myPlayerId}
-                onPress={() => router.push(`/player/${row.playerId}`)}
-              />
-            ))}
-          </View>
+          <>
+            <Podium
+              entries={displayRows.slice(0, 3).map((row) => ({
+                playerId: row.playerId,
+                name: row.playerName,
+                avatarUrl: row.avatarUrl,
+                color: row.color,
+                valueLabel: row.valueLabel,
+              }))}
+              highlightedPlayerId={myPlayerId}
+              onPressEntry={(playerId) => router.push(`/player/${playerId}`)}
+            />
+            {displayRows.length > 3 ? (
+              <View style={styles.list}>
+                {displayRows.slice(3).map((row, index) => (
+                  <RankingRow
+                    key={row.playerId}
+                    rank={index + 4}
+                    name={row.playerName}
+                    avatarUrl={row.avatarUrl}
+                    color={row.color}
+                    value={row.valueLabel}
+                    detail={row.detail}
+                    highlighted={row.playerId === myPlayerId}
+                    onPress={() => router.push(`/player/${row.playerId}`)}
+                  />
+                ))}
+              </View>
+            ) : null}
+          </>
         )}
       </ScrollView>
     </Screen>
