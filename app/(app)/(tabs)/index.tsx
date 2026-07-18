@@ -1,8 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import type { ComponentProps, ReactNode } from "react";
 import { useMemo } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Avatar } from "../../../src/components/Avatar";
+import { Badge } from "../../../src/components/Badge";
 import { Card } from "../../../src/components/Card";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
@@ -18,8 +21,23 @@ import { useGroupMatchHistory, useMatches, usePlayerRecords } from "../../../src
 import { usePlayers } from "../../../src/hooks/usePlayers";
 import { DEFAULT_MATCH_FILTERS, filterMatches } from "../../../src/lib/matchFilters";
 import { matchSideLabel, formatRelativeDate } from "../../../src/lib/format";
-import { computeLastNStats, computeMonthlyLeaderboard, computeMostMatchesLeaderboard, computeStreaks } from "../../../src/lib/stats";
+import {
+  computeEloRank,
+  computeLastNStats,
+  computeMonthlyLeaderboard,
+  computeMostMatchesLeaderboard,
+  computeStreaks,
+  type EloRank,
+} from "../../../src/lib/stats";
 import { colors, radius, spacing, typography } from "../../../src/theme";
+
+function rankBadgeTone(rank: EloRank | null): "gold" | "silver" | "bronze" | "neutral" {
+  if (!rank) return "neutral";
+  if (rank.position === 1) return "gold";
+  if (rank.position === 2) return "silver";
+  if (rank.position === 3) return "bronze";
+  return "neutral";
+}
 
 const RANKINGS_PREVIEW = 5;
 const MATCHES_PREVIEW = 5;
@@ -47,6 +65,7 @@ export default function HomeScreen() {
 
   const myStreak = useMemo(() => (myPlayer ? computeStreaks(myPlayer.id, allMatches) : null), [myPlayer, allMatches]);
   const myForm = useMemo(() => (myPlayer ? computeLastNStats(myPlayer.id, allMatches, 5) : null), [myPlayer, allMatches]);
+  const myRank = useMemo(() => (myPlayer ? computeEloRank(myPlayer.id, roster) : null), [myPlayer, roster]);
 
   const mostActive = useMemo(() => computeMostMatchesLeaderboard(roster, allMatches).slice(0, ACTIVE_PREVIEW), [roster, allMatches]);
 
@@ -55,6 +74,7 @@ export default function HomeScreen() {
     const now = new Date();
     return computeMonthlyLeaderboard(roster, allMatches, now.getFullYear(), now.getMonth())[0] ?? null;
   }, [roster, allMatches]);
+  const topPerformer = roster[0] ?? null;
 
   const handleRefresh = () => {
     players.refetch();
@@ -70,12 +90,45 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl tintColor={colors.accent} refreshing={isRefetching} onRefresh={handleRefresh} />}
       >
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>{currentGroup?.name}</Text>
-            <Text style={styles.subtitle}>Dashboard</Text>
-          </View>
-        </View>
+        <LinearGradient colors={[colors.surfaceElevated, colors.surface]} style={styles.hero}>
+          {myPlayer ? (
+            <>
+              <View style={styles.heroTop}>
+                <Avatar uri={myPlayer.avatar_url} name={myPlayer.display_name} color={myPlayer.custom_color} size={56} />
+                <View style={styles.heroInfo}>
+                  <Text style={styles.heroGreeting}>{currentGroup?.name}</Text>
+                  <Text style={styles.heroName}>{myPlayer.display_name}</Text>
+                </View>
+                <Badge label={myRank ? `#${myRank.position} of ${myRank.of}` : "Unranked"} tone={rankBadgeTone(myRank)} />
+              </View>
+              <View style={styles.heroStatsRow}>
+                <View style={styles.heroStat}>
+                  <Text style={styles.heroEyebrow}>Elo</Text>
+                  <Text style={styles.heroValue}>{myPlayer.singles_elo}</Text>
+                </View>
+                <View style={styles.heroStat}>
+                  <Text style={styles.heroEyebrow}>Streak</Text>
+                  <Text style={styles.heroValue}>
+                    {myStreak && myStreak.currentStreak.count > 0
+                      ? `${myStreak.currentStreak.count} ${myStreak.currentStreak.result}`
+                      : "—"}
+                  </Text>
+                </View>
+                {myForm ? (
+                  <View style={styles.heroStat}>
+                    <Text style={styles.heroEyebrow}>Recent form</Text>
+                    <FormStrip results={myForm.form.map((f) => f.result)} />
+                  </View>
+                ) : null}
+              </View>
+            </>
+          ) : (
+            <View>
+              <Text style={styles.greeting}>{currentGroup?.name}</Text>
+              <Text style={styles.subtitle}>Dashboard</Text>
+            </View>
+          )}
+        </LinearGradient>
 
         <View style={styles.quickActions}>
           <QuickAction icon="add-circle" label="Record" onPress={() => router.push("/record-match")} />
@@ -96,19 +149,27 @@ export default function HomeScreen() {
               <StatTile label="This month" value={matchesThisMonth.length} />
             </View>
 
-
-            {myPlayer && myStreak && myForm ? (
-              <Card variant="glow">
-                <Text style={styles.sectionTitle}>Your form</Text>
-                <View style={styles.yourFormRow}>
-                  <FormStrip results={myForm.form.map((f) => f.result)} />
-                  <Text style={styles.streakBadge}>
-                    {myStreak.currentStreak.count > 0
-                      ? `${myStreak.currentStreak.count} ${myStreak.currentStreak.result} streak`
-                      : "No streak yet"}
-                  </Text>
-                </View>
-              </Card>
+            {topPerformer || monthlyTop ? (
+              <View style={styles.highlightRow}>
+                {topPerformer ? (
+                  <Card compact variant="elevated" style={styles.highlightCard}>
+                    <Text style={styles.highlightLabel}>Top Performer</Text>
+                    <Text style={styles.highlightName} numberOfLines={1}>
+                      {topPerformer.display_name}
+                    </Text>
+                    <Badge label={`${topPerformer.singles_elo} Elo`} tone="gold" />
+                  </Card>
+                ) : null}
+                {monthlyTop ? (
+                  <Card compact variant="elevated" style={styles.highlightCard}>
+                    <Text style={styles.highlightLabel}>Top This Month</Text>
+                    <Text style={styles.highlightName} numberOfLines={1}>
+                      {monthlyTop.playerName}
+                    </Text>
+                    <Badge label={monthlyTop.valueLabel} tone="accent" />
+                  </Card>
+                ) : null}
+              </View>
             ) : null}
 
             {mostActive.length > 0 ? (
@@ -126,18 +187,6 @@ export default function HomeScreen() {
                   />
                 ))}
               </Section>
-            ) : null}
-
-            {monthlyTop ? (
-              <Card compact>
-                <View style={styles.monthlyRow}>
-                  <View>
-                    <Text style={styles.monthlyLabel}>Top this month</Text>
-                    <Text style={styles.monthlyName}>{monthlyTop.playerName}</Text>
-                  </View>
-                  <Text style={styles.monthlyValue}>{monthlyTop.valueLabel}</Text>
-                </View>
-              </Card>
             ) : null}
 
             <Section
@@ -262,10 +311,41 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     paddingBottom: spacing.xxl,
   },
-  header: {
+  hero: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    padding: spacing.lg,
+  },
+  heroTop: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    gap: spacing.md,
+  },
+  heroInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  heroGreeting: {
+    ...typography.caption,
+  },
+  heroName: {
+    ...typography.title,
+  },
+  heroStatsRow: {
+    flexDirection: "row",
+    gap: spacing.xl,
+    marginTop: spacing.lg,
+  },
+  heroStat: {
+    gap: spacing.xs,
+  },
+  heroEyebrow: {
+    ...typography.eyebrow,
+  },
+  heroValue: {
+    ...typography.display,
+    fontSize: 24,
   },
   greeting: {
     ...typography.title,
@@ -303,31 +383,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.sm,
   },
-  yourFormRow: {
+  highlightRow: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: spacing.sm,
+    gap: spacing.sm,
   },
-  streakBadge: {
-    ...typography.caption,
-    color: colors.accent,
-    fontWeight: "700",
+  highlightCard: {
+    flex: 1,
+    gap: spacing.xs,
   },
-  monthlyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  highlightLabel: {
+    ...typography.eyebrow,
   },
-  monthlyLabel: {
-    ...typography.small,
-  },
-  monthlyName: {
+  highlightName: {
     ...typography.bodyStrong,
-  },
-  monthlyValue: {
-    ...typography.heading,
-    color: colors.accent,
   },
   section: {
     gap: spacing.sm,

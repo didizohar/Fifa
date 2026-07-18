@@ -509,3 +509,16 @@ export function computeBestDoublesPairs(matches: MatchSummary[], minPlayed = MIN
     .filter((row) => row.played >= minPlayed)
     .sort((a, b) => (b.winRate ?? 0) - (a.winRate ?? 0) || b.played - a.played);
 }
+
+export interface EloRank {
+  position: number;
+  of: number;
+}
+
+/** 1-indexed rank among the given roster by singles Elo, highest first. Null if the player isn't in the list. */
+export function computeEloRank(playerId: string, players: { id: string; singles_elo: number }[]): EloRank | null {
+  if (players.length === 0) return null;
+  const sorted = [...players].sort((a, b) => b.singles_elo - a.singles_elo);
+  const index = sorted.findIndex((p) => p.id === playerId);
+  return index >= 0 ? { position: index + 1, of: sorted.length } : null;
+}

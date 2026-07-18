@@ -24,6 +24,7 @@ import type { MatchSummary } from "../../../../src/lib/matches";
 import { toPickablePlayer, type PickablePlayer } from "../../../../src/lib/players";
 import {
   computeBiggestLoss,
+  computeEloRank,
   computeBiggestWin,
   computeClubPerformance,
   computeDoublesPartnerships,
@@ -105,13 +106,7 @@ export default function PlayerDetailScreen() {
     () => eloEntries.filter((e) => e.match_type === "doubles").map((e) => e.rating_after),
     [eloEntries],
   );
-  const rank = useMemo(() => {
-    const list = roster.data ?? [];
-    if (list.length === 0) return null;
-    const sorted = [...list].sort((a, b) => b.singles_elo - a.singles_elo);
-    const index = sorted.findIndex((p) => p.id === playerId);
-    return index >= 0 ? { position: index + 1, of: sorted.length } : null;
-  }, [roster.data, playerId]);
+  const rank = useMemo(() => computeEloRank(playerId, roster.data ?? []), [roster.data, playerId]);
 
   if (isLoading) {
     return (

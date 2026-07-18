@@ -7,6 +7,7 @@ import {
   computeClubPerformance,
   computeDoublesPartnerships,
   computeEloLeaderboard,
+  computeEloRank,
   computeFewestConcededLeaderboard,
   computeGoalDifferenceLeaderboard,
   computeGoalsScoredLeaderboard,
@@ -461,5 +462,24 @@ describe("computeCleanSheetsLeaderboard", () => {
     const rows = computeCleanSheetsLeaderboard(roster(["p1", "p2"]), matches);
     expect(rows.map((r) => r.playerId)).toEqual(["p1"]);
     expect(rows[0]).toMatchObject({ value: 2, valueLabel: "2", detail: "in 3 matches" });
+  });
+});
+
+describe("computeEloRank", () => {
+  const players = [
+    { id: "p1", singles_elo: 1000 },
+    { id: "p2", singles_elo: 1200 },
+    { id: "p3", singles_elo: 1100 },
+  ];
+
+  it("returns 1-indexed position, highest Elo first", () => {
+    expect(computeEloRank("p2", players)).toEqual({ position: 1, of: 3 });
+    expect(computeEloRank("p3", players)).toEqual({ position: 2, of: 3 });
+    expect(computeEloRank("p1", players)).toEqual({ position: 3, of: 3 });
+  });
+
+  it("returns null for a player not in the list, or an empty roster", () => {
+    expect(computeEloRank("p4", players)).toBeNull();
+    expect(computeEloRank("p1", [])).toBeNull();
   });
 });
