@@ -19,11 +19,12 @@ import { SkeletonList } from "../../../src/components/Skeleton";
 import { StatTile } from "../../../src/components/StatTile";
 import { useAuth } from "../../../src/hooks/useAuth";
 import { useGroup } from "../../../src/hooks/useGroup";
-import { useGroupMatchHistory, usePlayerRecords } from "../../../src/hooks/useMatches";
+import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
 import { DEFAULT_MATCH_FILTERS, filterMatches } from "../../../src/lib/matchFilters";
 import { matchSideLabel, formatRelativeDate } from "../../../src/lib/format";
 import {
+  computeAllPlayerStats,
   computeEloRank,
   computeLastNStats,
   computeMonthlyLeaderboard,
@@ -44,8 +45,7 @@ export default function HomeScreen() {
 
   const players = usePlayers(groupId);
   const fullHistory = useGroupMatchHistory(groupId);
-  const rankingPreviewIds = (players.data ?? []).slice(0, RANKINGS_PREVIEW).map((p) => p.id);
-  const records = usePlayerRecords(rankingPreviewIds);
+  const rankingPreviewIds = useMemo(() => (players.data ?? []).slice(0, RANKINGS_PREVIEW).map((p) => p.id), [players.data]);
 
   const isLoading = players.isLoading || fullHistory.isLoading;
   const isError = players.isError || fullHistory.isError;
@@ -62,6 +62,9 @@ export default function HomeScreen() {
   const myStreak = useMemo(() => (myPlayer ? computeStreaks(myPlayer.id, allMatches) : null), [myPlayer, allMatches]);
   const myForm = useMemo(() => (myPlayer ? computeLastNStats(myPlayer.id, allMatches, 5) : null), [myPlayer, allMatches]);
   const myRank = useMemo(() => (myPlayer ? computeEloRank(myPlayer.id, roster) : null), [myPlayer, roster]);
+  // Derived from allMatches (already fetched, uncapped) instead of a second usePlayerRecords
+  // network round-trip for the same win/loss/draw fact.
+  const records = useMemo(() => computeAllPlayerStats(rankingPreviewIds, allMatches), [rankingPreviewIds, allMatches]);
 
   const mostActive = useMemo(() => computeMostMatchesLeaderboard(roster, allMatches).slice(0, ACTIVE_PREVIEW), [roster, allMatches]);
 
@@ -74,7 +77,6 @@ export default function HomeScreen() {
 
   const handleRefresh = () => {
     players.refetch();
-    records.refetch();
     fullHistory.refetch();
   };
 
@@ -199,7 +201,7 @@ export default function HomeScreen() {
               }}
             >
               {(players.data ?? []).slice(0, RANKINGS_PREVIEW).map((player, index) => {
-                const stats = records.data?.get(player.id) ?? null;
+                const stats = records.get(player.id) ?? null;
                 const matchesPlayed = stats?.played ?? 0;
                 const winRate = stats?.winRate ?? null;
                 return (

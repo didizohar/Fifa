@@ -17,7 +17,7 @@ import { Sparkline } from "../../../../src/components/Sparkline";
 import { StatTile } from "../../../../src/components/StatTile";
 import { useAuth } from "../../../../src/hooks/useAuth";
 import { useGroup } from "../../../../src/hooks/useGroup";
-import { useEloHistory, usePlayerMatchHistory, usePlayerRecords } from "../../../../src/hooks/useMatches";
+import { useEloHistory, usePlayerMatchHistory } from "../../../../src/hooks/useMatches";
 import { useArchivePlayer, useUpdatePlayer } from "../../../../src/hooks/usePlayerMutations";
 import { usePlayer, usePlayers } from "../../../../src/hooks/usePlayers";
 import { confirmAction, notify } from "../../../../src/lib/confirm";
@@ -32,6 +32,7 @@ import {
   computeGoalStats,
   computeHeadToHead,
   computeLastNStats,
+  computePlayerStats,
   computeStreaks,
   findSides,
   MIN_SAMPLE_SIZE,
@@ -61,7 +62,6 @@ export default function PlayerDetailScreen() {
   const { user } = useAuth();
   const { currentGroupId, currentRole } = useGroup();
   const { data: player, isLoading, isError, refetch } = usePlayer(id);
-  const records = usePlayerRecords(id ? [id] : []);
   const matchHistory = usePlayerMatchHistory(id);
   const eloHistoryQuery = useEloHistory(id);
   const roster = usePlayers(currentGroupId);
@@ -108,6 +108,9 @@ export default function PlayerDetailScreen() {
     [eloEntries],
   );
   const rank = useMemo(() => computeEloRank(playerId, roster.data ?? []), [roster.data, playerId]);
+  // Derived from matches (already fetched via usePlayerMatchHistory, uncapped) instead of a
+  // second usePlayerRecords network round-trip for the same win/loss/draw fact.
+  const stats = useMemo(() => computePlayerStats(playerId, matches), [playerId, matches]);
 
   if (isLoading) {
     return (
@@ -130,7 +133,6 @@ export default function PlayerDetailScreen() {
   }
 
   const canManage = currentRole === "owner" || currentRole === "admin" || player.linked_user_id === user?.id;
-  const stats = records.data?.get(player.id) ?? null;
 
   const handleAvatarPress = async () => {
     if (!canManage || !currentGroupId || isUploadingAvatar) return;
@@ -187,7 +189,7 @@ export default function PlayerDetailScreen() {
           <StatTile label="Rank" value={rank ? `#${rank.position} of ${rank.of}` : "–"} style={styles.tile} variant="elevated" />
           <StatTile
             label="Win Rate"
-            value={stats?.winRate !== null && stats?.winRate !== undefined ? `${Math.round(stats.winRate * 100)}%` : "–"}
+            value={stats.winRate !== null ? `${Math.round(stats.winRate * 100)}%` : "–"}
             style={styles.tile}
             variant="elevated"
           />
@@ -201,15 +203,15 @@ export default function PlayerDetailScreen() {
           <View style={styles.tabContent}>
             <Card>
               <Text style={styles.sectionTitle}>Record</Text>
-              {stats ? (
+              {matchHistory.isLoading ? (
+                <Skeleton height={40} />
+              ) : (
                 <View style={styles.recordRow}>
                   <RecordStat label="Played" value={stats.played} />
                   <RecordStat label="Wins" value={stats.wins} color={colors.win} />
                   <RecordStat label="Losses" value={stats.losses} color={colors.loss} />
                   <RecordStat label="Draws" value={stats.draws} color={colors.draw} />
                 </View>
-              ) : (
-                <Skeleton height={40} />
               )}
             </Card>
 
