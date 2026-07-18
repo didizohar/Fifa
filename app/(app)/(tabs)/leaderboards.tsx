@@ -7,6 +7,7 @@ import { Card } from "../../../src/components/Card";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
 import { ExportButton } from "../../../src/components/ExportButton";
+import { FadeIn } from "../../../src/components/FadeIn";
 import { Podium } from "../../../src/components/Podium";
 import { RankingRow } from "../../../src/components/RankingRow";
 import { Screen } from "../../../src/components/Screen";
@@ -289,17 +290,19 @@ export default function LeaderboardsScreen() {
           <EmptyState icon="🏆" title="Not enough data yet" message={activeCategory.emptyMessage} />
         ) : (
           <>
-            <Podium
-              entries={displayRows.slice(0, 3).map((row) => ({
-                playerId: row.playerId,
-                name: row.playerName,
-                avatarUrl: row.avatarUrl,
-                color: row.color,
-                valueLabel: row.valueLabel,
-              }))}
-              highlightedPlayerId={myPlayerId}
-              onPressEntry={(playerId) => router.push(`/player/${playerId}`)}
-            />
+            <FadeIn>
+              <Podium
+                entries={displayRows.slice(0, 3).map((row) => ({
+                  playerId: row.playerId,
+                  name: row.playerName,
+                  avatarUrl: row.avatarUrl,
+                  color: row.color,
+                  valueLabel: row.valueLabel,
+                }))}
+                highlightedPlayerId={myPlayerId}
+                onPressEntry={(playerId) => router.push(`/player/${playerId}`)}
+              />
+            </FadeIn>
             {displayRows.length > 3 ? (
               <View style={styles.list}>
                 {displayRows.slice(3).map((row, index) => (

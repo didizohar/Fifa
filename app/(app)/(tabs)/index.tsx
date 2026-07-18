@@ -4,11 +4,13 @@ import { useRouter } from "expo-router";
 import type { ComponentProps, ReactNode } from "react";
 import { useMemo } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { AnimatedNumber } from "../../../src/components/AnimatedNumber";
 import { Avatar } from "../../../src/components/Avatar";
 import { Badge, rankBadgeTone } from "../../../src/components/Badge";
 import { Card } from "../../../src/components/Card";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
+import { FadeIn } from "../../../src/components/FadeIn";
 import { FormStrip } from "../../../src/components/FormStrip";
 import { MatchRow } from "../../../src/components/MatchRow";
 import { RankingRow } from "../../../src/components/RankingRow";
@@ -81,6 +83,7 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl tintColor={colors.accent} refreshing={isRefetching} onRefresh={handleRefresh} />}
       >
+        <FadeIn>
         <LinearGradient colors={[colors.surfaceElevated, colors.surface]} style={styles.hero}>
           {myPlayer ? (
             <>
@@ -95,7 +98,7 @@ export default function HomeScreen() {
               <View style={styles.heroStatsRow}>
                 <View style={styles.heroStat}>
                   <Text style={styles.heroEyebrow}>Elo</Text>
-                  <Text style={styles.heroValue}>{myPlayer.singles_elo}</Text>
+                  <AnimatedNumber value={myPlayer.singles_elo} style={styles.heroValue} />
                 </View>
                 <View style={styles.heroStat}>
                   <Text style={styles.heroEyebrow}>Streak</Text>
@@ -120,6 +123,7 @@ export default function HomeScreen() {
             </View>
           )}
         </LinearGradient>
+        </FadeIn>
 
         <View style={styles.quickActions}>
           <QuickAction icon="add-circle" label="Record" onPress={() => router.push("/record-match")} />

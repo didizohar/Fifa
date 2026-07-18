@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors, radius, spacing, typography } from "../theme";
+import { AnimatedNumber } from "./AnimatedNumber";
 import { Avatar } from "./Avatar";
 
 const MEDALS = ["🥇", "🥈", "🥉"] as const;
@@ -36,7 +37,7 @@ export function RankingRow({ rank, name, avatarUrl, color, value, detail, onPres
         <Text style={styles.name} numberOfLines={1}>{name}</Text>
         <Text style={styles.meta}>{detail}</Text>
       </View>
-      <Text style={styles.elo}>{value}</Text>
+      <AnimatedNumber value={value} style={styles.elo} />
     </Pressable>
   );
 }
