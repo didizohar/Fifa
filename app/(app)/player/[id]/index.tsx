@@ -165,7 +165,12 @@ export default function PlayerDetailScreen() {
     <Screen padded={false}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <LinearGradient colors={[colors.surfaceElevated, colors.surface]} style={styles.hero}>
-          <Pressable onPress={handleAvatarPress} disabled={!canManage || isUploadingAvatar}>
+          <Pressable
+            onPress={handleAvatarPress}
+            disabled={!canManage || isUploadingAvatar}
+            accessibilityRole={canManage ? "button" : undefined}
+            accessibilityLabel={canManage ? "Change photo" : undefined}
+          >
             <Avatar uri={player.avatar_url} name={player.display_name} color={player.custom_color} size={104} />
             {canManage ? <Text style={styles.changePhoto}>{isUploadingAvatar ? "Uploading…" : "Change photo"}</Text> : null}
           </Pressable>

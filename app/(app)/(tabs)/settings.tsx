@@ -48,7 +48,12 @@ export default function SettingsScreen() {
             <Text style={styles.cardLabel}>Current group</Text>
             <Text style={styles.cardValue}>{currentGroup.name}</Text>
             {currentRole ? <Badge label={currentRole.charAt(0).toUpperCase() + currentRole.slice(1)} tone="accent" style={styles.roleTag} /> : null}
-            <Pressable onPress={handleShareInvite} style={styles.inviteRow}>
+            <Pressable
+              onPress={handleShareInvite}
+              style={styles.inviteRow}
+              accessibilityRole="button"
+              accessibilityLabel={`Share invite code ${currentGroup.invite_code}`}
+            >
               <Text style={styles.inviteCode}>{currentGroup.invite_code}</Text>
               <Text style={styles.inviteShare}>Share invite</Text>
             </Pressable>
@@ -63,6 +68,9 @@ export default function SettingsScreen() {
                 key={m.group.id}
                 onPress={() => setCurrentGroupId(m.group.id)}
                 style={styles.groupOption}
+                accessibilityRole="button"
+                accessibilityLabel={m.group.name}
+                accessibilityState={{ selected: m.group.id === currentGroup?.id }}
               >
                 <Text style={[styles.groupOptionLabel, m.group.id === currentGroup?.id && styles.groupOptionActive]}>
                   {m.group.name}

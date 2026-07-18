@@ -215,6 +215,9 @@ function ClubSelect({
           key={cv.id}
           onPress={() => onSelect(cv.id)}
           style={[styles.clubChip, selectedId === cv.id && styles.clubChipSelected]}
+          accessibilityRole="button"
+          accessibilityLabel={cv.club.name}
+          accessibilityState={{ selected: selectedId === cv.id }}
         >
           <Text style={[styles.clubChipLabel, selectedId === cv.id && styles.clubChipLabelSelected]} numberOfLines={1}>
             {cv.club.name}

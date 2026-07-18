@@ -11,7 +11,10 @@ export const colors = {
 
   textPrimary: "#F4F7F5",
   textSecondary: "#9CA8A1",
-  textMuted: "#6B756F",
+  // WCAG AA requires 4.5:1 for normal-size text; the original (#6B756F) measured
+  // 4.09:1 against background and 3.72:1 against surface -- failing on both. This
+  // measures 5.23:1 / 4.77:1 respectively, a minimal lightening that clears the bar.
+  textMuted: "#7C877F",
 
   win: "#3EE07A",
   loss: "#F87171",

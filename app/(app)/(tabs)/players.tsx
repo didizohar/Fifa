@@ -31,7 +31,12 @@ export default function PlayersScreen() {
               getCsv={() => playerStatsToCsv(players, matchHistory.data ?? [])}
             />
           ) : null}
-          <Pressable onPress={() => router.push("/player/new")} style={styles.addButton}>
+          <Pressable
+            onPress={() => router.push("/player/new")}
+            style={styles.addButton}
+            accessibilityRole="button"
+            accessibilityLabel="Add player"
+          >
             <Text style={styles.addButtonLabel}>+ Add</Text>
           </Pressable>
         </View>
@@ -68,7 +73,12 @@ export default function PlayersScreen() {
 
 function PlayerRow({ player, onPress }: { player: PlayerProfile; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+      accessibilityRole="button"
+      accessibilityLabel={`${player.display_name}, ${player.singles_elo} singles Elo, ${player.doubles_elo} doubles Elo`}
+    >
       <Avatar uri={player.avatar_url} name={player.display_name} color={player.custom_color} size={44} />
       <View style={styles.rowInfo}>
         <Text style={styles.rowName} numberOfLines={1}>{player.display_name}</Text>

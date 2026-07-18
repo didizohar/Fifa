@@ -136,7 +136,13 @@ function SideCard({
           const delta = deltaByPlayer.get(player.id);
           const isMvp = player.id === mvpPlayerId;
           return (
-            <Pressable key={player.id} style={[styles.playerChip, isMvp && styles.playerChipMvp]} onPress={() => onPlayerPress(player.id)}>
+            <Pressable
+              key={player.id}
+              style={[styles.playerChip, isMvp && styles.playerChipMvp]}
+              onPress={() => onPlayerPress(player.id)}
+              accessibilityRole="button"
+              accessibilityLabel={`${player.display_name}${isMvp ? ", MVP" : ""}${delta !== undefined ? `, ${delta > 0 ? "+" : ""}${delta} Elo` : ""}`}
+            >
               <Avatar uri={player.avatar_url} name={player.display_name} color={player.custom_color} size={36} />
               <View style={styles.playerInfo}>
                 <View style={styles.playerNameRow}>

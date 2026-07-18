@@ -25,7 +25,12 @@ const RESULT_TONE: Record<MatchRowSide["result"], BadgeTone> = { win: "win", los
 
 export function MatchRow({ matchType, isPenalties, side1, side2, playedAtLabel, onPress }: MatchRowProps) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      accessibilityRole={onPress ? "button" : undefined}
+      accessibilityLabel={`${side1.label}, ${side1.score}, ${side1.result} against ${side2.label}, ${side2.score}, ${playedAtLabel}`}
+    >
       <View style={styles.header}>
         <Badge label={matchType === "singles" ? "1v1" : "2v2"} tone="accent" />
         {isPenalties ? <Badge label="PENS" tone="warning" /> : null}

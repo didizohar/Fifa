@@ -81,6 +81,9 @@ export default function EditPlayerScreen() {
                 key={swatch}
                 onPress={() => setColor(swatch)}
                 style={[styles.swatch, { backgroundColor: swatch }, color === swatch && styles.swatchSelected]}
+                accessibilityRole="button"
+                accessibilityLabel={`Color ${swatch}`}
+                accessibilityState={{ selected: color === swatch }}
               />
             ))}
           </View>
