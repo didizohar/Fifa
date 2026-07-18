@@ -19,7 +19,7 @@ import { SkeletonList } from "../../../src/components/Skeleton";
 import { StatTile } from "../../../src/components/StatTile";
 import { useAuth } from "../../../src/hooks/useAuth";
 import { useGroup } from "../../../src/hooks/useGroup";
-import { useGroupMatchHistory, useMatches, usePlayerRecords } from "../../../src/hooks/useMatches";
+import { useGroupMatchHistory, usePlayerRecords } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
 import { DEFAULT_MATCH_FILTERS, filterMatches } from "../../../src/lib/matchFilters";
 import { matchSideLabel, formatRelativeDate } from "../../../src/lib/format";
@@ -30,7 +30,7 @@ import {
   computeMostMatchesLeaderboard,
   computeStreaks,
 } from "../../../src/lib/stats";
-import { colors, radius, spacing, typography } from "../../../src/theme";
+import { colors, iconSize, radius, spacing, typography } from "../../../src/theme";
 
 const RANKINGS_PREVIEW = 5;
 const MATCHES_PREVIEW = 5;
@@ -43,17 +43,20 @@ export default function HomeScreen() {
   const groupId = currentGroup?.id ?? null;
 
   const players = usePlayers(groupId);
-  const matches = useMatches(groupId, MATCHES_PREVIEW);
   const fullHistory = useGroupMatchHistory(groupId);
   const rankingPreviewIds = (players.data ?? []).slice(0, RANKINGS_PREVIEW).map((p) => p.id);
   const records = usePlayerRecords(rankingPreviewIds);
 
-  const isLoading = players.isLoading || matches.isLoading;
-  const isError = players.isError || matches.isError;
-  const isRefetching = players.isRefetching || matches.isRefetching;
+  const isLoading = players.isLoading || fullHistory.isLoading;
+  const isError = players.isError || fullHistory.isError;
+  const isRefetching = players.isRefetching || fullHistory.isRefetching;
 
   const roster = players.data ?? [];
+  // useGroupMatchHistory is already sorted played_at desc, same order fetchRecentMatches
+  // would use -- deriving the preview from it instead of a second capped query avoids an
+  // entirely redundant network round-trip for data we're already fetching in full.
   const allMatches = fullHistory.data ?? [];
+  const recentMatches = allMatches.slice(0, MATCHES_PREVIEW);
   const myPlayer = roster.find((p) => p.linked_user_id === user?.id) ?? null;
 
   const myStreak = useMemo(() => (myPlayer ? computeStreaks(myPlayer.id, allMatches) : null), [myPlayer, allMatches]);
@@ -71,7 +74,6 @@ export default function HomeScreen() {
 
   const handleRefresh = () => {
     players.refetch();
-    matches.refetch();
     records.refetch();
     fullHistory.refetch();
   };
@@ -218,7 +220,7 @@ export default function HomeScreen() {
             <Section
               title="Recent matches"
               onSeeAll={() => router.push("/history")}
-              isEmpty={(matches.data ?? []).length === 0}
+              isEmpty={recentMatches.length === 0}
               emptyProps={{
                 icon: "⚽️",
                 title: "No matches yet",
@@ -227,7 +229,7 @@ export default function HomeScreen() {
                 onAction: () => router.push("/record-match"),
               }}
             >
-              {(matches.data ?? []).slice(0, MATCHES_PREVIEW).map((match) => {
+              {recentMatches.map((match) => {
                 const [s1, s2] = match.sides;
                 return (
                   <MatchRow
@@ -261,9 +263,14 @@ export default function HomeScreen() {
 
 function QuickAction({ icon, label, onPress }: { icon: ComponentProps<typeof Ionicons>["name"]; label: string; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.quickAction, pressed && styles.quickActionPressed]}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.quickAction, pressed && styles.quickActionPressed]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
       <View style={styles.quickActionIcon}>
-        <Ionicons name={icon} size={20} color={colors.accent} />
+        <Ionicons name={icon} size={iconSize.md} color={colors.accent} />
       </View>
       <Text style={styles.quickActionLabel} numberOfLines={1}>
         {label}
