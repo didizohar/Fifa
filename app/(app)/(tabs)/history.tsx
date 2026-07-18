@@ -170,7 +170,9 @@ export default function HistoryScreen() {
           contentContainerStyle={styles.listPadding}
           refreshControl={<RefreshControl tintColor={colors.accent} refreshing={isRefetching} onRefresh={refetch} />}
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
-          renderItem={({ item }) => <HistoryRow match={item} onPress={() => router.push(`/match/${item.id}`)} />}
+          renderItem={({ item, index }) => (
+            <HistoryRow match={item} isLast={index === filtered.length - 1} onPress={() => router.push(`/match/${item.id}`)} />
+          )}
           ListEmptyComponent={
             filtersActive ? (
               <EmptyState
@@ -215,27 +217,35 @@ function ClubChip({ label, active, onPress }: { label: string; active: boolean; 
   );
 }
 
-function HistoryRow({ match, onPress }: { match: MatchSummary; onPress: () => void }) {
+function HistoryRow({ match, onPress, isLast }: { match: MatchSummary; onPress: () => void; isLast: boolean }) {
   const [s1, s2] = match.sides;
   return (
-    <MatchRow
-      matchType={match.match_type}
-      isPenalties={match.is_penalties}
-      playedAtLabel={formatRelativeDate(match.played_at)}
-      side1={{
-        label: matchSideLabel(s1.players.map((p) => p.display_name)),
-        clubName: s1.club?.name ?? "Unknown club",
-        score: s1.score,
-        result: s1.result,
-      }}
-      side2={{
-        label: matchSideLabel(s2.players.map((p) => p.display_name)),
-        clubName: s2.club?.name ?? "Unknown club",
-        score: s2.score,
-        result: s2.result,
-      }}
-      onPress={onPress}
-    />
+    <View style={styles.timelineRow}>
+      <View style={styles.timelineRail}>
+        <View style={styles.timelineDot} />
+        {!isLast ? <View style={styles.timelineLine} /> : null}
+      </View>
+      <View style={styles.timelineContent}>
+        <MatchRow
+          matchType={match.match_type}
+          isPenalties={match.is_penalties}
+          playedAtLabel={formatRelativeDate(match.played_at)}
+          side1={{
+            label: matchSideLabel(s1.players.map((p) => p.display_name)),
+            clubName: s1.club?.name ?? "Unknown club",
+            score: s1.score,
+            result: s1.result,
+          }}
+          side2={{
+            label: matchSideLabel(s2.players.map((p) => p.display_name)),
+            clubName: s2.club?.name ?? "Unknown club",
+            score: s2.score,
+            result: s2.result,
+          }}
+          onPress={onPress}
+        />
+      </View>
+    </View>
   );
 }
 
@@ -347,5 +357,28 @@ const styles = StyleSheet.create({
   listPadding: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xxl,
+  },
+  timelineRow: {
+    flexDirection: "row",
+  },
+  timelineRail: {
+    width: 20,
+    alignItems: "center",
+  },
+  timelineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.accent,
+    marginTop: spacing.md,
+  },
+  timelineLine: {
+    flex: 1,
+    width: 2,
+    backgroundColor: colors.borderSubtle,
+    marginTop: 2,
+  },
+  timelineContent: {
+    flex: 1,
   },
 });

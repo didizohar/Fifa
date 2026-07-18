@@ -1,7 +1,7 @@
 import { StyleSheet, Text, ViewStyle } from "react-native";
 import { colors, radius, spacing, typography } from "../theme";
 
-type BadgeTone = "accent" | "neutral" | "win" | "loss" | "draw" | "warning" | "gold" | "silver" | "bronze";
+export type BadgeTone = "accent" | "neutral" | "win" | "loss" | "draw" | "warning" | "gold" | "silver" | "bronze";
 
 interface BadgeProps {
   label: string;

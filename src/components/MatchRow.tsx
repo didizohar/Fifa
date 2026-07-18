@@ -1,5 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { colors, radius, spacing, typography } from "../theme";
+import { colors, radius, shadows, spacing, typography } from "../theme";
+import { Avatar } from "./Avatar";
+import { Badge, type BadgeTone } from "./Badge";
 
 interface MatchRowSide {
   label: string;
@@ -17,14 +19,16 @@ interface MatchRowProps {
   onPress?: () => void;
 }
 
-const resultColor = { win: colors.win, loss: colors.loss, draw: colors.draw };
+const RESULT_COLOR = { win: colors.win, loss: colors.loss, draw: colors.draw };
+const RESULT_LABEL = { win: "W", loss: "L", draw: "D" };
+const RESULT_TONE: Record<MatchRowSide["result"], BadgeTone> = { win: "win", loss: "loss", draw: "draw" };
 
 export function MatchRow({ matchType, isPenalties, side1, side2, playedAtLabel, onPress }: MatchRowProps) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
       <View style={styles.header}>
-        <Text style={styles.badge}>{matchType === "singles" ? "1v1" : "2v2"}</Text>
-        {isPenalties ? <Text style={styles.badge}>PENS</Text> : null}
+        <Badge label={matchType === "singles" ? "1v1" : "2v2"} tone="accent" />
+        {isPenalties ? <Badge label="PENS" tone="warning" /> : null}
         <Text style={styles.date}>{playedAtLabel}</Text>
       </View>
       <SideRow side={side1} />
@@ -36,12 +40,17 @@ export function MatchRow({ matchType, isPenalties, side1, side2, playedAtLabel, 
 function SideRow({ side }: { side: MatchRowSide }) {
   return (
     <View style={styles.sideRow}>
-      <View style={[styles.resultDot, { backgroundColor: resultColor[side.result] }]} />
+      <Avatar name={side.clubName} size={28} />
       <View style={styles.sideInfo}>
-        <Text style={styles.sideLabel} numberOfLines={1}>{side.label}</Text>
-        <Text style={styles.clubName} numberOfLines={1}>{side.clubName}</Text>
+        <Text style={[styles.sideLabel, side.result !== "win" && styles.sideLabelMuted]} numberOfLines={1}>
+          {side.label}
+        </Text>
+        <Text style={styles.clubName} numberOfLines={1}>
+          {side.clubName}
+        </Text>
       </View>
-      <Text style={[styles.score, { color: resultColor[side.result] }]}>{side.score}</Text>
+      <Badge label={RESULT_LABEL[side.result]} tone={RESULT_TONE[side.result]} />
+      <Text style={[styles.score, { color: RESULT_COLOR[side.result] }, side.result === "win" && styles.scoreWin]}>{side.score}</Text>
     </View>
   );
 }
@@ -54,6 +63,7 @@ const styles = StyleSheet.create({
     borderColor: colors.borderSubtle,
     padding: spacing.md,
     gap: spacing.sm,
+    ...shadows.sm,
   },
   pressed: {
     opacity: 0.8,
@@ -62,15 +72,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-  },
-  badge: {
-    ...typography.small,
-    color: colors.accent,
-    backgroundColor: colors.accentSubtle,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: radius.pill,
-    overflow: "hidden",
   },
   date: {
     ...typography.small,
@@ -81,23 +82,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
   },
-  resultDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
   sideInfo: {
     flex: 1,
+    gap: 2,
   },
   sideLabel: {
     ...typography.bodyStrong,
+  },
+  sideLabelMuted: {
+    color: colors.textSecondary,
   },
   clubName: {
     ...typography.small,
   },
   score: {
     ...typography.heading,
-    minWidth: 24,
+    minWidth: 26,
     textAlign: "right",
+  },
+  scoreWin: {
+    fontSize: 20,
   },
 });
