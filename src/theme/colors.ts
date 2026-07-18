@@ -24,4 +24,12 @@ export const colors = {
   overlay: "rgba(4, 6, 5, 0.72)",
   skeleton: "#1B211F",
   skeletonHighlight: "#242C29",
+
+  // Podium (leaderboard top-3), distinct from the win/loss/draw palette above.
+  gold: "#F5C451",
+  goldSubtle: "rgba(245, 196, 81, 0.14)",
+  silver: "#C3CBD4",
+  silverSubtle: "rgba(195, 203, 212, 0.12)",
+  bronze: "#D48A54",
+  bronzeSubtle: "rgba(212, 138, 84, 0.14)",
 } as const;
