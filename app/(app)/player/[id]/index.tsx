@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../src/components/Avatar";
+import { Badge, rankBadgeTone } from "../../../../src/components/Badge";
 import { BarChart } from "../../../../src/components/BarChart";
 import { Button } from "../../../../src/components/Button";
 import { Card } from "../../../../src/components/Card";
@@ -163,12 +164,15 @@ export default function PlayerDetailScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <LinearGradient colors={[colors.surfaceElevated, colors.surface]} style={styles.hero}>
           <Pressable onPress={handleAvatarPress} disabled={!canManage || isUploadingAvatar}>
-            <Avatar uri={player.avatar_url} name={player.display_name} color={player.custom_color} size={96} />
+            <Avatar uri={player.avatar_url} name={player.display_name} color={player.custom_color} size={104} />
             {canManage ? <Text style={styles.changePhoto}>{isUploadingAvatar ? "Uploading…" : "Change photo"}</Text> : null}
           </Pressable>
           <Text style={styles.name}>{player.display_name}</Text>
           {player.nickname ? <Text style={styles.nickname}>"{player.nickname}"</Text> : null}
-          {!player.is_active ? <Text style={styles.archivedBadge}>Archived</Text> : null}
+          <View style={styles.heroBadgeRow}>
+            {rank ? <Badge label={`#${rank.position} of ${rank.of}`} tone={rankBadgeTone(rank.position)} /> : null}
+            {!player.is_active ? <Badge label="Archived" tone="warning" /> : null}
+          </View>
 
           {matchHistory.isLoading ? (
             <View style={styles.formPlaceholder} />
@@ -178,13 +182,14 @@ export default function PlayerDetailScreen() {
         </LinearGradient>
 
         <View style={styles.tileGrid}>
-          <StatTile label="Singles Elo" value={player.singles_elo} style={styles.tile} />
-          <StatTile label="Doubles Elo" value={player.doubles_elo} style={styles.tile} />
-          <StatTile label="Rank" value={rank ? `#${rank.position} of ${rank.of}` : "–"} style={styles.tile} />
+          <StatTile label="Singles Elo" value={player.singles_elo} style={styles.tile} variant="elevated" />
+          <StatTile label="Doubles Elo" value={player.doubles_elo} style={styles.tile} variant="elevated" />
+          <StatTile label="Rank" value={rank ? `#${rank.position} of ${rank.of}` : "–"} style={styles.tile} variant="elevated" />
           <StatTile
             label="Win Rate"
             value={stats?.winRate !== null && stats?.winRate !== undefined ? `${Math.round(stats.winRate * 100)}%` : "–"}
             style={styles.tile}
+            variant="elevated"
           />
         </View>
 
@@ -442,9 +447,9 @@ const styles = StyleSheet.create({
   nickname: {
     ...typography.caption,
   },
-  archivedBadge: {
-    ...typography.small,
-    color: colors.warning,
+  heroBadgeRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
     marginTop: spacing.xs,
   },
   formPlaceholder: {

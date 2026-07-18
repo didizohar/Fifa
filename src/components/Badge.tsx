@@ -19,6 +19,14 @@ export function Badge({ label, tone = "accent", style }: BadgeProps) {
   );
 }
 
+/** Gold/silver/bronze for the top 3, neutral otherwise -- shared by any "rank" badge (Home hero, player profile, leaderboards). */
+export function rankBadgeTone(position: number | null): BadgeTone {
+  if (position === 1) return "gold";
+  if (position === 2) return "silver";
+  if (position === 3) return "bronze";
+  return "neutral";
+}
+
 const TONE_COLORS: Record<BadgeTone, { bg: string; fg: string }> = {
   accent: { bg: colors.accentSubtle, fg: colors.accent },
   neutral: { bg: colors.surfaceElevated, fg: colors.textSecondary },

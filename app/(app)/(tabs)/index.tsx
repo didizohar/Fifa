@@ -5,7 +5,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { useMemo } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../src/components/Avatar";
-import { Badge } from "../../../src/components/Badge";
+import { Badge, rankBadgeTone } from "../../../src/components/Badge";
 import { Card } from "../../../src/components/Card";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
@@ -27,17 +27,8 @@ import {
   computeMonthlyLeaderboard,
   computeMostMatchesLeaderboard,
   computeStreaks,
-  type EloRank,
 } from "../../../src/lib/stats";
 import { colors, radius, spacing, typography } from "../../../src/theme";
-
-function rankBadgeTone(rank: EloRank | null): "gold" | "silver" | "bronze" | "neutral" {
-  if (!rank) return "neutral";
-  if (rank.position === 1) return "gold";
-  if (rank.position === 2) return "silver";
-  if (rank.position === 3) return "bronze";
-  return "neutral";
-}
 
 const RANKINGS_PREVIEW = 5;
 const MATCHES_PREVIEW = 5;
@@ -99,7 +90,7 @@ export default function HomeScreen() {
                   <Text style={styles.heroGreeting}>{currentGroup?.name}</Text>
                   <Text style={styles.heroName}>{myPlayer.display_name}</Text>
                 </View>
-                <Badge label={myRank ? `#${myRank.position} of ${myRank.of}` : "Unranked"} tone={rankBadgeTone(myRank)} />
+                <Badge label={myRank ? `#${myRank.position} of ${myRank.of}` : "Unranked"} tone={rankBadgeTone(myRank?.position ?? null)} />
               </View>
               <View style={styles.heroStatsRow}>
                 <View style={styles.heroStat}>
