@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LayoutAnimation, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../src/components/Avatar";
 import { Card } from "../../../src/components/Card";
@@ -86,7 +86,7 @@ export default function LeaderboardsScreen() {
   const [descending, setDescending] = useState(true);
   const [monthOffset, setMonthOffset] = useState(0);
 
-  /** Animates the list reordering itself (category/sort/filter change) instead of an abrupt jump -- no rank-history data exists to animate actual movement deltas. */
+  /** Animates the list reordering itself on a category/sort/filter switch instead of an abrupt jump. Separate from the per-row movement badges below, which flag an actual rank change within the same category since it was last shown. */
   const animateReorder = () => LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 
   const roster = players.data ?? [];
@@ -141,6 +141,36 @@ export default function LeaderboardsScreen() {
         return [];
     }
   }, [category, roster, filteredMatches, matchTypeFilter, monthTarget]);
+
+  /**
+   * No historical rank-snapshot table exists, so "movement" can't reflect
+   * real elapsed time -- instead, remember each category+filter's rank
+   * order across renders (a match recorded, then a return to this screen;
+   * pull-to-refresh; etc.) and flag a real change since last shown. Monthly
+   * and doubles-pairs are excluded: month navigation changes the ranking
+   * basis on every tap, so "movement" wouldn't mean anything there.
+   */
+  const previousRanksRef = useRef<Map<string, Map<string, number>>>(new Map());
+  const [movement, setMovement] = useState<Map<string, number>>(new Map());
+  useEffect(() => {
+    if (category === "monthly" || category === "doublesPairs") {
+      setMovement(new Map());
+      return;
+    }
+    const key = `${category}:${matchTypeFilter}`;
+    const currentRanks = new Map(rows.map((row, index) => [row.playerId, index + 1]));
+    const previousRanks = previousRanksRef.current.get(key);
+    const deltas = new Map<string, number>();
+    if (previousRanks) {
+      for (const [playerId, position] of currentRanks) {
+        const previousPosition = previousRanks.get(playerId);
+        if (previousPosition !== undefined && previousPosition !== position) deltas.set(playerId, previousPosition - position);
+      }
+    }
+    previousRanksRef.current.set(key, currentRanks);
+    setMovement(deltas);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category, matchTypeFilter, rows]);
 
   const doublesPairs = useMemo(() => (category === "doublesPairs" ? computeBestDoublesPairs(matches) : []), [category, matches]);
 
@@ -315,6 +345,7 @@ export default function LeaderboardsScreen() {
                     value={row.valueLabel}
                     detail={row.detail}
                     highlighted={row.playerId === myPlayerId}
+                    movement={movement.get(row.playerId) ?? 0}
                     onPress={() => router.push(`/player/${row.playerId}`)}
                   />
                 ))}

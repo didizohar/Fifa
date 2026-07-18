@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors, radius, spacing, typography } from "../theme";
 import { AnimatedNumber } from "./AnimatedNumber";
@@ -17,9 +18,11 @@ interface RankingRowProps {
   onPress?: () => void;
   /** Marks this row as belonging to the signed-in user, e.g. in a leaderboard. */
   highlighted?: boolean;
+  /** Positions gained (positive) or lost (negative) since this ranking was last shown this session. Omit or 0 to show nothing. */
+  movement?: number;
 }
 
-export function RankingRow({ rank, name, avatarUrl, color, value, detail, onPress, highlighted = false }: RankingRowProps) {
+export function RankingRow({ rank, name, avatarUrl, color, value, detail, onPress, highlighted = false, movement = 0 }: RankingRowProps) {
   const medal = rank >= 1 && rank <= 3 ? MEDALS[rank - 1] : null;
   return (
     <Pressable
@@ -34,7 +37,15 @@ export function RankingRow({ rank, name, avatarUrl, color, value, detail, onPres
       )}
       <Avatar uri={avatarUrl} name={name} color={color} size={40} />
       <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>{name}</Text>
+        <View style={styles.nameRow}>
+          <Text style={styles.name} numberOfLines={1}>{name}</Text>
+          {movement !== 0 ? (
+            <View style={styles.movement} accessibilityLabel={movement > 0 ? `Up ${movement}` : `Down ${Math.abs(movement)}`}>
+              <Ionicons name={movement > 0 ? "caret-up" : "caret-down"} size={12} color={movement > 0 ? colors.win : colors.loss} />
+              <Text style={[styles.movementLabel, { color: movement > 0 ? colors.win : colors.loss }]}>{Math.abs(movement)}</Text>
+            </View>
+          ) : null}
+        </View>
         <Text style={styles.meta}>{detail}</Text>
       </View>
       <AnimatedNumber value={value} style={styles.elo} />
@@ -75,8 +86,22 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
   name: {
     ...typography.bodyStrong,
+    flexShrink: 1,
+  },
+  movement: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  movementLabel: {
+    ...typography.small,
+    fontWeight: "700",
   },
   meta: {
     ...typography.small,
