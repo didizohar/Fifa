@@ -16,6 +16,7 @@ import {
   computeLastNStats,
   computeLongestLossStreakLeaderboard,
   computeLongestStreakLeaderboard,
+  computeMatchMvp,
   computeMonthlyLeaderboard,
   computeMostMatchesLeaderboard,
   computePlayerStats,
@@ -481,5 +482,22 @@ describe("computeEloRank", () => {
   it("returns null for a player not in the list, or an empty roster", () => {
     expect(computeEloRank("p4", players)).toBeNull();
     expect(computeEloRank("p1", [])).toBeNull();
+  });
+});
+
+describe("computeMatchMvp", () => {
+  it("picks the player with the largest Elo gain", () => {
+    const deltas = [
+      { playerId: "p1", delta: 12 },
+      { playerId: "p2", delta: -12 },
+      { playerId: "p3", delta: 18 },
+      { playerId: "p4", delta: -18 },
+    ];
+    expect(computeMatchMvp(deltas)).toBe("p3");
+  });
+
+  it("returns null when nobody gained rating, or there are no deltas at all", () => {
+    expect(computeMatchMvp([{ playerId: "p1", delta: -5 }, { playerId: "p2", delta: 0 }])).toBeNull();
+    expect(computeMatchMvp([])).toBeNull();
   });
 });

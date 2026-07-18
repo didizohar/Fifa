@@ -522,3 +522,17 @@ export function computeEloRank(playerId: string, players: { id: string; singles_
   const index = sorted.findIndex((p) => p.id === playerId);
   return index >= 0 ? { position: index + 1, of: sorted.length } : null;
 }
+
+/**
+ * Match-detail "MVP": whoever gained the most Elo in that one match -- a
+ * real, performance-adjusted-for-opponent-strength signal, not a fabricated
+ * stat (the schema has no per-player goal/assist tracking within a match).
+ * Null if nobody gained rating (e.g. a draw with no rating movement).
+ */
+export function computeMatchMvp(deltas: { playerId: string; delta: number }[]): string | null {
+  let best: { playerId: string; delta: number } | null = null;
+  for (const row of deltas) {
+    if (!best || row.delta > best.delta) best = row;
+  }
+  return best && best.delta > 0 ? best.playerId : null;
+}

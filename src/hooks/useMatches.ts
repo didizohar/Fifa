@@ -3,6 +3,7 @@ import {
   fetchEloHistory,
   fetchGroupMatchHistory,
   fetchMatchDetail,
+  fetchMatchEloDeltas,
   fetchPlayerMatchHistory,
   fetchPlayerRecordRows,
   fetchRecentMatches,
@@ -68,5 +69,14 @@ export function useGroupMatchHistory(groupId: string | null) {
     queryKey: matchKeys.groupHistory(groupId ?? ""),
     queryFn: () => fetchGroupMatchHistory(groupId!),
     enabled: !!groupId,
+  });
+}
+
+/** Every player's Elo swing for one match -- match detail's "performance" section. */
+export function useMatchEloDeltas(matchId: string | undefined) {
+  return useQuery({
+    queryKey: matchKeys.eloDeltas(matchId ?? ""),
+    queryFn: () => fetchMatchEloDeltas(matchId!),
+    enabled: !!matchId,
   });
 }

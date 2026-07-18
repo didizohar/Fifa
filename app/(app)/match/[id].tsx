@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../src/components/Avatar";
@@ -6,9 +7,10 @@ import { Card } from "../../../src/components/Card";
 import { ErrorState } from "../../../src/components/ErrorState";
 import { Screen } from "../../../src/components/Screen";
 import { Skeleton } from "../../../src/components/Skeleton";
-import { useMatch } from "../../../src/hooks/useMatches";
+import { useMatch, useMatchEloDeltas } from "../../../src/hooks/useMatches";
 import { formatDateTime } from "../../../src/lib/format";
 import type { MatchSideSummary } from "../../../src/lib/matches";
+import { computeMatchMvp } from "../../../src/lib/stats";
 import { colors, radius, spacing, typography } from "../../../src/theme";
 
 const resultColor = { win: colors.win, loss: colors.loss, draw: colors.draw };
@@ -19,11 +21,24 @@ export default function MatchDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { data: match, isLoading, isError, refetch } = useMatch(id);
+  const eloDeltas = useMatchEloDeltas(id);
+
+  const deltaByPlayer = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of eloDeltas.data ?? []) map.set(row.player_id, row.rating_after - row.rating_before);
+    return map;
+  }, [eloDeltas.data]);
+
+  const mvpPlayerId = useMemo(
+    () => computeMatchMvp([...deltaByPlayer.entries()].map(([playerId, delta]) => ({ playerId, delta }))),
+    [deltaByPlayer],
+  );
 
   if (isLoading) {
     return (
       <Screen>
         <View style={styles.loading}>
+          <Skeleton height={100} borderRadius={radius.lg} />
           <Skeleton height={140} borderRadius={radius.lg} />
           <Skeleton height={140} borderRadius={radius.lg} />
         </View>
@@ -34,7 +49,7 @@ export default function MatchDetailScreen() {
   if (isError || !match) {
     return (
       <Screen>
-        <ErrorState message="Couldn't load this match." onRetry={refetch} />
+        <ErrorState message="Couldn't load this match. Check your connection and try again." onRetry={refetch} />
       </Screen>
     );
   }
@@ -48,14 +63,34 @@ export default function MatchDetailScreen() {
           <Badge label={match.match_type === "singles" ? "1 v 1" : "2 v 2"} tone="accent" />
           {match.is_overtime ? <Badge label="OT" tone="neutral" /> : null}
           {match.is_penalties ? <Badge label="PENS" tone="warning" /> : null}
+          <Text style={styles.date}>{formatDateTime(match.played_at)}</Text>
         </View>
-        <Text style={styles.date}>{formatDateTime(match.played_at)}</Text>
 
-        <SideCard side={side1} onPlayerPress={(id) => router.push(`/player/${id}`)} />
-        <View style={styles.vsRow}>
-          <Text style={styles.vsText}>vs</Text>
-        </View>
-        <SideCard side={side2} onPlayerPress={(id) => router.push(`/player/${id}`)} />
+        <Card variant="elevated" style={styles.scoreboard}>
+          <View style={styles.scoreboardRow}>
+            <ScoreboardSide side={side1} />
+            <Text style={styles.scoreboardDivider}>–</Text>
+            <ScoreboardSide side={side2} />
+          </View>
+          {match.is_penalties && side1.penalty_score !== null && side2.penalty_score !== null ? (
+            <Text style={styles.penaltyNote}>
+              Decided on penalties, {side1.penalty_score}-{side2.penalty_score}
+            </Text>
+          ) : null}
+        </Card>
+
+        <SideCard
+          side={side1}
+          deltaByPlayer={deltaByPlayer}
+          mvpPlayerId={mvpPlayerId}
+          onPlayerPress={(playerId) => router.push(`/player/${playerId}`)}
+        />
+        <SideCard
+          side={side2}
+          deltaByPlayer={deltaByPlayer}
+          mvpPlayerId={mvpPlayerId}
+          onPlayerPress={(playerId) => router.push(`/player/${playerId}`)}
+        />
 
         {match.notes ? (
           <Card>
@@ -68,24 +103,58 @@ export default function MatchDetailScreen() {
   );
 }
 
-function SideCard({ side, onPlayerPress }: { side: MatchSideSummary; onPlayerPress: (id: string) => void }) {
+function ScoreboardSide({ side }: { side: MatchSideSummary }) {
+  return (
+    <View style={styles.scoreboardSide}>
+      <Text style={styles.scoreboardClub} numberOfLines={1}>
+        {side.club?.name ?? "Unknown club"}
+      </Text>
+      <Text style={[styles.scoreboardScore, { color: resultColor[side.result] }]}>{side.score}</Text>
+    </View>
+  );
+}
+
+function SideCard({
+  side,
+  deltaByPlayer,
+  mvpPlayerId,
+  onPlayerPress,
+}: {
+  side: MatchSideSummary;
+  deltaByPlayer: Map<string, number>;
+  mvpPlayerId: string | null;
+  onPlayerPress: (id: string) => void;
+}) {
   return (
     <Card style={styles.sideCard}>
       <View style={styles.sideHeader}>
         <Text style={styles.clubName}>{side.club?.name ?? "Unknown club"}</Text>
-        <View style={styles.scoreGroup}>
-          <Text style={[styles.score, { color: resultColor[side.result] }]}>{side.score}</Text>
-          {side.penalty_score !== null ? <Text style={styles.penaltyScore}>({side.penalty_score} pens)</Text> : null}
-        </View>
+        <Badge label={resultLabel[side.result]} tone={resultTone[side.result]} />
       </View>
-      <Badge label={resultLabel[side.result]} tone={resultTone[side.result]} style={styles.resultBadge} />
       <View style={styles.playersRow}>
-        {side.players.map((player) => (
-          <Pressable key={player.id} style={styles.playerChip} onPress={() => onPlayerPress(player.id)}>
-            <Avatar uri={player.avatar_url} name={player.display_name} color={player.custom_color} size={32} />
-            <Text style={styles.playerName}>{player.display_name}</Text>
-          </Pressable>
-        ))}
+        {side.players.map((player) => {
+          const delta = deltaByPlayer.get(player.id);
+          const isMvp = player.id === mvpPlayerId;
+          return (
+            <Pressable key={player.id} style={[styles.playerChip, isMvp && styles.playerChipMvp]} onPress={() => onPlayerPress(player.id)}>
+              <Avatar uri={player.avatar_url} name={player.display_name} color={player.custom_color} size={36} />
+              <View style={styles.playerInfo}>
+                <View style={styles.playerNameRow}>
+                  <Text style={styles.playerName} numberOfLines={1}>
+                    {player.display_name}
+                  </Text>
+                  {isMvp ? <Badge label="MVP" tone="gold" /> : null}
+                </View>
+                {delta !== undefined ? (
+                  <Text style={[styles.playerDelta, { color: delta > 0 ? colors.win : delta < 0 ? colors.loss : colors.textMuted }]}>
+                    {delta > 0 ? "+" : ""}
+                    {delta} Elo
+                  </Text>
+                ) : null}
+              </View>
+            </Pressable>
+          );
+        })}
       </View>
     </Card>
   );
@@ -93,7 +162,7 @@ function SideCard({ side, onPlayerPress }: { side: MatchSideSummary; onPlayerPre
 
 const styles = StyleSheet.create({
   loading: {
-    gap: spacing.lg,
+    gap: spacing.md,
     paddingTop: spacing.lg,
   },
   content: {
@@ -103,13 +172,44 @@ const styles = StyleSheet.create({
   },
   badges: {
     flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
   },
   date: {
+    ...typography.small,
+    marginLeft: "auto",
+  },
+  scoreboard: {
+    alignItems: "center",
+  },
+  scoreboardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.lg,
+  },
+  scoreboardSide: {
+    flex: 1,
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  scoreboardClub: {
     ...typography.caption,
+    textAlign: "center",
+  },
+  scoreboardScore: {
+    ...typography.displayLarge,
+  },
+  scoreboardDivider: {
+    ...typography.title,
+    color: colors.textMuted,
+  },
+  penaltyNote: {
+    ...typography.small,
+    marginTop: spacing.sm,
   },
   sideCard: {
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   sideHeader: {
     flexDirection: "row",
@@ -119,39 +219,37 @@ const styles = StyleSheet.create({
   clubName: {
     ...typography.bodyStrong,
   },
-  scoreGroup: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: spacing.xs,
-  },
-  score: {
-    ...typography.stat,
-  },
-  penaltyScore: {
-    ...typography.small,
-  },
-  resultBadge: {
-    alignSelf: "flex-start",
-  },
   playersRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.md,
-    marginTop: spacing.xs,
+    gap: spacing.sm,
   },
   playerChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.xs,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  playerChipMvp: {
+    borderColor: colors.gold,
+    backgroundColor: colors.goldSubtle,
+  },
+  playerInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  playerNameRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
   },
   playerName: {
     ...typography.body,
+    flexShrink: 1,
   },
-  vsRow: {
-    alignItems: "center",
-  },
-  vsText: {
-    ...typography.caption,
+  playerDelta: {
+    ...typography.small,
     fontWeight: "700",
   },
   notesLabel: {
