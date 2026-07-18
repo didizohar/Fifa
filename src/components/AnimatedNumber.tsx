@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Text, TextStyle } from "react-native";
+import { Animated, Easing, Text, TextStyle } from "react-native";
 
 interface AnimatedNumberProps {
   /** Non-numeric values (already-formatted strings like "62%" or "#3 of 12") render statically -- only real numbers animate. */
@@ -19,7 +19,8 @@ export function AnimatedNumber({ value, style, duration = 500 }: AnimatedNumberP
     if (!isNumeric || previous.current === value) return;
     previous.current = value;
     const id = animated.addListener(({ value: v }) => setDisplay(Math.round(v)));
-    Animated.timing(animated, { toValue: value, duration, useNativeDriver: false }).start();
+    // Gentle decelerate -- counts up quickly then settles into the final number, like an odometer rather than a linear ramp.
+    Animated.timing(animated, { toValue: value, duration, easing: Easing.out(Easing.quad), useNativeDriver: false }).start();
     return () => animated.removeListener(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, isNumeric]);

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { AccessibilityInfo, Animated, ViewStyle } from "react-native";
+import { AccessibilityInfo, Animated, Easing, ViewStyle } from "react-native";
 
 interface FadeInProps {
   children: React.ReactNode;
@@ -20,7 +20,8 @@ export function FadeIn({ children, style, delay = 0 }: FadeInProps) {
         progress.setValue(1);
         return;
       }
-      Animated.timing(progress, { toValue: 1, duration: 350, delay, useNativeDriver: true }).start();
+      // Decelerate curve (fast start, gentle settle) reads as a natural entrance rather than a mechanical linear fade.
+      Animated.timing(progress, { toValue: 1, duration: 350, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
     });
     return () => {
       cancelled = true;
