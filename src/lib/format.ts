@@ -13,6 +13,25 @@ export function formatRelativeDate(iso: string): string {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+/** "Today" / "Yesterday" / "Monday, July 14" (adds the year if it isn't the current one) -- used to group a match list by day. */
+export function formatDayLabel(iso: string): string {
+  const date = new Date(iso);
+  const today = new Date();
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(today) - startOfDay(date)) / 86_400_000);
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+
+  const includeYear = date.getFullYear() !== today.getFullYear();
+  return date.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: includeYear ? "numeric" : undefined,
+  });
+}
+
 export function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
     month: "short",

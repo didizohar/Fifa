@@ -15,7 +15,7 @@ import { useGroup } from "../../../src/hooks/useGroup";
 import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
 import { matchesToCsv } from "../../../src/lib/csv";
-import { matchSideLabel, formatRelativeDate } from "../../../src/lib/format";
+import { matchSideLabel, formatDayLabel, formatRelativeDate } from "../../../src/lib/format";
 import { DEFAULT_MATCH_FILTERS, distinctClubs, filterMatches, hasActiveFilters, type DateRangeFilter, type MatchFilters } from "../../../src/lib/matchFilters";
 import type { MatchSummary } from "../../../src/lib/matches";
 import { toPickablePlayer } from "../../../src/lib/players";
@@ -36,6 +36,29 @@ const MATCH_TYPE_OPTIONS: { value: "all" | MatchType; label: string }[] = [
   { value: "doubles", label: "Doubles" },
 ];
 
+type HistoryListItem =
+  | { type: "header"; label: string }
+  | { type: "match"; match: MatchSummary; isLastInGroup: boolean };
+
+/** Inserts a day-header item before each new calendar day, so the timeline visually clusters by day instead of running as one continuous list. */
+function groupMatchesByDay(matches: MatchSummary[]): HistoryListItem[] {
+  const items: HistoryListItem[] = [];
+  let lastDayKey: string | null = null;
+
+  matches.forEach((match, index) => {
+    const dayKey = new Date(match.played_at).toDateString();
+    if (dayKey !== lastDayKey) {
+      items.push({ type: "header", label: formatDayLabel(match.played_at) });
+      lastDayKey = dayKey;
+    }
+    const next = matches[index + 1];
+    const isLastInGroup = !next || new Date(next.played_at).toDateString() !== dayKey;
+    items.push({ type: "match", match, isLastInGroup });
+  });
+
+  return items;
+}
+
 export default function HistoryScreen() {
   const router = useRouter();
   const { currentGroupId } = useGroup();
@@ -49,6 +72,7 @@ export default function HistoryScreen() {
   const clubs = useMemo(() => distinctClubs(allMatches), [allMatches]);
   const filtered = useMemo(() => filterMatches(allMatches, filters), [allMatches, filters]);
   const filtersActive = hasActiveFilters(filters);
+  const listItems = useMemo(() => groupMatchesByDay(filtered), [filtered]);
 
   const pickablePlayers = useMemo(() => (players.data ?? []).map(toPickablePlayer), [players.data]);
   const opponentChoices = useMemo(() => pickablePlayers.filter((p) => p.id !== filters.playerId), [pickablePlayers, filters.playerId]);
@@ -165,14 +189,18 @@ export default function HistoryScreen() {
         <ErrorState message="Couldn't load match history." onRetry={refetch} />
       ) : (
         <FlatList
-          data={filtered}
-          keyExtractor={(item) => item.id}
+          data={listItems}
+          keyExtractor={(item) => (item.type === "header" ? `header-${item.label}` : item.match.id)}
           contentContainerStyle={styles.listPadding}
           refreshControl={<RefreshControl tintColor={colors.accent} refreshing={isRefetching} onRefresh={refetch} />}
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
-          renderItem={({ item, index }) => (
-            <HistoryRow match={item} isLast={index === filtered.length - 1} onPress={() => router.push(`/match/${item.id}`)} />
-          )}
+          renderItem={({ item }) =>
+            item.type === "header" ? (
+              <Text style={styles.dayHeader}>{item.label}</Text>
+            ) : (
+              <HistoryRow match={item.match} isLast={item.isLastInGroup} onPress={() => router.push(`/match/${item.match.id}`)} />
+            )
+          }
           ListEmptyComponent={
             filtersActive ? (
               <EmptyState
@@ -380,5 +408,11 @@ const styles = StyleSheet.create({
   },
   timelineContent: {
     flex: 1,
+  },
+  dayHeader: {
+    ...typography.eyebrow,
+    paddingLeft: 20 + spacing.sm,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xs,
   },
 });
