@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../src/components/Avatar";
+import { Badge, type BadgeTone } from "../../../src/components/Badge";
 import { Card } from "../../../src/components/Card";
 import { ErrorState } from "../../../src/components/ErrorState";
 import { Screen } from "../../../src/components/Screen";
@@ -12,6 +13,7 @@ import { colors, radius, spacing, typography } from "../../../src/theme";
 
 const resultColor = { win: colors.win, loss: colors.loss, draw: colors.draw };
 const resultLabel = { win: "Win", loss: "Loss", draw: "Draw" };
+const resultTone: Record<MatchSideSummary["result"], BadgeTone> = { win: "win", loss: "loss", draw: "draw" };
 
 export default function MatchDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -43,9 +45,9 @@ export default function MatchDetailScreen() {
     <Screen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.badges}>
-          <Text style={styles.badge}>{match.match_type === "singles" ? "1 v 1" : "2 v 2"}</Text>
-          {match.is_overtime ? <Text style={styles.badge}>OT</Text> : null}
-          {match.is_penalties ? <Text style={styles.badge}>PENS</Text> : null}
+          <Badge label={match.match_type === "singles" ? "1 v 1" : "2 v 2"} tone="accent" />
+          {match.is_overtime ? <Badge label="OT" tone="neutral" /> : null}
+          {match.is_penalties ? <Badge label="PENS" tone="warning" /> : null}
         </View>
         <Text style={styles.date}>{formatDateTime(match.played_at)}</Text>
 
@@ -76,7 +78,7 @@ function SideCard({ side, onPlayerPress }: { side: MatchSideSummary; onPlayerPre
           {side.penalty_score !== null ? <Text style={styles.penaltyScore}>({side.penalty_score} pens)</Text> : null}
         </View>
       </View>
-      <Text style={[styles.resultLabel, { color: resultColor[side.result] }]}>{resultLabel[side.result]}</Text>
+      <Badge label={resultLabel[side.result]} tone={resultTone[side.result]} style={styles.resultBadge} />
       <View style={styles.playersRow}>
         {side.players.map((player) => (
           <Pressable key={player.id} style={styles.playerChip} onPress={() => onPlayerPress(player.id)}>
@@ -103,15 +105,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.sm,
   },
-  badge: {
-    ...typography.small,
-    color: colors.accent,
-    backgroundColor: colors.accentSubtle,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: radius.pill,
-    overflow: "hidden",
-  },
   date: {
     ...typography.caption,
   },
@@ -137,9 +130,8 @@ const styles = StyleSheet.create({
   penaltyScore: {
     ...typography.small,
   },
-  resultLabel: {
-    ...typography.caption,
-    fontWeight: "700",
+  resultBadge: {
+    alignSelf: "flex-start",
   },
   playersRow: {
     flexDirection: "row",

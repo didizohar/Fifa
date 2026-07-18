@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { Badge } from "../../../src/components/Badge";
 import { Button } from "../../../src/components/Button";
 import { Card } from "../../../src/components/Card";
 import { Screen } from "../../../src/components/Screen";
@@ -46,7 +47,7 @@ export default function SettingsScreen() {
           <Card style={styles.card}>
             <Text style={styles.cardLabel}>Current group</Text>
             <Text style={styles.cardValue}>{currentGroup.name}</Text>
-            <Text style={styles.roleTag}>{currentRole}</Text>
+            {currentRole ? <Badge label={currentRole.charAt(0).toUpperCase() + currentRole.slice(1)} tone="accent" style={styles.roleTag} /> : null}
             <Pressable onPress={handleShareInvite} style={styles.inviteRow}>
               <Text style={styles.inviteCode}>{currentGroup.invite_code}</Text>
               <Text style={styles.inviteShare}>Share invite</Text>
@@ -101,9 +102,8 @@ const styles = StyleSheet.create({
     ...typography.bodyStrong,
   },
   roleTag: {
-    ...typography.small,
-    color: colors.accent,
-    textTransform: "capitalize",
+    alignSelf: "flex-start",
+    marginTop: 2,
   },
   inviteRow: {
     flexDirection: "row",
