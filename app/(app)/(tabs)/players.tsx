@@ -42,7 +42,7 @@ export default function PlayersScreen() {
           <SkeletonList count={6} height={64} />
         </View>
       ) : isError ? (
-        <ErrorState message="Couldn't load players." onRetry={refetch} />
+        <ErrorState message="Couldn't load your player roster. Check your connection and try again." onRetry={refetch} />
       ) : (
         <FlatList
           data={players}

@@ -137,7 +137,7 @@ export default function HomeScreen() {
         {isLoading ? (
           <SkeletonList count={4} />
         ) : isError ? (
-          <ErrorState message="Couldn't load your dashboard." onRetry={handleRefresh} />
+          <ErrorState message="Couldn't load your dashboard. Check your connection and try again." onRetry={handleRefresh} />
         ) : (
           <>
             <View style={styles.statTileRow}>

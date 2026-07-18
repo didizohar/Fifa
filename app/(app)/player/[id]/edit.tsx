@@ -42,7 +42,11 @@ export default function EditPlayerScreen() {
   if (isLoading || !player) {
     return (
       <Screen>
-        {isError ? <ErrorState message="Couldn't load this player." onRetry={refetch} /> : <Skeleton height={200} />}
+        {isError ? (
+          <ErrorState message="Couldn't load this player's details. Check your connection and try again." onRetry={refetch} />
+        ) : (
+          <Skeleton height={200} />
+        )}
       </Screen>
     );
   }

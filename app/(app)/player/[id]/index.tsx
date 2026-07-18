@@ -124,7 +124,7 @@ export default function PlayerDetailScreen() {
   if (isError || !player) {
     return (
       <Screen>
-        <ErrorState message="Couldn't load this player." onRetry={refetch} />
+        <ErrorState message="Couldn't load this player's profile. Check your connection and try again." onRetry={refetch} />
       </Screen>
     );
   }

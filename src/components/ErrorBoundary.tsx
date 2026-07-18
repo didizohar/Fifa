@@ -33,7 +33,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         <View style={styles.container}>
           <Text style={styles.icon}>⚠️</Text>
           <Text style={styles.title}>Something went wrong</Text>
-          <Text style={styles.message}>{this.state.error.message}</Text>
+          <Text style={styles.message}>
+            FC Rival hit an unexpected error. Your data is safe -- try again, and if it keeps happening, restart the app.
+          </Text>
           <Button label="Try again" onPress={this.reset} style={styles.action} />
         </View>
       );

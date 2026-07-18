@@ -186,7 +186,7 @@ export default function HistoryScreen() {
           <SkeletonList count={6} height={92} />
         </View>
       ) : isError ? (
-        <ErrorState message="Couldn't load match history." onRetry={refetch} />
+        <ErrorState message="Couldn't load your match history. Check your connection and try again." onRetry={refetch} />
       ) : (
         <FlatList
           data={listItems}

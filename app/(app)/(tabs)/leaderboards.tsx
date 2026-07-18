@@ -288,10 +288,16 @@ export default function LeaderboardsScreen() {
         {isLoading ? (
           <SkeletonList count={5} />
         ) : isError ? (
-          <ErrorState message="Couldn't load leaderboards." onRetry={handleRefresh} />
+          <ErrorState message="Couldn't load the leaderboards. Check your connection and try again." onRetry={handleRefresh} />
         ) : category === "doublesPairs" ? (
           displayPairs.length === 0 ? (
-            <EmptyState icon="🤝" title="No doubles pairs yet" message={activeCategory.emptyMessage} />
+            <EmptyState
+              icon="🤝"
+              title="No doubles pairs yet"
+              message={activeCategory.emptyMessage}
+              actionLabel="Record a match"
+              onAction={() => router.push("/record-match")}
+            />
           ) : (
             <View style={styles.list}>
               {displayPairs.map((pair, index) => (
@@ -317,7 +323,13 @@ export default function LeaderboardsScreen() {
             </View>
           )
         ) : displayRows.length === 0 ? (
-          <EmptyState icon="🏆" title="Not enough data yet" message={activeCategory.emptyMessage} />
+          <EmptyState
+            icon="🏆"
+            title="Not enough data yet"
+            message={activeCategory.emptyMessage}
+            actionLabel="Record a match"
+            onAction={() => router.push("/record-match")}
+          />
         ) : (
           <>
             <FadeIn>
