@@ -51,6 +51,10 @@ export function Sparkline({ values, height = 64, minPoints = MIN_SAMPLE_SIZE }: 
           );
         })}
       </View>
+      <View style={styles.axisRow}>
+        <Text style={styles.axisLabel}>low {min}</Text>
+        <Text style={styles.axisLabel}>high {max}</Text>
+      </View>
     </View>
   );
 }
@@ -77,6 +81,14 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: radius.sm,
     minWidth: 2,
+  },
+  axisRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: spacing.xs,
+  },
+  axisLabel: {
+    ...typography.small,
   },
   empty: {
     ...typography.caption,

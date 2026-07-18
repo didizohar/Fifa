@@ -1,3 +1,4 @@
+import { LinearGradient } from "expo-linear-gradient";
 import { StyleSheet, Text, View } from "react-native";
 import { colors, radius, spacing, typography } from "../theme";
 
@@ -29,9 +30,16 @@ export function BarChart({ rows, maxValue }: BarChartProps) {
               {row.label}
             </Text>
             <View style={styles.track}>
-              <View style={[styles.fill, { width: `${pct * 100}%` }]} />
+              <LinearGradient
+                colors={[colors.accentMuted, colors.accent]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[styles.fill, { width: `${pct * 100}%` }]}
+              />
             </View>
-            <Text style={styles.value}>{row.valueLabel ?? row.value}</Text>
+            <Text style={styles.value} numberOfLines={1}>
+              {row.valueLabel ?? row.value}
+            </Text>
           </View>
         );
       })}
@@ -50,7 +58,8 @@ const styles = StyleSheet.create({
   },
   label: {
     ...typography.caption,
-    width: 92,
+    flexBasis: "28%",
+    maxWidth: 120,
   },
   track: {
     flex: 1,
@@ -62,11 +71,11 @@ const styles = StyleSheet.create({
   fill: {
     height: "100%",
     borderRadius: radius.pill,
-    backgroundColor: colors.accent,
   },
   value: {
     ...typography.small,
-    width: 56,
+    minWidth: 48,
+    maxWidth: 72,
     textAlign: "right",
   },
 });
