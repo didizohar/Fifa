@@ -6,6 +6,7 @@ import { Card } from "../../src/components/Card";
 import { PlayerPicker } from "../../src/components/PlayerPicker";
 import { Screen } from "../../src/components/Screen";
 import { ScoreStepper } from "../../src/components/ScoreStepper";
+import { SegmentedControl } from "../../src/components/SegmentedControl";
 import { Skeleton } from "../../src/components/Skeleton";
 import { useClubVersions } from "../../src/hooks/useClubVersions";
 import { useGroup } from "../../src/hooks/useGroup";
@@ -111,19 +112,14 @@ export default function RecordMatchScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.typeToggle}>
-          {(["singles", "doubles"] as const).map((type) => (
-            <Pressable
-              key={type}
-              onPress={() => changeMatchType(type)}
-              style={[styles.typeButton, matchType === type && styles.typeButtonActive]}
-            >
-              <Text style={[styles.typeButtonLabel, matchType === type && styles.typeButtonLabelActive]}>
-                {type === "singles" ? "1 v 1" : "2 v 2"}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        <SegmentedControl
+          options={[
+            { value: "singles" as const, label: "1 v 1" },
+            { value: "doubles" as const, label: "2 v 2" },
+          ]}
+          value={matchType}
+          onChange={changeMatchType}
+        />
 
         <Card style={styles.sideCard}>
           <Text style={styles.sideTitle}>Side 1</Text>
@@ -234,30 +230,6 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
     paddingVertical: spacing.lg,
     paddingBottom: spacing.xxl,
-  },
-  typeToggle: {
-    flexDirection: "row",
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 4,
-  },
-  typeButton: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.sm,
-    alignItems: "center",
-  },
-  typeButtonActive: {
-    backgroundColor: colors.accent,
-  },
-  typeButtonLabel: {
-    ...typography.bodyStrong,
-    color: colors.textSecondary,
-  },
-  typeButtonLabelActive: {
-    color: colors.background,
   },
   sideCard: {
     gap: spacing.md,
