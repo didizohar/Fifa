@@ -104,3 +104,9 @@ npm test           # jest -- all pure business logic
 npx tsc --noEmit    # typecheck
 npx expo-doctor     # SDK/dependency alignment
 ```
+
+## Releases
+
+See [CHANGELOG.md](CHANGELOG.md) for the version history, or the
+[GitHub Releases page](https://github.com/didizohar/Fifa/releases) for
+tagged builds.
