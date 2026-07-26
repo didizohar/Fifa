@@ -552,3 +552,139 @@ export function computeBestDoublesPairs(matches: MatchSummary[], minPlayed = MIN
     .sort((a, b) => (b.winRate ?? 0) - (a.winRate ?? 0) || b.played - a.played);
 }
 
+export interface MatchTypeSplit {
+  singles: PlayerStats;
+  doubles: PlayerStats;
+}
+
+/** A player's record broken out by singles vs. doubles. */
+export function computeMatchTypeSplit(playerId: string, matches: MatchSummary[]): MatchTypeSplit {
+  return {
+    singles: computePlayerStats(playerId, matches.filter((m) => m.match_type === "singles")),
+    doubles: computePlayerStats(playerId, matches.filter((m) => m.match_type === "doubles")),
+  };
+}
+
+export interface SpecialConditionsPerformance {
+  overtime: PlayerStats;
+  penalties: PlayerStats;
+}
+
+/** A player's record restricted to matches that went to overtime, and separately to penalties. */
+export function computeSpecialConditionsPerformance(playerId: string, matches: MatchSummary[]): SpecialConditionsPerformance {
+  return {
+    overtime: computePlayerStats(playerId, matches.filter((m) => m.is_overtime)),
+    penalties: computePlayerStats(playerId, matches.filter((m) => m.is_penalties)),
+  };
+}
+
+export interface DayOfWeekRow {
+  /** 0 (Sunday) - 6 (Saturday), per Date#getDay(), in the device's local time zone. */
+  day: number;
+  stats: PlayerStats;
+}
+
+/** A player's record broken down by day of week, one row per day (0-6) regardless of whether they've played on it. */
+export function computeDayOfWeekPerformance(playerId: string, matches: MatchSummary[]): DayOfWeekRow[] {
+  const byDay = new Map<number, MatchSummary[]>();
+  for (const match of matches) {
+    if (findSides(playerId, match) === null) continue;
+    const day = new Date(match.played_at).getDay();
+    const list = byDay.get(day) ?? [];
+    list.push(match);
+    byDay.set(day, list);
+  }
+  return Array.from({ length: 7 }, (_, day) => ({ day, stats: computePlayerStats(playerId, byDay.get(day) ?? []) }));
+}
+
+/**
+ * A player's record restricted to matches that followed a gap of at least
+ * breakDays since their previous match -- the very first match ever played
+ * has no "previous match" to compare against, so it's never included.
+ */
+export function computePerformanceAfterBreak(playerId: string, matches: MatchSummary[], breakDays = 7): PlayerStats {
+  const ordered = matches
+    .filter((m) => findSides(playerId, m) !== null)
+    .slice()
+    .sort((a, b) => new Date(a.played_at).getTime() - new Date(b.played_at).getTime());
+
+  const afterBreak: MatchSummary[] = [];
+  for (let i = 1; i < ordered.length; i++) {
+    const gapDays = (new Date(ordered[i]!.played_at).getTime() - new Date(ordered[i - 1]!.played_at).getTime()) / 86_400_000;
+    if (gapDays >= breakDays) afterBreak.push(ordered[i]!);
+  }
+  return computePlayerStats(playerId, afterBreak);
+}
+
+export interface ConsistencyStats {
+  /** Standard deviation of the player's per-match goal margin (own score minus opponent score) -- lower means more consistent. Null below MIN_SAMPLE_SIZE matches. */
+  goalMarginStdDev: number | null;
+  matchesConsidered: number;
+}
+
+/** How consistent a player's results are, measured by the spread of their goal margin match to match (not win rate itself, which hides blowouts and nail-biters alike). */
+export function computeConsistency(playerId: string, matches: MatchSummary[]): ConsistencyStats {
+  const margins = matches
+    .map((m) => findSides(playerId, m))
+    .filter((s): s is NonNullable<typeof s> => s !== null)
+    .map((s) => s.own.score - s.opponent.score);
+
+  if (margins.length < MIN_SAMPLE_SIZE) return { goalMarginStdDev: null, matchesConsidered: margins.length };
+
+  const mean = margins.reduce((sum, m) => sum + m, 0) / margins.length;
+  const variance = margins.reduce((sum, m) => sum + (m - mean) ** 2, 0) / margins.length;
+  return { goalMarginStdDev: Math.sqrt(variance), matchesConsidered: margins.length };
+}
+
+export type FormTrend = "improving" | "declining" | "stable";
+
+export interface FormTrendResult {
+  /** Null when there isn't enough history for two full windows to compare. */
+  trend: FormTrend | null;
+  recentWinRate: number | null;
+  previousWinRate: number | null;
+}
+
+/**
+ * Compares win rate across the most recent windowSize matches against the
+ * windowSize matches before that -- an honest, data-only signal for whether
+ * a player is trending up or down, not just their lifetime average.
+ */
+export function computeFormTrend(playerId: string, matches: MatchSummary[], windowSize = 5): FormTrendResult {
+  const ordered = matches
+    .filter((m) => findSides(playerId, m) !== null)
+    .slice()
+    .sort((a, b) => new Date(b.played_at).getTime() - new Date(a.played_at).getTime());
+
+  if (ordered.length < windowSize * 2) return { trend: null, recentWinRate: null, previousWinRate: null };
+
+  const recentRate = computePlayerStats(playerId, ordered.slice(0, windowSize)).winRate ?? 0;
+  const previousRate = computePlayerStats(playerId, ordered.slice(windowSize, windowSize * 2)).winRate ?? 0;
+  const delta = recentRate - previousRate;
+  const trend: FormTrend = delta > 0.1 ? "improving" : delta < -0.1 ? "declining" : "stable";
+  return { trend, recentWinRate: recentRate, previousWinRate: previousRate };
+}
+
+export interface MonthlyTrendRow {
+  year: number;
+  /** 0-indexed, per JS Date convention. */
+  month: number;
+  stats: PlayerStats;
+}
+
+/** A player's stats grouped by calendar month, chronological (oldest first). Only months with at least one match appear. */
+export function computePlayerMonthlyTrend(playerId: string, matches: MatchSummary[]): MonthlyTrendRow[] {
+  const byMonth = new Map<string, { year: number; month: number; matches: MatchSummary[] }>();
+  for (const match of matches) {
+    if (findSides(playerId, match) === null) continue;
+    const d = new Date(match.played_at);
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    const entry = byMonth.get(key) ?? { year: d.getFullYear(), month: d.getMonth(), matches: [] };
+    entry.matches.push(match);
+    byMonth.set(key, entry);
+  }
+  return [...byMonth.values()]
+    .sort((a, b) => a.year - b.year || a.month - b.month)
+    .map((e) => ({ year: e.year, month: e.month, stats: computePlayerStats(playerId, e.matches) }));
+}
+

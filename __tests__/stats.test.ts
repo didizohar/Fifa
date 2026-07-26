@@ -5,8 +5,11 @@ import {
   computeBiggestWin,
   computeCleanSheetsLeaderboard,
   computeClubPerformance,
+  computeConsistency,
+  computeDayOfWeekPerformance,
   computeDoublesPartnerships,
   computeFewestConcededLeaderboard,
+  computeFormTrend,
   computeGoalDifferenceLeaderboard,
   computeGoalsScoredLeaderboard,
   computeGoalStats,
@@ -14,11 +17,15 @@ import {
   computeLastNStats,
   computeLongestLossStreakLeaderboard,
   computeLongestStreakLeaderboard,
+  computeMatchTypeSplit,
   computeMonthlyLeaderboard,
   computeMostMatchesLeaderboard,
   computeNotYetQualified,
+  computePerformanceAfterBreak,
+  computePlayerMonthlyTrend,
   computePlayerStats,
   computeRecordFromRows,
+  computeSpecialConditionsPerformance,
   computeStreaks,
   computeWinRateLeaderboard,
   computeWinRateProgression,
@@ -116,7 +123,7 @@ interface SideSpec {
 function makeDetailedMatch(
   side1: SideSpec,
   side2: SideSpec,
-  opts?: { matchType?: "singles" | "doubles"; playedAt?: string },
+  opts?: { matchType?: "singles" | "doubles"; playedAt?: string; isOvertime?: boolean; isPenalties?: boolean },
 ): MatchSummary {
   const toSide = (spec: SideSpec, sideNumber: 1 | 2) => ({
     id: `side-${sideNumber}-${Math.random()}`,
@@ -131,8 +138,8 @@ function makeDetailedMatch(
   return {
     id: `match-${Math.random()}`,
     match_type: opts?.matchType ?? "singles",
-    is_overtime: false,
-    is_penalties: false,
+    is_overtime: opts?.isOvertime ?? false,
+    is_penalties: opts?.isPenalties ?? false,
     notes: null,
     played_at: opts?.playedAt ?? new Date().toISOString(),
     sides: [toSide(side1, 1), toSide(side2, 2)],
@@ -533,6 +540,131 @@ describe("computeCleanSheetsLeaderboard", () => {
     const rows = computeCleanSheetsLeaderboard(roster(["p1", "p2"]), matches);
     expect(rows.map((r) => r.playerId)).toEqual(["p1"]);
     expect(rows[0]).toMatchObject({ value: 2, valueLabel: "2", detail: "in 3 matches" });
+  });
+});
+
+describe("computeMatchTypeSplit", () => {
+  it("separates a player's record into singles and doubles", () => {
+    const matches = [
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }, { matchType: "singles" }),
+      makeDetailedMatch(
+        { playerIds: ["p1", "mate"], score: 0, result: "loss" },
+        { playerIds: ["x", "y"], score: 1, result: "win" },
+        { matchType: "doubles" },
+      ),
+    ];
+    const split = computeMatchTypeSplit("p1", matches);
+    expect(split.singles).toEqual({ played: 1, wins: 1, losses: 0, draws: 0, winRate: 1 });
+    expect(split.doubles).toEqual({ played: 1, wins: 0, losses: 1, draws: 0, winRate: 0 });
+  });
+});
+
+describe("computeSpecialConditionsPerformance", () => {
+  it("isolates matches that went to overtime or penalties", () => {
+    const matches = [
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 1, result: "loss" }, { isOvertime: true }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "loss" }, { playerIds: ["x"], score: 1, result: "win" }, { isPenalties: true }),
+    ];
+    const perf = computeSpecialConditionsPerformance("p1", matches);
+    expect(perf.overtime).toEqual({ played: 1, wins: 1, losses: 0, draws: 0, winRate: 1 });
+    expect(perf.penalties).toEqual({ played: 1, wins: 0, losses: 1, draws: 0, winRate: 0 });
+  });
+});
+
+describe("computeDayOfWeekPerformance", () => {
+  it("returns all 7 days, grouping matches by the local day they were played", () => {
+    // 2026-03-02 is a Monday (day 1); 2026-03-08 is a Sunday (day 0).
+    const monday = new Date(2026, 2, 2, 12).toISOString();
+    const sunday = new Date(2026, 2, 8, 12).toISOString();
+    const matches = [
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }, { playedAt: monday }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }, { playedAt: monday }),
+    ];
+    const rows = computeDayOfWeekPerformance("p1", matches);
+    expect(rows).toHaveLength(7);
+    const mondayRow = rows.find((r) => r.day === new Date(monday).getDay())!;
+    expect(mondayRow.stats.played).toBe(2);
+    const sundayRow = rows.find((r) => r.day === new Date(sunday).getDay())!;
+    expect(sundayRow.stats.played).toBe(0);
+  });
+});
+
+describe("computePerformanceAfterBreak", () => {
+  it("only counts matches preceded by a gap of at least breakDays since the player's previous match", () => {
+    const base = Date.now();
+    const day = (n: number) => new Date(base + n * 86_400_000).toISOString();
+    const matches = [
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }, { playedAt: day(0) }),
+      // 1-day gap -- not a break.
+      makeDetailedMatch({ playerIds: ["p1"], score: 0, result: "loss" }, { playerIds: ["x"], score: 1, result: "win" }, { playedAt: day(1) }),
+      // 10-day gap -- counts as a break.
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }, { playedAt: day(11) }),
+    ];
+    expect(computePerformanceAfterBreak("p1", matches, 7)).toEqual({ played: 1, wins: 1, losses: 0, draws: 0, winRate: 1 });
+  });
+
+  it("never counts the player's first-ever match as after a break", () => {
+    const matches = [makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" })];
+    expect(computePerformanceAfterBreak("p1", matches, 7).played).toBe(0);
+  });
+});
+
+describe("computeConsistency", () => {
+  it("returns null below MIN_SAMPLE_SIZE matches", () => {
+    const matches = [makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" })];
+    expect(computeConsistency("p1", matches)).toEqual({ goalMarginStdDev: null, matchesConsidered: 1 });
+  });
+
+  it("computes the standard deviation of goal margin across matches", () => {
+    // Margins: +1, +1, +1 -- zero variance, perfectly consistent.
+    const matches = [0, 1, 2].map(() =>
+      makeDetailedMatch({ playerIds: ["p1"], score: 2, result: "win" }, { playerIds: ["x"], score: 1, result: "loss" }),
+    );
+    expect(computeConsistency("p1", matches)).toEqual({ goalMarginStdDev: 0, matchesConsidered: 3 });
+  });
+});
+
+describe("computeFormTrend", () => {
+  it("returns null when there isn't enough history for two full windows", () => {
+    const matches = [makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" })];
+    expect(computeFormTrend("p1", matches, 5)).toEqual({ trend: null, recentWinRate: null, previousWinRate: null });
+  });
+
+  it("detects an improving trend when the recent window's win rate is higher", () => {
+    const base = Date.now();
+    const day = (n: number) => new Date(base + n * 86_400_000).toISOString();
+    const matches = [
+      // Older window (days 0-1): both losses.
+      makeDetailedMatch({ playerIds: ["p1"], score: 0, result: "loss" }, { playerIds: ["x"], score: 1, result: "win" }, { playedAt: day(0) }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 0, result: "loss" }, { playerIds: ["x"], score: 1, result: "win" }, { playedAt: day(1) }),
+      // Recent window (days 2-3): both wins.
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }, { playedAt: day(2) }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }, { playedAt: day(3) }),
+    ];
+    expect(computeFormTrend("p1", matches, 2)).toEqual({ trend: "improving", recentWinRate: 1, previousWinRate: 0 });
+  });
+});
+
+describe("computePlayerMonthlyTrend", () => {
+  it("groups a player's matches by calendar month, chronological, skipping months with no matches", () => {
+    const matches = [
+      makeDetailedMatch(
+        { playerIds: ["p1"], score: 1, result: "win" },
+        { playerIds: ["x"], score: 0, result: "loss" },
+        { playedAt: new Date(2026, 1, 10).toISOString() },
+      ),
+      makeDetailedMatch(
+        { playerIds: ["p1"], score: 0, result: "loss" },
+        { playerIds: ["x"], score: 1, result: "win" },
+        { playedAt: new Date(2026, 3, 5).toISOString() },
+      ),
+    ];
+    const rows = computePlayerMonthlyTrend("p1", matches);
+    expect(rows).toEqual([
+      { year: 2026, month: 1, stats: { played: 1, wins: 1, losses: 0, draws: 0, winRate: 1 } },
+      { year: 2026, month: 3, stats: { played: 1, wins: 0, losses: 1, draws: 0, winRate: 0 } },
+    ]);
   });
 });
 
