@@ -21,6 +21,7 @@ import { useAuth } from "../../../src/hooks/useAuth";
 import { useGroup } from "../../../src/hooks/useGroup";
 import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
+import { type DiscoveryItemType, selectHomeHighlights } from "../../../src/lib/discovery";
 import { DEFAULT_MATCH_FILTERS, filterMatches } from "../../../src/lib/matchFilters";
 import { matchSideLabel, formatRelativeDate } from "../../../src/lib/format";
 import {
@@ -37,6 +38,9 @@ import { colors, iconSize, radius, spacing, typography } from "../../../src/them
 const RANKINGS_PREVIEW = 5;
 const MATCHES_PREVIEW = 5;
 const ACTIVE_PREVIEW = 3;
+const HIGHLIGHTS_COUNT = 4;
+
+const DISCOVERY_ICON: Record<DiscoveryItemType, string> = { fact: "💡", insight: "📈", record: "🏆", memory: "📅" };
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -73,6 +77,13 @@ export default function HomeScreen() {
     return computeMonthlyLeaderboard(roster, allMatches, now.getFullYear(), now.getMonth())[0] ?? null;
   }, [roster, allMatches]);
   const topPerformer = winRateLeaders[0] ?? null;
+
+  const highlights = useMemo(() => {
+    if (!myPlayer) return [];
+    return selectHomeHighlights(myPlayer.id, roster, allMatches, new Date(), HIGHLIGHTS_COUNT);
+    // "now" is intentionally the only non-listed input -- highlights only need to rotate day to day, not on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myPlayer, roster, allMatches]);
 
   const handleRefresh = () => {
     players.refetch();
@@ -133,6 +144,20 @@ export default function HomeScreen() {
           )}
         </LinearGradient>
         </FadeIn>
+
+        {highlights.length > 0 ? (
+          <FadeIn>
+            <View style={styles.highlightsSection}>
+              <Text style={styles.highlightsTitle}>Did you know?</Text>
+              {highlights.map((item) => (
+                <View key={item.id} style={styles.highlightCardRow}>
+                  <Text style={styles.highlightIcon}>{DISCOVERY_ICON[item.type]}</Text>
+                  <Text style={styles.highlightText}>{item.text}</Text>
+                </View>
+              ))}
+            </View>
+          </FadeIn>
+        ) : null}
 
         <View style={styles.quickActions}>
           <QuickAction icon="add-circle" label="Record" onPress={() => router.push("/record-match")} />
@@ -370,6 +395,31 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     ...typography.caption,
+  },
+  highlightsSection: {
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    backgroundColor: colors.surface,
+  },
+  highlightsTitle: {
+    ...typography.heading,
+  },
+  highlightCardRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+  },
+  highlightIcon: {
+    fontSize: 18,
+    lineHeight: 20,
+  },
+  highlightText: {
+    ...typography.body,
+    flex: 1,
+    flexShrink: 1,
   },
   quickActions: {
     flexDirection: "row",
