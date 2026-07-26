@@ -20,6 +20,9 @@ export interface MonthlyReport {
 
 const MONTH_LABEL = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
 
+/** Minimum matches within a single calendar month to qualify for a monthly award -- deliberately lower than MIN_SAMPLE_SIZE, since a month naturally has far fewer matches than a lifetime sample. */
+const MONTHLY_MIN_SAMPLE = 2;
+
 function matchesInMonth(matches: MatchSummary[], year: number, month: number): MatchSummary[] {
   return matches.filter((m) => {
     const d = new Date(m.played_at);
@@ -52,7 +55,7 @@ export function computeMonthlyReport(roster: MatchSidePlayer[], allMatches: Matc
     awards.push({ id: "most-active", label: "Most Active", holderName: mostActive.playerName, valueLabel: `${mostActive.valueLabel} matches` });
   }
 
-  const bestPair = computeBestDoublesPairs(monthMatches, 2)[0];
+  const bestPair = computeBestDoublesPairs(monthMatches, MONTHLY_MIN_SAMPLE)[0];
   if (bestPair) {
     awards.push({
       id: "best-partnership",
@@ -80,7 +83,7 @@ export function computeMonthlyReport(roster: MatchSidePlayer[], allMatches: Matc
   for (const player of roster) {
     const thisMonth = computePlayerStats(player.id, monthMatches);
     const priorMonth = computePlayerStats(player.id, priorMonthMatches);
-    if (thisMonth.played < 2 || priorMonth.played < 2) continue;
+    if (thisMonth.played < MONTHLY_MIN_SAMPLE || priorMonth.played < MONTHLY_MIN_SAMPLE) continue;
     const delta = (thisMonth.winRate ?? 0) - (priorMonth.winRate ?? 0);
     if (delta > 0 && (!mostImproved || delta > mostImproved.delta)) mostImproved = { player, delta };
   }

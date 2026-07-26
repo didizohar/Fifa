@@ -1,7 +1,7 @@
-import type { MatchSummary } from "./matches";
+import { matchSideLabel } from "./format";
+import type { MatchSidePlayer, MatchSummary } from "./matches";
 import type { LeaderboardRow } from "./stats";
 import { computeGoalStats, computePlayerStats, computeStreaks } from "./stats";
-import type { MatchSidePlayer } from "./matches";
 
 function escapeCell(value: string | number): string {
   const str = String(value);
@@ -34,11 +34,11 @@ export function matchesToCsv(matches: MatchSummary[]): string {
     return [
       new Date(m.played_at).toISOString(),
       m.match_type,
-      s1.players.map((p) => p.display_name).join(" & "),
+      matchSideLabel(s1.players.map((p) => p.display_name)),
       s1.club?.name ?? "",
       s1.score,
       s1.result,
-      s2.players.map((p) => p.display_name).join(" & "),
+      matchSideLabel(s2.players.map((p) => p.display_name)),
       s2.club?.name ?? "",
       s2.score,
       s2.result,

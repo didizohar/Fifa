@@ -33,6 +33,7 @@ import {
   computeMostMatchesLeaderboard,
   computeNotYetQualified,
   computeWinRateLeaderboard,
+  WIN_RATE_MIN_PLAYED,
   type LeaderboardRow,
 } from "../../../src/lib/stats";
 import { colors, radius, spacing, typography } from "../../../src/theme";
@@ -52,7 +53,7 @@ type Category =
 type MatchTypeFilter = "overall" | "singles" | "doubles";
 
 const CATEGORIES: { id: Category; label: string; emptyMessage: string }[] = [
-  { id: "winRate", label: "Win Rate", emptyMessage: "Players need at least 5 matches played before a win rate is meaningful." },
+  { id: "winRate", label: "Win Rate", emptyMessage: `Players need at least ${WIN_RATE_MIN_PLAYED} matches played before a win rate is meaningful.` },
   { id: "mostMatches", label: "Most Matches", emptyMessage: "Record a match to see who's most active." },
   { id: "winStreak", label: "Win Streak", emptyMessage: "No active win streaks yet -- win a couple in a row to show up here." },
   { id: "lossStreak", label: "Loss Streak", emptyMessage: "Nobody's on a losing streak yet." },
@@ -396,7 +397,7 @@ export default function LeaderboardsScreen() {
             {category === "winRate" && notYetQualified.length > 0 ? (
               <View style={styles.notQualifiedSection}>
                 <Text style={styles.notQualifiedTitle}>Not Yet Qualified</Text>
-                <Text style={styles.notQualifiedSubtitle}>Needs 5 matches played to appear on the win-rate ranking.</Text>
+                <Text style={styles.notQualifiedSubtitle}>Needs {WIN_RATE_MIN_PLAYED} matches played to appear on the win-rate ranking.</Text>
                 <View style={styles.list}>
                   {notYetQualified.map((row) => (
                     <Card key={row.playerId} compact style={styles.notQualifiedRow}>
@@ -405,7 +406,7 @@ export default function LeaderboardsScreen() {
                         {row.playerName}
                       </Text>
                       <Text style={styles.notQualifiedDetail}>
-                        {row.played}/5 played · {row.matchesRemaining} to go
+                        {row.played}/{WIN_RATE_MIN_PLAYED} played · {row.matchesRemaining} to go
                       </Text>
                     </Card>
                   ))}

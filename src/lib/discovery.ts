@@ -1,8 +1,10 @@
+import { computeAllAchievements } from "./achievements";
 import { generateFunFacts } from "./facts";
+import { matchSideLabel } from "./format";
 import { generateInsights } from "./insights";
 import type { MatchSidePlayer, MatchSummary } from "./matches";
 import { computeAllRecords } from "./records";
-import { findSides } from "./stats";
+import { computeMostBalancedRivalry, computeOldestRivalry, findSides } from "./stats";
 
 export type DiscoveryItemType = "fact" | "insight" | "record" | "memory";
 
@@ -34,7 +36,7 @@ function todaysFootballMemory(playerId: string, matches: MatchSummary[], now: Da
   const best = candidates.reduce((latest, m) => (new Date(m.played_at).getFullYear() > new Date(latest.played_at).getFullYear() ? m : latest));
   const sides = findSides(playerId, best)!;
   const yearsAgo = now.getFullYear() - new Date(best.played_at).getFullYear();
-  const opponentName = sides.opponent.players.map((p) => p.display_name).join(" & ") || "Unknown";
+  const opponentName = matchSideLabel(sides.opponent.players.map((p) => p.display_name));
   const resultWord = sides.own.result === "win" ? "beat" : sides.own.result === "loss" ? "lost to" : "drew with";
 
   return [
@@ -47,12 +49,49 @@ function todaysFootballMemory(playerId: string, matches: MatchSummary[], now: Da
   ];
 }
 
-/** Every honestly-derivable discovery item for this player right now: facts, trend insights, recently broken records, and an on-this-day memory. */
+/** Achievements this player unlocked within the last windowDays -- the same "just happened" framing as recently broken records. */
+function recentlyUnlockedAchievementItems(playerId: string, matches: MatchSummary[], now: Date, windowDays = 14): DiscoveryItem[] {
+  const cutoff = now.getTime() - windowDays * 86_400_000;
+  return computeAllAchievements(playerId, matches)
+    .filter((a) => new Date(a.unlockedAt).getTime() >= cutoff)
+    .map((a) => ({ id: `achievement-${a.id}`, type: "record" as const, text: `Achievement unlocked: ${a.label} -- ${a.description}`, score: 82 }));
+}
+
+/** Group-wide rivalry trivia: the closest-to-50/50 pairing and the longest-running one. Not specific to the viewing player -- these are curiosities about the whole group. */
+function rivalryItems(roster: MatchSidePlayer[], matches: MatchSummary[]): DiscoveryItem[] {
+  const items: DiscoveryItem[] = [];
+
+  const balanced = computeMostBalancedRivalry(roster, matches);
+  if (balanced) {
+    items.push({
+      id: `rivalry-balanced-${balanced.playerIds.join(":")}`,
+      type: "fact",
+      text: `${balanced.playerNames[0]} vs ${balanced.playerNames[1]} is the group's most balanced rivalry -- almost a dead-even split over ${balanced.played} matches.`,
+      score: 55,
+    });
+  }
+
+  const oldest = computeOldestRivalry(roster, matches);
+  if (oldest && oldest.playerIds.join(":") !== balanced?.playerIds.join(":")) {
+    items.push({
+      id: `rivalry-oldest-${oldest.playerIds.join(":")}`,
+      type: "fact",
+      text: `${oldest.playerNames[0]} vs ${oldest.playerNames[1]} is the group's longest-running rivalry, going back to their first match together.`,
+      score: 50,
+    });
+  }
+
+  return items;
+}
+
+/** Every honestly-derivable discovery item for this player right now: facts, trend insights, recently broken records/unlocked achievements, group rivalry trivia, and an on-this-day memory. */
 export function generateDiscoveryItems(playerId: string, roster: MatchSidePlayer[], matches: MatchSummary[], now: Date = new Date()): DiscoveryItem[] {
   return [
     ...generateFunFacts(playerId, roster, matches).map((f) => ({ id: `fact-${f.id}`, type: "fact" as const, text: f.text, score: f.score })),
     ...generateInsights(playerId, roster, matches).map((i) => ({ id: `insight-${i.id}`, type: "insight" as const, text: i.text, score: i.score })),
     ...recentlyBrokenRecordItems(roster, matches, now),
+    ...recentlyUnlockedAchievementItems(playerId, matches, now),
+    ...rivalryItems(roster, matches),
     ...todaysFootballMemory(playerId, matches, now),
   ];
 }

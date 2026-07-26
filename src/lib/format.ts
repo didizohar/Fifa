@@ -10,7 +10,10 @@ export function formatRelativeDate(iso: string): string {
   const diffDays = Math.round(diffHours / 24);
   if (diffDays < 7) return `${diffDays}d ago`;
 
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  // Beyond a week, include the year unless it's the current one -- otherwise
+  // a date from years ago (e.g. an old achievement unlock) reads as recent.
+  const includeYear = date.getFullYear() !== new Date().getFullYear();
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: includeYear ? "numeric" : undefined });
 }
 
 /** "Today" / "Yesterday" / "Monday, July 14" (adds the year if it isn't the current one) -- used to group a match list by day. */
@@ -42,5 +45,5 @@ export function formatDateTime(iso: string): string {
 }
 
 export function matchSideLabel(playerNames: string[]): string {
-  return playerNames.join(" & ");
+  return playerNames.join(" & ") || "Unknown";
 }

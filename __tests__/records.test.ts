@@ -157,3 +157,40 @@ describe("computeAllRecords", () => {
     expect(records.some((r) => r.id === "highest-win-rate")).toBe(false);
   });
 });
+
+describe("holderIds", () => {
+  it("attributes match-level records to every player on the relevant side(s), not just a formatted name", () => {
+    const matches = [makeMatch({ playerIds: ["p1", "p2"], score: 5, result: "win" }, { playerIds: ["p3"], score: 1, result: "loss" })];
+    // Both sides jointly "hold" a whole-match record like highest-scoring/closest.
+    expect(computeHighestScoringMatchRecord(matches)?.holderIds).toEqual(["p1", "p2", "p3"]);
+    expect(computeClosestMatchRecord(matches)?.holderIds).toEqual(["p1", "p2", "p3"]);
+    // Only the winning side holds a victory-margin record.
+    expect(computeBiggestVictoryRecord(matches)?.holderIds).toEqual(["p1", "p2"]);
+    expect(computeMostGoalsInMatchRecord(matches)?.holderIds).toEqual(["p1", "p2"]);
+  });
+
+  it("attributes single-player records to that player's id, and group-wide day records to nobody", () => {
+    const matches = Array.from({ length: 3 }, (_, n) =>
+      makeMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }, day(n)),
+    );
+    expect(computeLongestWinStreakRecord(roster(["p1", "x"]), matches)?.holderIds).toEqual(["p1"]);
+    expect(computeMostMatchesInOneDayRecord(matches)?.holderIds).toEqual([]);
+  });
+
+  it("never misattributes a record via holderName string-matching -- a display name containing ' & ' can't fool holderIds", () => {
+    // A player literally named "Tom & Jerry" must not be confused with a two-player side "Tom & Jerry".
+    const matches = [makeMatch({ playerIds: ["real-tom"], score: 5, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" })];
+    const record = computeMostGoalsInMatchRecord(matches);
+    expect(record?.holderIds).toEqual(["real-tom"]);
+    expect(record?.holderIds.includes("Tom & Jerry")).toBe(false);
+  });
+});
+
+describe("computeMostMatchesInOneDayRecord date formatting", () => {
+  it("formats the holder date as a readable string, not a raw Date#toDateString()", () => {
+    const match = makeMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }, new Date(2026, 2, 10).toISOString());
+    const record = computeMostMatchesInOneDayRecord([match]);
+    expect(record?.holderName).not.toMatch(/^\w{3} \w{3} \d{2}/); // not the raw "Tue Mar 10 2026" format
+    expect(record?.holderName).toContain("2026");
+  });
+});

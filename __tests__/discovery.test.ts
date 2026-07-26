@@ -73,13 +73,36 @@ describe("generateDiscoveryItems", () => {
     const unrelatedDay = makeMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }, new Date(2025, 6, 1).toISOString());
     expect(generateDiscoveryItems("p1", roster(["p1", "x"]), [unrelatedDay], now).some((i) => i.type === "memory")).toBe(false);
   });
+
+  it("surfaces a recently unlocked achievement within the recency window, but not an old one", () => {
+    const now = new Date(2026, 5, 15);
+    const recentMatch = makeMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }, new Date(2026, 5, 10).toISOString());
+    const items = generateDiscoveryItems("p1", roster(["p1", "x"]), [recentMatch], now);
+    expect(items.some((i) => i.id === "achievement-first-match")).toBe(true);
+
+    const oldMatch = makeMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }, new Date(2026, 0, 1).toISOString());
+    const oldItems = generateDiscoveryItems("p1", roster(["p1", "x"]), [oldMatch], now);
+    expect(oldItems.some((i) => i.id.startsWith("achievement-"))).toBe(false);
+  });
+
+  it("surfaces group rivalry trivia (most balanced / oldest) regardless of who's viewing", () => {
+    const now = new Date(2026, 5, 15);
+    const matches = [
+      makeMatch({ playerIds: ["a"], score: 1, result: "win" }, { playerIds: ["b"], score: 0, result: "loss" }, new Date(2020, 0, 1).toISOString()),
+      makeMatch({ playerIds: ["a"], score: 0, result: "loss" }, { playerIds: ["b"], score: 1, result: "win" }, new Date(2020, 0, 2).toISOString()),
+      makeMatch({ playerIds: ["a"], score: 1, result: "win" }, { playerIds: ["b"], score: 0, result: "loss" }, new Date(2020, 0, 3).toISOString()),
+    ];
+    // Viewer "c" isn't part of the rivalry at all -- the trivia is about the group, not the viewer.
+    const items = generateDiscoveryItems("c", roster(["a", "b", "c"]), matches, now);
+    expect(items.some((i) => i.id.startsWith("rivalry-balanced-"))).toBe(true);
+  });
 });
 
 describe("selectHomeHighlights", () => {
   it("caps the result at `count` and ranks by score descending", () => {
     const now = new Date(2026, 5, 15);
     const matches = [
-      // Round milestone (score 60) + a big win (score 60) + a close match (score 55) -- several fun facts at once.
+      // A win streak plus a first-match/first-win achievement -- several discovery items at once, with different scores.
       ...Array.from({ length: 10 }, (_, n) => makeMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: [`o${n}`], score: 0, result: "loss" }, new Date(2026, 5, n + 1).toISOString())),
     ];
     const rosterList = roster(["p1", ...Array.from({ length: 10 }, (_, n) => `o${n}`)]);

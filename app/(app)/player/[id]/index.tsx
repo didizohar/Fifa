@@ -23,7 +23,7 @@ import { useArchivePlayer, useUpdatePlayer } from "../../../../src/hooks/usePlay
 import { usePlayer, usePlayers } from "../../../../src/hooks/usePlayers";
 import { computeAllAchievements } from "../../../../src/lib/achievements";
 import { confirmAction, notify } from "../../../../src/lib/confirm";
-import { formatRelativeDate } from "../../../../src/lib/format";
+import { formatRelativeDate, matchSideLabel } from "../../../../src/lib/format";
 import { generateFunFacts, type FunFact } from "../../../../src/lib/facts";
 import { generateInsights, type Insight } from "../../../../src/lib/insights";
 import type { MatchSummary } from "../../../../src/lib/matches";
@@ -33,13 +33,17 @@ import {
   computeBiggestLoss,
   computeBiggestWin,
   computeClubPerformance,
+  computeDayOfWeekPerformance,
   computeDoublesPartnerships,
   computeFavoriteOpponent,
   computeGoalStats,
   computeHeadToHead,
   computeLastNStats,
   computeNemesis,
+  computePerformanceAfterBreak,
+  computePlayerMonthlyTrend,
   computePlayerStats,
+  computeSpecialConditionsPerformance,
   computeStreaks,
   computeWinRateProgression,
   computeWinRateRank,
@@ -64,9 +68,12 @@ const TABS: { value: ProfileTab; label: string }[] = [
 function opponentLabel(playerId: string, match: MatchSummary): string {
   const sides = findSides(playerId, match);
   if (!sides) return "Unknown opponent";
-  const names = sides.opponent.players.map((p) => p.display_name).join(" & ");
+  const names = matchSideLabel(sides.opponent.players.map((p) => p.display_name));
   return sides.opponent.club ? `${names} (${sides.opponent.club.name})` : names;
 }
+
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTH_SHORT_LABEL = new Intl.DateTimeFormat(undefined, { month: "short", year: "2-digit" });
 
 export default function PlayerDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -144,12 +151,16 @@ export default function PlayerDetailScreen() {
   }, [playerId, roster.data, matches]);
 
   const heldRecords: RecordEntry[] = useMemo(() => {
-    if (!player) return [];
     const allRecords = computeAllRecords(roster.data ?? EMPTY_PLAYERS, groupHistory.data ?? EMPTY_MATCHES);
-    return allRecords.filter((r) => r.holderName.split(" & ").includes(player.display_name));
-  }, [player, roster.data, groupHistory.data]);
+    return allRecords.filter((r) => r.holderIds.includes(playerId));
+  }, [playerId, roster.data, groupHistory.data]);
 
   const achievements = useMemo(() => computeAllAchievements(playerId, matches), [playerId, matches]);
+
+  const dayOfWeekPerformance = useMemo(() => computeDayOfWeekPerformance(playerId, matches), [playerId, matches]);
+  const specialConditions = useMemo(() => computeSpecialConditionsPerformance(playerId, matches), [playerId, matches]);
+  const afterBreak = useMemo(() => computePerformanceAfterBreak(playerId, matches), [playerId, matches]);
+  const monthlyTrend = useMemo(() => computePlayerMonthlyTrend(playerId, matches), [playerId, matches]);
 
   if (isLoading) {
     return (
@@ -343,7 +354,7 @@ export default function PlayerDetailScreen() {
             ) : null}
 
             <Card>
-              <Text style={styles.sectionTitle}>Record</Text>
+              <Text style={styles.sectionTitle}>Career Record</Text>
               {matchHistory.isLoading ? (
                 <Skeleton height={40} />
               ) : (
@@ -355,6 +366,23 @@ export default function PlayerDetailScreen() {
                 </View>
               )}
             </Card>
+
+            {afterBreak.played > 0 ? (
+              <Card>
+                <Text style={styles.sectionTitle}>After a Break</Text>
+                <View style={styles.recordRow}>
+                  <RecordStat label="Played" value={afterBreak.played} />
+                  <RecordStat label="Wins" value={afterBreak.wins} color={colors.win} />
+                  <RecordStat label="Losses" value={afterBreak.losses} color={colors.loss} />
+                  <RecordStat
+                    label="Win Rate"
+                    value={afterBreak.winRate !== null ? `${Math.round(afterBreak.winRate * 100)}%` : "–"}
+                    color={colors.accent}
+                  />
+                </View>
+                <Text style={styles.insufficientData}>Matches played after a 7+ day gap since the previous one.</Text>
+              </Card>
+            ) : null}
 
             <Card>
               <Text style={styles.sectionTitle}>Form (last 10)</Text>
@@ -455,6 +483,50 @@ export default function PlayerDetailScreen() {
               )}
             </Card>
 
+            {monthlyTrend.length >= 2 ? (
+              <Card>
+                <Text style={styles.sectionTitle}>Monthly Performance</Text>
+                <BarChart
+                  rows={monthlyTrend.slice(-6).map((m) => ({
+                    label: MONTH_SHORT_LABEL.format(new Date(m.year, m.month, 1)),
+                    value: m.stats.played,
+                    valueLabel: m.stats.winRate !== null ? `${Math.round(m.stats.winRate * 100)}%` : "–",
+                  }))}
+                />
+              </Card>
+            ) : null}
+
+            {dayOfWeekPerformance.some((d) => d.stats.played > 0) ? (
+              <Card>
+                <Text style={styles.sectionTitle}>By Day of Week</Text>
+                <BarChart
+                  rows={dayOfWeekPerformance
+                    .filter((d) => d.stats.played > 0)
+                    .map((d) => ({
+                      label: DAY_NAMES[d.day]!,
+                      value: d.stats.played,
+                      valueLabel: `${d.stats.wins}-${d.stats.losses}-${d.stats.draws}`,
+                    }))}
+                />
+              </Card>
+            ) : null}
+
+            {specialConditions.overtime.played > 0 || specialConditions.penalties.played > 0 ? (
+              <Card>
+                <Text style={styles.sectionTitle}>Overtime &amp; Penalties</Text>
+                <View style={styles.recordRow}>
+                  <RecordStat
+                    label="Overtime"
+                    value={specialConditions.overtime.played > 0 ? `${specialConditions.overtime.wins}-${specialConditions.overtime.losses}-${specialConditions.overtime.draws}` : "–"}
+                  />
+                  <RecordStat
+                    label="Penalties"
+                    value={specialConditions.penalties.played > 0 ? `${specialConditions.penalties.wins}-${specialConditions.penalties.losses}-${specialConditions.penalties.draws}` : "–"}
+                  />
+                </View>
+              </Card>
+            ) : null}
+
             {clubPerformance.length > 0 ? (
               <Card>
                 <Text style={styles.sectionTitle}>By Club</Text>
@@ -489,10 +561,16 @@ export default function PlayerDetailScreen() {
               </Card>
             ) : null}
 
-            {clubPerformance.length === 0 && partnerships.length === 0 && !matchHistory.isLoading ? (
+            {clubPerformance.length === 0 &&
+            partnerships.length === 0 &&
+            monthlyTrend.length < 2 &&
+            !dayOfWeekPerformance.some((d) => d.stats.played > 0) &&
+            specialConditions.overtime.played === 0 &&
+            specialConditions.penalties.played === 0 &&
+            !matchHistory.isLoading ? (
               <Card>
-                <Text style={styles.emptyChartsTitle}>No club or partnership data yet</Text>
-                <Text style={styles.emptyChartsMessage}>Record a few matches to see club performance and doubles partnerships here.</Text>
+                <Text style={styles.emptyChartsTitle}>Not enough data yet</Text>
+                <Text style={styles.emptyChartsMessage}>Record a few more matches to see charts and breakdowns here.</Text>
               </Card>
             ) : null}
           </View>

@@ -41,7 +41,7 @@ export default function PlayersScreen() {
             <ExportButton
               label="Export"
               filename="fc-rival-player-stats.csv"
-              getCsv={() => playerStatsToCsv(players, matchHistory.data ?? [])}
+              getCsv={() => playerStatsToCsv(players, matches)}
             />
           ) : null}
           <Pressable

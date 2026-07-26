@@ -1,3 +1,4 @@
+import { matchSideLabel } from "./format";
 import type { MatchSidePlayer, MatchSideSummary, MatchSummary } from "./matches";
 import { computeCleanSheetsLeaderboard, computeWinRateLeaderboard, findSides } from "./stats";
 
@@ -6,6 +7,8 @@ export interface RecordEntry {
   id: string;
   label: string;
   holderName: string;
+  /** Player ids this record belongs to -- empty for records with no single attributable player/side (e.g. most matches in a day). Use this for matching, never holderName (which can collide with a display name containing " & "). */
+  holderIds: string[];
   valueLabel: string;
   /** The match this record is tied to, if any -- lets a screen link straight to it. */
   matchId: string | null;
@@ -14,7 +17,11 @@ export interface RecordEntry {
 }
 
 function sideLabel(side: MatchSideSummary): string {
-  return side.players.map((p) => p.display_name).join(" & ") || "Unknown";
+  return matchSideLabel(side.players.map((p) => p.display_name));
+}
+
+function sideIds(side: MatchSideSummary): string[] {
+  return side.players.map((p) => p.id);
 }
 
 function totalGoals(match: MatchSummary): number {
@@ -30,6 +37,7 @@ export function computeHighestScoringMatchRecord(matches: MatchSummary[]): Recor
     id: "highest-scoring-match",
     label: "Highest-Scoring Match",
     holderName: `${sideLabel(s1)} vs ${sideLabel(s2)}`,
+    holderIds: [...sideIds(s1), ...sideIds(s2)],
     valueLabel: `${totalGoals(best)} goals (${s1.score}-${s2.score})`,
     matchId: best.id,
     setAt: best.played_at,
@@ -46,6 +54,7 @@ export function computeClosestMatchRecord(matches: MatchSummary[]): RecordEntry 
     id: "closest-match",
     label: "Closest Match",
     holderName: `${sideLabel(s1)} vs ${sideLabel(s2)}`,
+    holderIds: [...sideIds(s1), ...sideIds(s2)],
     valueLabel: `${s1.score}-${s2.score} (margin of ${margin(best)})`,
     matchId: best.id,
     setAt: best.played_at,
@@ -68,6 +77,7 @@ export function computeBiggestVictoryRecord(matches: MatchSummary[]): RecordEntr
     id: "biggest-victory",
     label: "Biggest Victory",
     holderName: sideLabel(best.winner),
+    holderIds: sideIds(best.winner),
     valueLabel: `${best.winner.score}-${best.loser.score} vs ${sideLabel(best.loser)} (+${best.margin})`,
     matchId: best.match.id,
     setAt: best.match.played_at,
@@ -87,11 +97,14 @@ export function computeMostGoalsInMatchRecord(matches: MatchSummary[]): RecordEn
     id: "most-goals-in-match",
     label: "Most Goals in a Match",
     holderName: sideLabel(best.side),
+    holderIds: sideIds(best.side),
     valueLabel: `${best.side.score} goals`,
     matchId: best.match.id,
     setAt: best.match.played_at,
   };
 }
+
+const MOST_MATCHES_IN_DAY_LABEL = new Intl.DateTimeFormat(undefined, { month: "long", day: "numeric", year: "numeric" });
 
 /** The calendar day (local time) with the most matches recorded. */
 export function computeMostMatchesInOneDayRecord(matches: MatchSummary[]): RecordEntry | null {
@@ -115,7 +128,8 @@ export function computeMostMatchesInOneDayRecord(matches: MatchSummary[]): Recor
   return {
     id: "most-matches-in-one-day",
     label: "Most Matches in One Day",
-    holderName: bestDate,
+    holderName: MOST_MATCHES_IN_DAY_LABEL.format(new Date(bestDate)),
+    holderIds: [],
     valueLabel: bestList.length === 1 ? "1 match" : `${bestList.length} matches`,
     matchId: null,
     setAt: earliest,
@@ -158,6 +172,7 @@ export function computeLongestWinStreakRecord(roster: MatchSidePlayer[], matches
     id: "longest-win-streak",
     label: "Longest Winning Streak",
     holderName: best.player.display_name,
+    holderIds: [best.player.id],
     valueLabel: best.length === 1 ? "1 win in a row" : `${best.length} wins in a row`,
     matchId: null,
     setAt: best.endedAt,
@@ -176,6 +191,7 @@ export function computeLongestLossStreakRecord(roster: MatchSidePlayer[], matche
     id: "longest-loss-streak",
     label: "Longest Losing Streak",
     holderName: best.player.display_name,
+    holderIds: [best.player.id],
     valueLabel: best.length === 1 ? "1 loss in a row" : `${best.length} losses in a row`,
     matchId: null,
     setAt: best.endedAt,
@@ -192,6 +208,7 @@ export function computeMostCleanSheetsRecord(roster: MatchSidePlayer[], matches:
     id: "most-clean-sheets",
     label: "Most Clean Sheets",
     holderName: top.playerName,
+    holderIds: [top.playerId],
     valueLabel: top.valueLabel,
     matchId: null,
     setAt: mostRecent,
@@ -208,6 +225,7 @@ export function computeHighestWinRateRecord(roster: MatchSidePlayer[], matches: 
     id: "highest-win-rate",
     label: "Highest Win Rate",
     holderName: top.playerName,
+    holderIds: [top.playerId],
     valueLabel: top.valueLabel,
     matchId: null,
     setAt: mostRecent,

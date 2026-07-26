@@ -32,7 +32,10 @@ import {
   computeStreaks,
   computeWinRateLeaderboard,
   computeWinRateRank,
+  WIN_RATE_MIN_PLAYED,
 } from "../../../src/lib/stats";
+import type { MatchSummary } from "../../../src/lib/matches";
+import type { PlayerProfile } from "../../../src/lib/types/database";
 import { colors, iconSize, radius, spacing, typography } from "../../../src/theme";
 
 const RANKINGS_PREVIEW = 5;
@@ -41,6 +44,13 @@ const ACTIVE_PREVIEW = 3;
 const HIGHLIGHTS_COUNT = 4;
 
 const DISCOVERY_ICON: Record<DiscoveryItemType, string> = { fact: "💡", insight: "📈", record: "🏆", memory: "📅" };
+
+// Stable fallback references so `data ?? []` doesn't allocate a fresh empty
+// array every render while a query is loading -- otherwise every memoized
+// computation below (including the discovery engine) recomputes on every
+// render instead of only when the data actually changes (see leaderboards.tsx).
+const EMPTY_PLAYERS: PlayerProfile[] = [];
+const EMPTY_MATCHES: MatchSummary[] = [];
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -55,11 +65,11 @@ export default function HomeScreen() {
   const isError = players.isError || fullHistory.isError;
   const isRefetching = players.isRefetching || fullHistory.isRefetching;
 
-  const roster = players.data ?? [];
+  const roster = players.data ?? EMPTY_PLAYERS;
   // useGroupMatchHistory is already sorted played_at desc, same order fetchRecentMatches
   // would use -- deriving the preview from it instead of a second capped query avoids an
   // entirely redundant network round-trip for data we're already fetching in full.
-  const allMatches = fullHistory.data ?? [];
+  const allMatches = fullHistory.data ?? EMPTY_MATCHES;
   const recentMatches = allMatches.slice(0, MATCHES_PREVIEW);
   const myPlayer = roster.find((p) => p.linked_user_id === user?.id) ?? null;
 
@@ -234,7 +244,7 @@ export default function HomeScreen() {
                   : {
                       icon: "🏆",
                       title: "Not enough matches yet",
-                      message: "Play at least 5 matches to appear on the win-rate ranking.",
+                      message: `Play at least ${WIN_RATE_MIN_PLAYED} matches to appear on the win-rate ranking.`,
                       actionLabel: "Record a match",
                       onAction: () => router.push("/record-match"),
                     }

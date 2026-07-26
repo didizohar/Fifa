@@ -56,12 +56,12 @@ describe("generateFunFacts", () => {
     expect(generateFunFacts("p1", roster(["p1", "x"]), matches).some((f) => f.id.startsWith("streak-win"))).toBe(false);
   });
 
-  it("reports a round-number milestone in matches played", () => {
-    const matches = Array.from({ length: 10 }, (_, n) =>
-      makeMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }, { playedAt: day(n) }),
+  it("never reports round-number milestone facts -- those belong to achievements.ts, so they aren't announced twice", () => {
+    const matches = Array.from({ length: 100 }, (_, n) =>
+      makeMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: [`o${n}`], score: 0, result: "loss" }, { playedAt: day(n) }),
     );
-    const facts = generateFunFacts("p1", roster(["p1", "x"]), matches);
-    expect(facts.some((f) => f.id === "milestone-matches-10")).toBe(true);
+    const facts = generateFunFacts("p1", roster(["p1", ...Array.from({ length: 100 }, (_, n) => `o${n}`)]), matches);
+    expect(facts.some((f) => f.id.startsWith("milestone-"))).toBe(false);
   });
 
   it("reports never-beaten and never-lost-to rivalry facts", () => {

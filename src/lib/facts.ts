@@ -1,5 +1,6 @@
+import { matchSideLabel } from "./format";
 import type { MatchSidePlayer, MatchSummary } from "./matches";
-import { computeDoublesPartnerships, computeGoalStats, computeHeadToHead, computePlayerStats, computeStreaks, findSides, MIN_SAMPLE_SIZE } from "./stats";
+import { computeDoublesPartnerships, computeHeadToHead, computeStreaks, findSides, MIN_SAMPLE_SIZE } from "./stats";
 
 export interface FunFact {
   /** Stable id for this fact instance -- lets a caller dedupe or track "already shown". */
@@ -8,8 +9,6 @@ export interface FunFact {
   /** Rough interestingness score for ranking when multiple facts are available -- higher surfaces first. Not a probability, just a sort key. */
   score: number;
 }
-
-const ROUND_MILESTONES = [10, 25, 50, 100, 150, 200, 250, 300, 400, 500];
 
 function currentStreakFacts(playerId: string, matches: MatchSummary[]): FunFact[] {
   const streaks = computeStreaks(playerId, matches);
@@ -30,22 +29,6 @@ function currentStreakFacts(playerId: string, matches: MatchSummary[]): FunFact[
     return [{ id: `streak-loss-${count}`, text: `You've lost ${count} in a row.`, score: 50 }];
   }
   return [];
-}
-
-function milestoneFacts(playerId: string, matches: MatchSummary[]): FunFact[] {
-  const stats = computePlayerStats(playerId, matches);
-  const goals = computeGoalStats(playerId, matches);
-  const facts: FunFact[] = [];
-  if (ROUND_MILESTONES.includes(stats.played)) {
-    facts.push({ id: `milestone-matches-${stats.played}`, text: `You've now played exactly ${stats.played} matches.`, score: 60 });
-  }
-  if (ROUND_MILESTONES.includes(stats.wins)) {
-    facts.push({ id: `milestone-wins-${stats.wins}`, text: `You've now won exactly ${stats.wins} matches.`, score: 60 });
-  }
-  if (ROUND_MILESTONES.includes(goals.goalsScored)) {
-    facts.push({ id: `milestone-goals-${goals.goalsScored}`, text: `You've scored exactly ${goals.goalsScored} goals.`, score: 65 });
-  }
-  return facts;
 }
 
 type HeadToHead = ReturnType<typeof computeHeadToHead>;
@@ -106,7 +89,7 @@ function personalRecordFacts(playerId: string, matches: MatchSummary[]): FunFact
   if (closestMargin <= 1) {
     facts.push({
       id: `closest-match-${closest.match.id}`,
-      text: `Your closest-ever match was a ${closest.sides.own.score}-${closest.sides.opponent.score} classic against ${opponentLabel(closest.sides.opponent.players)}.`,
+      text: `Your closest-ever match was a ${closest.sides.own.score}-${closest.sides.opponent.score} classic against ${matchSideLabel(closest.sides.opponent.players.map((p) => p.display_name))}.`,
       score: 55,
     });
   }
@@ -120,17 +103,13 @@ function personalRecordFacts(playerId: string, matches: MatchSummary[]): FunFact
     if (margin >= 3) {
       facts.push({
         id: `biggest-win-${biggest.match.id}`,
-        text: `Your biggest-ever win was ${biggest.sides.own.score}-${biggest.sides.opponent.score} against ${opponentLabel(biggest.sides.opponent.players)}.`,
+        text: `Your biggest-ever win was ${biggest.sides.own.score}-${biggest.sides.opponent.score} against ${matchSideLabel(biggest.sides.opponent.players.map((p) => p.display_name))}.`,
         score: 60,
       });
     }
   }
 
   return facts;
-}
-
-function opponentLabel(players: { display_name: string }[]): string {
-  return players.map((p) => p.display_name).join(" & ") || "Unknown";
 }
 
 /**
@@ -181,11 +160,16 @@ function partnershipFacts(playerId: string, matches: MatchSummary[]): FunFact[] 
   return facts;
 }
 
-/** Every honestly-derivable fun fact currently true for this player. Unsorted -- callers should sort by score descending before display. */
+/**
+ * Every honestly-derivable fun fact currently true for this player. Unsorted
+ * -- callers should sort by score descending before display. Deliberately
+ * excludes round-number milestones (100 matches, 50 wins, ...) -- those are
+ * achievements.ts's territory now, so a player doesn't see the same
+ * milestone announced twice in two different sections of the same screen.
+ */
 export function generateFunFacts(playerId: string, roster: MatchSidePlayer[], matches: MatchSummary[]): FunFact[] {
   return [
     ...currentStreakFacts(playerId, matches),
-    ...milestoneFacts(playerId, matches),
     ...rivalryFacts(playerId, roster, matches),
     ...personalRecordFacts(playerId, matches),
     ...partnershipFacts(playerId, matches),
