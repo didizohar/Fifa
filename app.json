@@ -30,7 +30,8 @@
       "expo-image",
       "expo-splash-screen",
       "expo-font",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-localization"
     ],
     "owner": "didizzz"
   }

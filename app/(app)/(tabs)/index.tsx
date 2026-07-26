@@ -22,6 +22,7 @@ import { useGroup } from "../../../src/hooks/useGroup";
 import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
 import { type DiscoveryItemType, selectHomeHighlights } from "../../../src/lib/discovery";
+import { useTranslation } from "../../../src/lib/i18n";
 import { DEFAULT_MATCH_FILTERS, filterMatches } from "../../../src/lib/matchFilters";
 import { matchSideLabel, formatRelativeDate } from "../../../src/lib/format";
 import {
@@ -54,6 +55,7 @@ const EMPTY_MATCHES: MatchSummary[] = [];
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { currentGroup } = useGroup();
   const groupId = currentGroup?.id ?? null;
@@ -121,7 +123,7 @@ export default function HomeScreen() {
               </View>
               <View style={styles.heroStatsRow}>
                 <View style={styles.heroStat}>
-                  <Text style={styles.heroEyebrow}>Win Rate</Text>
+                  <Text style={styles.heroEyebrow}>{t("home.winRate")}</Text>
                   <View style={styles.heroValueRow}>
                     <AnimatedNumber
                       value={myStats?.winRate !== null && myStats?.winRate !== undefined ? Math.round(myStats.winRate * 100) : 0}
@@ -131,7 +133,7 @@ export default function HomeScreen() {
                   </View>
                 </View>
                 <View style={styles.heroStat}>
-                  <Text style={styles.heroEyebrow}>Streak</Text>
+                  <Text style={styles.heroEyebrow}>{t("home.streak")}</Text>
                   <Text style={styles.heroValue}>
                     {myStreak && myStreak.currentStreak.count > 0
                       ? `${myStreak.currentStreak.count} ${myStreak.currentStreak.result}`
@@ -140,7 +142,7 @@ export default function HomeScreen() {
                 </View>
                 {myForm ? (
                   <View style={styles.heroStat}>
-                    <Text style={styles.heroEyebrow}>Recent form</Text>
+                    <Text style={styles.heroEyebrow}>{t("home.recentForm")}</Text>
                     <FormStrip results={myForm.form.map((f) => f.result)} />
                   </View>
                 ) : null}
@@ -149,7 +151,7 @@ export default function HomeScreen() {
           ) : (
             <View>
               <Text style={styles.greeting}>{currentGroup?.name}</Text>
-              <Text style={styles.subtitle}>Dashboard</Text>
+              <Text style={styles.subtitle}>{t("home.dashboard")}</Text>
             </View>
           )}
         </LinearGradient>
@@ -158,7 +160,7 @@ export default function HomeScreen() {
         {highlights.length > 0 ? (
           <FadeIn>
             <View style={styles.highlightsSection}>
-              <Text style={styles.highlightsTitle}>Did you know?</Text>
+              <Text style={styles.highlightsTitle}>{t("home.didYouKnow")}</Text>
               {highlights.map((item) => (
                 <View key={item.id} style={styles.highlightCardRow}>
                   <Text style={styles.highlightIcon}>{DISCOVERY_ICON[item.type]}</Text>
@@ -170,10 +172,10 @@ export default function HomeScreen() {
         ) : null}
 
         <View style={styles.quickActions}>
-          <QuickAction icon="add-circle" label="Record" onPress={() => router.push("/record-match")} />
-          <QuickAction icon="person-add" label="Add player" onPress={() => router.push("/player/new")} />
-          <QuickAction icon="trophy" label="Leaderboards" onPress={() => router.push("/leaderboards")} />
-          <QuickAction icon="time" label="History" onPress={() => router.push("/history")} />
+          <QuickAction icon="add-circle" label={t("home.quickActionRecord")} onPress={() => router.push("/record-match")} />
+          <QuickAction icon="person-add" label={t("home.quickActionAddPlayer")} onPress={() => router.push("/player/new")} />
+          <QuickAction icon="trophy" label={t("home.quickActionLeaderboards")} onPress={() => router.push("/leaderboards")} />
+          <QuickAction icon="time" label={t("home.quickActionHistory")} onPress={() => router.push("/history")} />
         </View>
 
         {isLoading ? (
@@ -192,7 +194,7 @@ export default function HomeScreen() {
               <View style={styles.highlightRow}>
                 {topPerformer ? (
                   <Card compact variant="elevated" style={styles.highlightCard}>
-                    <Text style={styles.highlightLabel}>Top Performer</Text>
+                    <Text style={styles.highlightLabel}>{t("home.topPerformer")}</Text>
                     <Text style={styles.highlightName} numberOfLines={1}>
                       {topPerformer.playerName}
                     </Text>
@@ -201,7 +203,7 @@ export default function HomeScreen() {
                 ) : null}
                 {monthlyTop ? (
                   <Card compact variant="elevated" style={styles.highlightCard}>
-                    <Text style={styles.highlightLabel}>Top This Month</Text>
+                    <Text style={styles.highlightLabel}>{t("home.topThisMonth")}</Text>
                     <Text style={styles.highlightName} numberOfLines={1}>
                       {monthlyTop.playerName}
                     </Text>
@@ -212,7 +214,13 @@ export default function HomeScreen() {
             ) : null}
 
             {mostActive.length > 0 ? (
-              <Section title="Most active" onSeeAll={() => router.push("/leaderboards")} isEmpty={false} emptyProps={{ title: "" }}>
+              <Section
+                title={t("home.mostActive")}
+                seeAllLabel={t("home.seeAll")}
+                onSeeAll={() => router.push("/leaderboards")}
+                isEmpty={false}
+                emptyProps={{ title: "" }}
+              >
                 {mostActive.map((row, index) => (
                   <RankingRow
                     key={row.playerId}
@@ -229,23 +237,24 @@ export default function HomeScreen() {
             ) : null}
 
             <Section
-              title="Rankings"
+              title={t("home.rankings")}
+              seeAllLabel={t("home.seeAll")}
               onSeeAll={() => router.push("/leaderboards")}
               isEmpty={winRateLeaders.length === 0}
               emptyProps={
                 roster.length === 0
                   ? {
                       icon: "🏆",
-                      title: "No rankings yet",
-                      message: "Add players to start tracking stats.",
-                      actionLabel: "Add player",
+                      title: t("home.noRankingsTitle"),
+                      message: t("home.noRankingsMessage"),
+                      actionLabel: t("common.addPlayer"),
                       onAction: () => router.push("/player/new"),
                     }
                   : {
                       icon: "🏆",
-                      title: "Not enough matches yet",
-                      message: `Play at least ${WIN_RATE_MIN_PLAYED} matches to appear on the win-rate ranking.`,
-                      actionLabel: "Record a match",
+                      title: t("home.notEnoughMatchesTitle"),
+                      message: t("home.notEnoughMatchesMessage", { count: String(WIN_RATE_MIN_PLAYED) }),
+                      actionLabel: t("home.recordAMatch"),
                       onAction: () => router.push("/record-match"),
                     }
               }
@@ -265,14 +274,15 @@ export default function HomeScreen() {
             </Section>
 
             <Section
-              title="Recent matches"
+              title={t("home.recentMatches")}
+              seeAllLabel={t("home.seeAll")}
               onSeeAll={() => router.push("/history")}
               isEmpty={recentMatches.length === 0}
               emptyProps={{
                 icon: "⚽️",
-                title: "No matches yet",
-                message: "Record your group's first match to see it here.",
-                actionLabel: "Record match",
+                title: t("home.noMatchesTitle"),
+                message: t("home.noMatchesMessage"),
+                actionLabel: t("common.recordMatch"),
                 onAction: () => router.push("/record-match"),
               }}
             >
@@ -328,12 +338,14 @@ function QuickAction({ icon, label, onPress }: { icon: ComponentProps<typeof Ion
 
 function Section({
   title,
+  seeAllLabel,
   onSeeAll,
   isEmpty,
   emptyProps,
   children,
 }: {
   title: string;
+  seeAllLabel: string;
   onSeeAll: () => void;
   isEmpty: boolean;
   emptyProps: ComponentProps<typeof EmptyState>;
@@ -345,7 +357,7 @@ function Section({
         <Text style={styles.sectionTitle}>{title}</Text>
         {!isEmpty ? (
           <Text style={styles.seeAll} onPress={onSeeAll}>
-            See all
+            {seeAllLabel}
           </Text>
         ) : null}
       </View>

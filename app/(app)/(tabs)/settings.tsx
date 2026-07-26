@@ -9,16 +9,23 @@ import { useAuth } from "../../../src/hooks/useAuth";
 import { useGroup } from "../../../src/hooks/useGroup";
 import { signOut } from "../../../src/lib/auth";
 import { confirmAction } from "../../../src/lib/confirm";
+import { type Locale, useTranslation } from "../../../src/lib/i18n";
 import { colors, radius, spacing, typography } from "../../../src/theme";
+
+const LANGUAGE_OPTIONS: { value: Locale; labelKey: "settings.languageEnglish" | "settings.languageHebrew" }[] = [
+  { value: "en", labelKey: "settings.languageEnglish" },
+  { value: "he", labelKey: "settings.languageHebrew" },
+];
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { currentGroup, currentRole, groups, memberships, setCurrentGroupId } = useGroup();
+  const { t, locale, setLocale } = useTranslation();
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   const handleLogout = () => {
-    confirmAction("Log out?", undefined, "Log out", async () => {
+    confirmAction(`${t("settings.logOut")}?`, undefined, t("settings.logOut"), async () => {
       setIsSigningOut(true);
       try {
         await signOut();
@@ -36,16 +43,16 @@ export default function SettingsScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Settings</Text>
+        <Text style={styles.title}>{t("settings.title")}</Text>
 
         <Card style={styles.card}>
-          <Text style={styles.cardLabel}>Signed in as</Text>
+          <Text style={styles.cardLabel}>{t("settings.signedInAs")}</Text>
           <Text style={styles.cardValue}>{user?.email}</Text>
         </Card>
 
         {currentGroup ? (
           <Card style={styles.card}>
-            <Text style={styles.cardLabel}>Current group</Text>
+            <Text style={styles.cardLabel}>{t("settings.currentGroup")}</Text>
             <Text style={styles.cardValue}>{currentGroup.name}</Text>
             {currentRole ? <Badge label={currentRole.charAt(0).toUpperCase() + currentRole.slice(1)} tone="accent" style={styles.roleTag} /> : null}
             <Pressable
@@ -62,7 +69,7 @@ export default function SettingsScreen() {
 
         {groups.length > 1 ? (
           <Card style={styles.card}>
-            <Text style={styles.cardLabel}>Switch group</Text>
+            <Text style={styles.cardLabel}>{t("settings.switchGroup")}</Text>
             {memberships.map((m) => (
               <Pressable
                 key={m.group.id}
@@ -81,10 +88,29 @@ export default function SettingsScreen() {
           </Card>
         ) : null}
 
+        <Card style={styles.card}>
+          <Text style={styles.cardLabel}>{t("settings.language")}</Text>
+          <View style={styles.languageRow}>
+            {LANGUAGE_OPTIONS.map((option) => (
+              <Pressable
+                key={option.value}
+                onPress={() => setLocale(option.value)}
+                style={[styles.languageOption, locale === option.value && styles.languageOptionActive]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: locale === option.value }}
+              >
+                <Text style={[styles.languageOptionLabel, locale === option.value && styles.languageOptionLabelActive]}>
+                  {t(option.labelKey)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </Card>
+
         <View style={styles.actions}>
-          <Button label="Create another group" variant="secondary" onPress={() => router.push("/group/create")} />
-          <Button label="Join another group" variant="secondary" onPress={() => router.push("/group/join")} />
-          <Button label="Log out" variant="danger" onPress={handleLogout} loading={isSigningOut} />
+          <Button label={t("settings.createGroup")} variant="secondary" onPress={() => router.push("/group/create")} />
+          <Button label={t("settings.joinGroup")} variant="secondary" onPress={() => router.push("/group/join")} />
+          <Button label={t("settings.logOut")} variant="danger" onPress={handleLogout} loading={isSigningOut} />
         </View>
       </ScrollView>
     </Screen>
@@ -145,6 +171,30 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   checkmark: {
+    color: colors.accent,
+    fontWeight: "700",
+  },
+  languageRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  languageOption: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  languageOptionActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSubtle,
+  },
+  languageOptionLabel: {
+    ...typography.body,
+  },
+  languageOptionLabelActive: {
     color: colors.accent,
     fontWeight: "700",
   },
