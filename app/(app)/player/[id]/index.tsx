@@ -20,7 +20,9 @@ import { useGroup } from "../../../../src/hooks/useGroup";
 import { useGroupMatchHistory, usePlayerMatchHistory } from "../../../../src/hooks/useMatches";
 import { useArchivePlayer, useUpdatePlayer } from "../../../../src/hooks/usePlayerMutations";
 import { usePlayer, usePlayers } from "../../../../src/hooks/usePlayers";
+import { computeAllAchievements } from "../../../../src/lib/achievements";
 import { confirmAction, notify } from "../../../../src/lib/confirm";
+import { formatRelativeDate } from "../../../../src/lib/format";
 import { generateFunFacts, type FunFact } from "../../../../src/lib/facts";
 import { generateInsights, type Insight } from "../../../../src/lib/insights";
 import type { MatchSummary } from "../../../../src/lib/matches";
@@ -143,6 +145,8 @@ export default function PlayerDetailScreen() {
     return allRecords.filter((r) => r.holderName.split(" & ").includes(player.display_name));
   }, [player, roster.data, groupHistory.data]);
 
+  const achievements = useMemo(() => computeAllAchievements(playerId, matches), [playerId, matches]);
+
   if (isLoading) {
     return (
       <Screen>
@@ -263,6 +267,24 @@ export default function PlayerDetailScreen() {
                     <View key={record.id} style={styles.recordHeldRow}>
                       <Text style={styles.recordHeldLabel}>{record.label}</Text>
                       <Text style={styles.recordHeldValue}>{record.valueLabel}</Text>
+                    </View>
+                  ))}
+                </View>
+              </Card>
+            ) : null}
+
+            {achievements.length > 0 ? (
+              <Card>
+                <Text style={styles.sectionTitle}>Achievements</Text>
+                <View style={styles.highlightsList}>
+                  {achievements.map((achievement) => (
+                    <View key={achievement.id} style={styles.achievementRow}>
+                      <Text style={styles.achievementIcon}>🏅</Text>
+                      <View style={styles.achievementInfo}>
+                        <Text style={styles.achievementLabel}>{achievement.label}</Text>
+                        <Text style={styles.achievementDescription}>{achievement.description}</Text>
+                      </View>
+                      <Text style={styles.achievementDate}>{formatRelativeDate(achievement.unlockedAt)}</Text>
                     </View>
                   ))}
                 </View>
@@ -684,6 +706,27 @@ const styles = StyleSheet.create({
   recordHeldValue: {
     ...typography.bodyStrong,
     color: colors.gold,
+  },
+  achievementRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  achievementIcon: {
+    fontSize: 20,
+  },
+  achievementInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  achievementLabel: {
+    ...typography.bodyStrong,
+  },
+  achievementDescription: {
+    ...typography.small,
+  },
+  achievementDate: {
+    ...typography.small,
   },
   progressionSection: {
     gap: spacing.md,
