@@ -19,6 +19,7 @@ import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
 import { leaderboardToCsv } from "../../../src/lib/csv";
 import type { MatchSummary } from "../../../src/lib/matches";
+import { computeMonthlyReport } from "../../../src/lib/monthlyReport";
 import type { PlayerProfile } from "../../../src/lib/types/database";
 import {
   computeBestDoublesPairs,
@@ -180,6 +181,10 @@ export default function LeaderboardsScreen() {
     () => (category === "winRate" ? computeNotYetQualified(roster, filteredMatches) : []),
     [category, roster, filteredMatches],
   );
+  const monthlyReport = useMemo(
+    () => (category === "monthly" ? computeMonthlyReport(roster, matches, monthTarget.getFullYear(), monthTarget.getMonth()) : null),
+    [category, roster, matches, monthTarget],
+  );
 
   const displayRows = descending ? rows : [...rows].reverse();
   const displayPairs = descending ? doublesPairs : [...doublesPairs].reverse();
@@ -292,6 +297,24 @@ export default function LeaderboardsScreen() {
       ) : null}
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        {monthlyReport && !isLoading && !isError ? (
+          <Card style={styles.monthlyReportCard}>
+            <Text style={styles.monthlyReportStory}>{monthlyReport.story}</Text>
+            {monthlyReport.awards.length > 0 ? (
+              <View style={styles.monthlyAwardsList}>
+                {monthlyReport.awards.map((award) => (
+                  <View key={award.id} style={styles.monthlyAwardRow}>
+                    <Text style={styles.monthlyAwardLabel}>{award.label}</Text>
+                    <Text style={styles.monthlyAwardValue} numberOfLines={1}>
+                      {award.holderName} · {award.valueLabel}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </Card>
+        ) : null}
+
         {isLoading ? (
           <SkeletonList count={5} />
         ) : isError ? (
@@ -525,5 +548,30 @@ const styles = StyleSheet.create({
   },
   notQualifiedDetail: {
     ...typography.small,
+  },
+  monthlyReportCard: {
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  monthlyReportStory: {
+    ...typography.body,
+  },
+  monthlyAwardsList: {
+    gap: spacing.xs,
+  },
+  monthlyAwardRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  monthlyAwardLabel: {
+    ...typography.small,
+    color: colors.textSecondary,
+  },
+  monthlyAwardValue: {
+    ...typography.small,
+    fontWeight: "700",
+    flexShrink: 1,
+    textAlign: "right",
   },
 });
