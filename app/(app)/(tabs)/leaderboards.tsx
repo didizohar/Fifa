@@ -151,25 +151,34 @@ export default function LeaderboardsScreen() {
    * basis on every tap, so "movement" wouldn't mean anything there.
    */
   const previousRanksRef = useRef<Map<string, Map<string, number>>>(new Map());
-  const [movement, setMovement] = useState<Map<string, number>>(new Map());
-  useEffect(() => {
-    if (category === "monthly" || category === "doublesPairs") {
-      setMovement(new Map());
-      return;
-    }
+
+  // Pure derivation: reads rows (this render) + previousRanksRef (last committed
+  // render) and computes movement. No setState here, so this can never loop --
+  // recomputing on an extra render is just a wasted (cheap) calculation, not a
+  // scheduled re-render.
+  const movement = useMemo(() => {
+    if (category === "monthly" || category === "doublesPairs") return new Map<string, number>();
+
     const key = `${category}:${matchTypeFilter}`;
-    const currentRanks = new Map(rows.map((row, index) => [row.playerId, index + 1]));
     const previousRanks = previousRanksRef.current.get(key);
     const deltas = new Map<string, number>();
     if (previousRanks) {
-      for (const [playerId, position] of currentRanks) {
-        const previousPosition = previousRanks.get(playerId);
-        if (previousPosition !== undefined && previousPosition !== position) deltas.set(playerId, previousPosition - position);
-      }
+      rows.forEach((row, index) => {
+        const position = index + 1;
+        const previousPosition = previousRanks.get(row.playerId);
+        if (previousPosition !== undefined && previousPosition !== position) deltas.set(row.playerId, previousPosition - position);
+      });
     }
+    return deltas;
+  }, [category, matchTypeFilter, rows]);
+
+  // Side effect only: records this render's ranks for next time. Mutating a ref
+  // doesn't trigger a re-render, so this is safe even while rows is still settling.
+  useEffect(() => {
+    if (category === "monthly" || category === "doublesPairs") return;
+    const key = `${category}:${matchTypeFilter}`;
+    const currentRanks = new Map(rows.map((row, index) => [row.playerId, index + 1]));
     previousRanksRef.current.set(key, currentRanks);
-    setMovement(deltas);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category, matchTypeFilter, rows]);
 
   const doublesPairs = useMemo(() => (category === "doublesPairs" ? computeBestDoublesPairs(matches) : []), [category, matches]);
