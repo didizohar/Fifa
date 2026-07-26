@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { Button } from "../../src/components/Button";
 import { Card } from "../../src/components/Card";
+import { EmptyState } from "../../src/components/EmptyState";
 import { PlayerPicker } from "../../src/components/PlayerPicker";
 import { Screen } from "../../src/components/Screen";
 import { ScoreStepper } from "../../src/components/ScoreStepper";
@@ -16,6 +17,8 @@ import { toPickablePlayer } from "../../src/lib/players";
 import type { ClubVersion, MatchType } from "../../src/lib/types/database";
 import { validateMatchForm } from "../../src/lib/validation/matchForm";
 import { colors, radius, spacing, typography } from "../../src/theme";
+
+const MIN_PLAYERS_TO_RECORD = 2;
 
 export default function RecordMatchScreen() {
   const router = useRouter();
@@ -109,6 +112,20 @@ export default function RecordMatchScreen() {
 
   if (!currentGroup) return null;
 
+  if (!playersLoading && (players ?? []).length < MIN_PLAYERS_TO_RECORD) {
+    return (
+      <Screen>
+        <EmptyState
+          icon="🧑‍🤝‍🧑"
+          title="Not enough players yet"
+          message="A match needs at least two players in the group. Add one, then come back here."
+          actionLabel="Add player"
+          onAction={() => router.push("/player/new")}
+        />
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -177,6 +194,7 @@ export default function RecordMatchScreen() {
               thumbColor={colors.textPrimary}
             />
           </View>
+          {!scoresLevel ? <Text style={styles.hint}>Only available when both sides have the same score.</Text> : null}
           {isPenalties && scoresLevel ? (
             <View style={styles.penaltyRow}>
               <ScoreStepper label="Side 1 pens" value={penaltyScore1} onChange={setPenaltyScore1} max={20} />
@@ -276,6 +294,10 @@ const styles = StyleSheet.create({
   },
   switchLabelDisabled: {
     color: colors.textMuted,
+  },
+  hint: {
+    ...typography.small,
+    marginTop: -spacing.xs,
   },
   penaltyRow: {
     flexDirection: "row",

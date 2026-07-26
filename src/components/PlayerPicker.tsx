@@ -23,6 +23,11 @@ export function PlayerPicker({ players, selectedIds, onToggle, disabledIds = [],
 
   return (
     <View style={styles.container}>
+      {maxSelected > 1 ? (
+        <Text style={styles.counter}>
+          {selectedIds.length} of {maxSelected} selected
+        </Text>
+      ) : null}
       <TextInput
         value={query}
         onChangeText={setQuery}
@@ -64,6 +69,10 @@ export function PlayerPicker({ players, selectedIds, onToggle, disabledIds = [],
 const styles = StyleSheet.create({
   container: {
     gap: spacing.sm,
+  },
+  counter: {
+    ...typography.small,
+    color: colors.textSecondary,
   },
   search: {
     height: 44,

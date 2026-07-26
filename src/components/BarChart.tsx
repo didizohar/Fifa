@@ -25,7 +25,7 @@ export function BarChart({ rows, maxValue }: BarChartProps) {
       {rows.map((row) => {
         const pct = max === 0 ? 0 : Math.min(1, row.value / max);
         return (
-          <View key={row.label} style={styles.row}>
+          <View key={row.label} style={styles.row} accessible accessibilityLabel={`${row.label}, ${row.valueLabel ?? row.value}`}>
             <Text style={styles.label} numberOfLines={1}>
               {row.label}
             </Text>

@@ -588,6 +588,7 @@ export default function PlayerDetailScreen() {
                   onToggle={(opponentId) => setHeadToHeadOpponentId((prev) => (prev === opponentId ? null : opponentId))}
                   maxSelected={1}
                 />
+                {!headToHead ? <Text style={styles.h2hPrompt}>Pick an opponent above to see the head-to-head record.</Text> : null}
                 {headToHead ? (
                   <View style={styles.h2hRow}>
                     <View style={styles.recordRow}>
@@ -865,6 +866,11 @@ const styles = StyleSheet.create({
   h2hRow: {
     gap: spacing.sm,
     marginTop: spacing.sm,
+  },
+  h2hPrompt: {
+    ...typography.caption,
+    textAlign: "center",
+    marginTop: spacing.md,
   },
   emptyChartsTitle: {
     ...typography.bodyStrong,
