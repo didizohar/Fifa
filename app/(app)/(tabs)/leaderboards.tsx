@@ -19,6 +19,7 @@ import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
 import { leaderboardToCsv } from "../../../src/lib/csv";
 import type { MatchSummary } from "../../../src/lib/matches";
+import type { PlayerProfile } from "../../../src/lib/types/database";
 import {
   computeBestDoublesPairs,
   computeCleanSheetsLeaderboard,
@@ -72,6 +73,13 @@ const MATCH_TYPE_FILTERS: { id: MatchTypeFilter; label: string }[] = [
 
 const MONTH_LABEL = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
 
+// Stable references for the "query hasn't resolved yet" fallback -- `data ?? []`
+// would otherwise allocate a fresh empty array every render while loading,
+// which cascades into rows recomputing every render too. Same pattern as
+// EMPTY_MATCHES in the player profile screen.
+const EMPTY_PLAYERS: PlayerProfile[] = [];
+const EMPTY_MATCHES: MatchSummary[] = [];
+
 export default function LeaderboardsScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -89,8 +97,8 @@ export default function LeaderboardsScreen() {
   /** Animates the list reordering itself on a category/sort/filter switch instead of an abrupt jump. Separate from the per-row movement badges below, which flag an actual rank change within the same category since it was last shown. */
   const animateReorder = () => LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 
-  const roster = players.data ?? [];
-  const matches = matchHistory.data ?? [];
+  const roster = players.data ?? EMPTY_PLAYERS;
+  const matches = matchHistory.data ?? EMPTY_MATCHES;
   const myPlayerId = roster.find((p) => p.linked_user_id === user?.id)?.id ?? null;
 
   const filteredMatches: MatchSummary[] = useMemo(
