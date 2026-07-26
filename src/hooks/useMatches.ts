@@ -1,9 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-  fetchEloHistory,
   fetchGroupMatchHistory,
   fetchMatchDetail,
-  fetchMatchEloDeltas,
   fetchPlayerMatchHistory,
   fetchPlayerRecordRows,
   fetchRecentMatches,
@@ -55,28 +53,11 @@ export function usePlayerMatchHistory(playerId: string | undefined) {
   });
 }
 
-export function useEloHistory(playerId: string | undefined) {
-  return useQuery({
-    queryKey: matchKeys.eloHistory(playerId ?? ""),
-    queryFn: () => fetchEloHistory(playerId!),
-    enabled: !!playerId,
-  });
-}
-
 /** Full, uncapped match history for a whole group -- source data for leaderboards. */
 export function useGroupMatchHistory(groupId: string | null) {
   return useQuery({
     queryKey: matchKeys.groupHistory(groupId ?? ""),
     queryFn: () => fetchGroupMatchHistory(groupId!),
     enabled: !!groupId,
-  });
-}
-
-/** Every player's Elo swing for one match -- match detail's "performance" section. */
-export function useMatchEloDeltas(matchId: string | undefined) {
-  return useQuery({
-    queryKey: matchKeys.eloDeltas(matchId ?? ""),
-    queryFn: () => fetchMatchEloDeltas(matchId!),
-    enabled: !!matchId,
   });
 }

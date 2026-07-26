@@ -64,7 +64,7 @@ describe("matchesToCsv", () => {
 
 describe("playerStatsToCsv", () => {
   it("computes and serializes each player's record, goals, and streaks", () => {
-    const players = [{ id: "p1", display_name: "Alice", avatar_url: null, custom_color: "#000", singles_elo: 1050, doubles_elo: 1000 }];
+    const players = [{ id: "p1", display_name: "Alice", avatar_url: null, custom_color: "#000" }];
     const matches = [
       makeMatch({ playerIds: ["p1"], score: 2, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }),
       makeMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }),
@@ -72,18 +72,18 @@ describe("playerStatsToCsv", () => {
     const csv = playerStatsToCsv(players, matches);
     const lines = csv.split("\r\n");
     expect(lines[0]).toBe(
-      "Player,Singles Elo,Doubles Elo,Played,Wins,Losses,Draws,Win Rate %,Goals Scored,Goals Conceded,Goal Difference,Clean Sheets,Current Streak,Longest Win Streak,Longest Loss Streak",
+      "Player,Played,Wins,Losses,Draws,Win Rate %,Goals Scored,Goals Conceded,Goal Difference,Clean Sheets,Current Streak,Longest Win Streak,Longest Loss Streak",
     );
-    expect(lines[1]).toBe("Alice,1050,1000,2,2,0,0,100,3,0,3,2,2 win,2,0");
+    expect(lines[1]).toBe("Alice,2,2,0,0,100,3,0,3,2,2 win,2,0");
   });
 });
 
 describe("leaderboardToCsv", () => {
   it("numbers rows by position and includes the formatted value/detail", () => {
     const rows: LeaderboardRow[] = [
-      { playerId: "p1", playerName: "Alice", avatarUrl: null, color: "#000", value: 1200, valueLabel: "1200", detail: "Elo rating" },
-      { playerId: "p2", playerName: "Bob", avatarUrl: null, color: "#000", value: 1100, valueLabel: "1100", detail: "Elo rating" },
+      { playerId: "p1", playerName: "Alice", avatarUrl: null, color: "#000", value: 62, valueLabel: "62%", detail: "Win rate" },
+      { playerId: "p2", playerName: "Bob", avatarUrl: null, color: "#000", value: 55, valueLabel: "55%", detail: "Win rate" },
     ];
-    expect(leaderboardToCsv(rows)).toBe("Rank,Player,Value,Detail\r\n1,Alice,1200,Elo rating\r\n2,Bob,1100,Elo rating");
+    expect(leaderboardToCsv(rows)).toBe("Rank,Player,Value,Detail\r\n1,Alice,62%,Win rate\r\n2,Bob,55%,Win rate");
   });
 });

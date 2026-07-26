@@ -48,11 +48,9 @@ export function matchesToCsv(matches: MatchSummary[]): string {
   return toCsv(headers, rows);
 }
 
-export function playerStatsToCsv(players: (MatchSidePlayer & { singles_elo: number; doubles_elo: number })[], matches: MatchSummary[]): string {
+export function playerStatsToCsv(players: MatchSidePlayer[], matches: MatchSummary[]): string {
   const headers = [
     "Player",
-    "Singles Elo",
-    "Doubles Elo",
     "Played",
     "Wins",
     "Losses",
@@ -72,8 +70,6 @@ export function playerStatsToCsv(players: (MatchSidePlayer & { singles_elo: numb
     const streaks = computeStreaks(p.id, matches);
     return [
       p.display_name,
-      p.singles_elo,
-      p.doubles_elo,
       stats.played,
       stats.wins,
       stats.losses,

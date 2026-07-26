@@ -158,40 +158,6 @@ export async function fetchPlayerMatchHistory(playerIds: string[]): Promise<Matc
   return ((data ?? []) as unknown as RawMatch[]).map(normalizeMatch).filter((m): m is MatchSummary => m !== null);
 }
 
-export interface EloHistoryEntry {
-  match_id: string;
-  match_type: MatchType;
-  rating_before: number;
-  rating_after: number;
-  recorded_at: string;
-}
-
-/** Full rating timeline for one player, oldest first -- source for Elo progression charts. */
-export async function fetchEloHistory(playerId: string): Promise<EloHistoryEntry[]> {
-  const { data, error } = await supabase
-    .from("elo_history")
-    .select("match_id, match_type, rating_before, rating_after, recorded_at")
-    .eq("player_id", playerId)
-    .order("recorded_at", { ascending: true });
-
-  if (error) throw new Error(`Failed to load Elo history: ${error.message}`);
-  return (data ?? []) as EloHistoryEntry[];
-}
-
-export interface MatchEloDelta {
-  player_id: string;
-  rating_before: number;
-  rating_after: number;
-}
-
-/** Every player's rating_before/after for one specific match -- source for match-detail "performance" (real Elo swing, not a fabricated stat). */
-export async function fetchMatchEloDeltas(matchId: string): Promise<MatchEloDelta[]> {
-  const { data, error } = await supabase.from("elo_history").select("player_id, rating_before, rating_after").eq("match_id", matchId);
-
-  if (error) throw new Error(`Failed to load match Elo deltas: ${error.message}`);
-  return (data ?? []) as MatchEloDelta[];
-}
-
 export interface PlayerRecordRow {
   player_id: string;
   result: SideResult;

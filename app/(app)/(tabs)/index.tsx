@@ -24,12 +24,13 @@ import { usePlayers } from "../../../src/hooks/usePlayers";
 import { DEFAULT_MATCH_FILTERS, filterMatches } from "../../../src/lib/matchFilters";
 import { matchSideLabel, formatRelativeDate } from "../../../src/lib/format";
 import {
-  computeAllPlayerStats,
-  computeEloRank,
   computeLastNStats,
   computeMonthlyLeaderboard,
   computeMostMatchesLeaderboard,
+  computePlayerStats,
   computeStreaks,
+  computeWinRateLeaderboard,
+  computeWinRateRank,
 } from "../../../src/lib/stats";
 import { colors, iconSize, radius, spacing, typography } from "../../../src/theme";
 
@@ -45,7 +46,6 @@ export default function HomeScreen() {
 
   const players = usePlayers(groupId);
   const fullHistory = useGroupMatchHistory(groupId);
-  const rankingPreviewIds = useMemo(() => (players.data ?? []).slice(0, RANKINGS_PREVIEW).map((p) => p.id), [players.data]);
 
   const isLoading = players.isLoading || fullHistory.isLoading;
   const isError = players.isError || fullHistory.isError;
@@ -61,10 +61,9 @@ export default function HomeScreen() {
 
   const myStreak = useMemo(() => (myPlayer ? computeStreaks(myPlayer.id, allMatches) : null), [myPlayer, allMatches]);
   const myForm = useMemo(() => (myPlayer ? computeLastNStats(myPlayer.id, allMatches, 5) : null), [myPlayer, allMatches]);
-  const myRank = useMemo(() => (myPlayer ? computeEloRank(myPlayer.id, roster) : null), [myPlayer, roster]);
-  // Derived from allMatches (already fetched, uncapped) instead of a second usePlayerRecords
-  // network round-trip for the same win/loss/draw fact.
-  const records = useMemo(() => computeAllPlayerStats(rankingPreviewIds, allMatches), [rankingPreviewIds, allMatches]);
+  const myStats = useMemo(() => (myPlayer ? computePlayerStats(myPlayer.id, allMatches) : null), [myPlayer, allMatches]);
+  const myRank = useMemo(() => (myPlayer ? computeWinRateRank(myPlayer.id, roster, allMatches) : null), [myPlayer, roster, allMatches]);
+  const winRateLeaders = useMemo(() => computeWinRateLeaderboard(roster, allMatches), [roster, allMatches]);
 
   const mostActive = useMemo(() => computeMostMatchesLeaderboard(roster, allMatches).slice(0, ACTIVE_PREVIEW), [roster, allMatches]);
 
@@ -73,7 +72,7 @@ export default function HomeScreen() {
     const now = new Date();
     return computeMonthlyLeaderboard(roster, allMatches, now.getFullYear(), now.getMonth())[0] ?? null;
   }, [roster, allMatches]);
-  const topPerformer = roster[0] ?? null;
+  const topPerformer = winRateLeaders[0] ?? null;
 
   const handleRefresh = () => {
     players.refetch();
@@ -97,12 +96,18 @@ export default function HomeScreen() {
                   <Text style={styles.heroGreeting}>{currentGroup?.name}</Text>
                   <Text style={styles.heroName}>{myPlayer.display_name}</Text>
                 </View>
-                <Badge label={myRank ? `#${myRank.position} of ${myRank.of}` : "Unranked"} tone={rankBadgeTone(myRank?.position ?? null)} />
+                <Badge label={myRank ? `#${myRank.position} of ${myRank.of}` : "Not yet qualified"} tone={rankBadgeTone(myRank?.position ?? null)} />
               </View>
               <View style={styles.heroStatsRow}>
                 <View style={styles.heroStat}>
-                  <Text style={styles.heroEyebrow}>Elo</Text>
-                  <AnimatedNumber value={myPlayer.singles_elo} style={styles.heroValue} />
+                  <Text style={styles.heroEyebrow}>Win Rate</Text>
+                  <View style={styles.heroValueRow}>
+                    <AnimatedNumber
+                      value={myStats?.winRate !== null && myStats?.winRate !== undefined ? Math.round(myStats.winRate * 100) : 0}
+                      style={styles.heroValue}
+                    />
+                    <Text style={styles.heroValue}>%</Text>
+                  </View>
                 </View>
                 <View style={styles.heroStat}>
                   <Text style={styles.heroEyebrow}>Streak</Text>
@@ -154,9 +159,9 @@ export default function HomeScreen() {
                   <Card compact variant="elevated" style={styles.highlightCard}>
                     <Text style={styles.highlightLabel}>Top Performer</Text>
                     <Text style={styles.highlightName} numberOfLines={1}>
-                      {topPerformer.display_name}
+                      {topPerformer.playerName}
                     </Text>
-                    <Badge label={`${topPerformer.singles_elo} Elo`} tone="gold" />
+                    <Badge label={`${topPerformer.valueLabel} win rate`} tone="gold" />
                   </Card>
                 ) : null}
                 {monthlyTop ? (
@@ -191,32 +196,37 @@ export default function HomeScreen() {
             <Section
               title="Rankings"
               onSeeAll={() => router.push("/leaderboards")}
-              isEmpty={(players.data ?? []).length === 0}
-              emptyProps={{
-                icon: "🏆",
-                title: "No rankings yet",
-                message: "Add players to start tracking Elo ratings.",
-                actionLabel: "Add player",
-                onAction: () => router.push("/player/new"),
-              }}
+              isEmpty={winRateLeaders.length === 0}
+              emptyProps={
+                roster.length === 0
+                  ? {
+                      icon: "🏆",
+                      title: "No rankings yet",
+                      message: "Add players to start tracking stats.",
+                      actionLabel: "Add player",
+                      onAction: () => router.push("/player/new"),
+                    }
+                  : {
+                      icon: "🏆",
+                      title: "Not enough matches yet",
+                      message: "Play at least 5 matches to appear on the win-rate ranking.",
+                      actionLabel: "Record a match",
+                      onAction: () => router.push("/record-match"),
+                    }
+              }
             >
-              {(players.data ?? []).slice(0, RANKINGS_PREVIEW).map((player, index) => {
-                const stats = records.get(player.id) ?? null;
-                const matchesPlayed = stats?.played ?? 0;
-                const winRate = stats?.winRate ?? null;
-                return (
-                  <RankingRow
-                    key={player.id}
-                    rank={index + 1}
-                    name={player.display_name}
-                    avatarUrl={player.avatar_url}
-                    color={player.custom_color}
-                    value={player.singles_elo}
-                    detail={matchesPlayed === 0 ? "No matches yet" : `${matchesPlayed} played · ${winRate !== null ? Math.round(winRate * 100) : 0}% win`}
-                    onPress={() => router.push(`/player/${player.id}`)}
-                  />
-                );
-              })}
+              {winRateLeaders.slice(0, RANKINGS_PREVIEW).map((row, index) => (
+                <RankingRow
+                  key={row.playerId}
+                  rank={index + 1}
+                  name={row.playerName}
+                  avatarUrl={row.avatarUrl}
+                  color={row.color}
+                  value={row.valueLabel}
+                  detail={row.detail}
+                  onPress={() => router.push(`/player/${row.playerId}`)}
+                />
+              ))}
             </Section>
 
             <Section
@@ -350,6 +360,10 @@ const styles = StyleSheet.create({
   heroValue: {
     ...typography.display,
     fontSize: 24,
+  },
+  heroValueRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
   },
   greeting: {
     ...typography.title,

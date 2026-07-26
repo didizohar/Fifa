@@ -11,7 +11,7 @@ interface RankingRowProps {
   name: string;
   avatarUrl?: string | null;
   color: string;
-  /** Prominent right-aligned metric, e.g. an Elo rating, win %, or goal count. */
+  /** Prominent right-aligned metric, e.g. a win %, goal count, or streak length. */
   value: number | string;
   /** Secondary line under the name, e.g. "12 played · 60% win". */
   detail: string;
@@ -48,7 +48,7 @@ export function RankingRow({ rank, name, avatarUrl, color, value, detail, onPres
         </View>
         <Text style={styles.meta}>{detail}</Text>
       </View>
-      <AnimatedNumber value={value} style={styles.elo} />
+      <AnimatedNumber value={value} style={styles.metric} />
     </Pressable>
   );
 }
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
   meta: {
     ...typography.small,
   },
-  elo: {
+  metric: {
     ...typography.heading,
     color: colors.accent,
   },

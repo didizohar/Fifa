@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useRouter } from "expo-router";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../src/components/Avatar";
@@ -10,14 +11,26 @@ import { useGroup } from "../../../src/hooks/useGroup";
 import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
 import { playerStatsToCsv } from "../../../src/lib/csv";
+import { computeAllPlayerStats, type PlayerStats } from "../../../src/lib/stats";
+import type { MatchSummary } from "../../../src/lib/matches";
 import type { PlayerProfile } from "../../../src/lib/types/database";
 import { colors, radius, spacing, typography } from "../../../src/theme";
+
+// Stable fallback references so `data ?? []` doesn't allocate a fresh empty
+// array every render while a query is still loading (see leaderboards.tsx).
+const EMPTY_PLAYERS: PlayerProfile[] = [];
+const EMPTY_MATCHES: MatchSummary[] = [];
 
 export default function PlayersScreen() {
   const router = useRouter();
   const { currentGroupId } = useGroup();
   const { data: players, isLoading, isError, refetch, isRefetching } = usePlayers(currentGroupId);
   const matchHistory = useGroupMatchHistory(currentGroupId);
+  const matches = matchHistory.data ?? EMPTY_MATCHES;
+  const statsById = useMemo(
+    () => computeAllPlayerStats((players ?? EMPTY_PLAYERS).map((p) => p.id), matches),
+    [players, matches],
+  );
 
   return (
     <Screen padded={false}>
@@ -55,7 +68,9 @@ export default function PlayersScreen() {
           contentContainerStyle={styles.listPadding}
           refreshControl={<RefreshControl tintColor={colors.accent} refreshing={isRefetching} onRefresh={refetch} />}
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
-          renderItem={({ item }) => <PlayerRow player={item} onPress={() => router.push(`/player/${item.id}`)} />}
+          renderItem={({ item }) => (
+            <PlayerRow player={item} stats={statsById.get(item.id) ?? null} onPress={() => router.push(`/player/${item.id}`)} />
+          )}
           ListEmptyComponent={
             <EmptyState
               icon="🧑‍🤝‍🧑"
@@ -71,26 +86,27 @@ export default function PlayersScreen() {
   );
 }
 
-function PlayerRow({ player, onPress }: { player: PlayerProfile; onPress: () => void }) {
+function PlayerRow({ player, stats, onPress }: { player: PlayerProfile; stats: PlayerStats | null; onPress: () => void }) {
+  const winRateLabel = stats && stats.winRate !== null ? `${Math.round(stats.winRate * 100)}%` : "–";
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       accessibilityRole="button"
-      accessibilityLabel={`${player.display_name}, ${player.singles_elo} singles Elo, ${player.doubles_elo} doubles Elo`}
+      accessibilityLabel={`${player.display_name}, ${winRateLabel} win rate, ${stats?.played ?? 0} matches played`}
     >
       <Avatar uri={player.avatar_url} name={player.display_name} color={player.custom_color} size={44} />
       <View style={styles.rowInfo}>
         <Text style={styles.rowName} numberOfLines={1}>{player.display_name}</Text>
         {player.nickname ? <Text style={styles.rowNickname}>"{player.nickname}"</Text> : null}
       </View>
-      <View style={styles.eloGroup}>
-        <Text style={styles.eloValue}>{player.singles_elo}</Text>
-        <Text style={styles.eloLabel}>1v1</Text>
+      <View style={styles.statGroup}>
+        <Text style={styles.statValue}>{winRateLabel}</Text>
+        <Text style={styles.statLabel}>Win rate</Text>
       </View>
-      <View style={styles.eloGroup}>
-        <Text style={styles.eloValue}>{player.doubles_elo}</Text>
-        <Text style={styles.eloLabel}>2v2</Text>
+      <View style={styles.statGroup}>
+        <Text style={styles.statValue}>{stats?.played ?? 0}</Text>
+        <Text style={styles.statLabel}>Played</Text>
       </View>
     </Pressable>
   );
@@ -150,15 +166,15 @@ const styles = StyleSheet.create({
   rowNickname: {
     ...typography.small,
   },
-  eloGroup: {
+  statGroup: {
     alignItems: "center",
     minWidth: 44,
   },
-  eloValue: {
+  statValue: {
     ...typography.bodyStrong,
     color: colors.accent,
   },
-  eloLabel: {
+  statLabel: {
     ...typography.small,
   },
 });

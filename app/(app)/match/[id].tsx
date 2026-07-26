@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../src/components/Avatar";
@@ -7,10 +6,9 @@ import { Card } from "../../../src/components/Card";
 import { ErrorState } from "../../../src/components/ErrorState";
 import { Screen } from "../../../src/components/Screen";
 import { Skeleton } from "../../../src/components/Skeleton";
-import { useMatch, useMatchEloDeltas } from "../../../src/hooks/useMatches";
+import { useMatch } from "../../../src/hooks/useMatches";
 import { formatDateTime } from "../../../src/lib/format";
 import type { MatchSideSummary } from "../../../src/lib/matches";
-import { computeMatchMvp } from "../../../src/lib/stats";
 import { colors, radius, spacing, typography } from "../../../src/theme";
 
 const resultColor = { win: colors.win, loss: colors.loss, draw: colors.draw };
@@ -21,18 +19,6 @@ export default function MatchDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { data: match, isLoading, isError, refetch } = useMatch(id);
-  const eloDeltas = useMatchEloDeltas(id);
-
-  const deltaByPlayer = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const row of eloDeltas.data ?? []) map.set(row.player_id, row.rating_after - row.rating_before);
-    return map;
-  }, [eloDeltas.data]);
-
-  const mvpPlayerId = useMemo(
-    () => computeMatchMvp([...deltaByPlayer.entries()].map(([playerId, delta]) => ({ playerId, delta }))),
-    [deltaByPlayer],
-  );
 
   if (isLoading) {
     return (
@@ -79,18 +65,8 @@ export default function MatchDetailScreen() {
           ) : null}
         </Card>
 
-        <SideCard
-          side={side1}
-          deltaByPlayer={deltaByPlayer}
-          mvpPlayerId={mvpPlayerId}
-          onPlayerPress={(playerId) => router.push(`/player/${playerId}`)}
-        />
-        <SideCard
-          side={side2}
-          deltaByPlayer={deltaByPlayer}
-          mvpPlayerId={mvpPlayerId}
-          onPlayerPress={(playerId) => router.push(`/player/${playerId}`)}
-        />
+        <SideCard side={side1} onPlayerPress={(playerId) => router.push(`/player/${playerId}`)} />
+        <SideCard side={side2} onPlayerPress={(playerId) => router.push(`/player/${playerId}`)} />
 
         {match.notes ? (
           <Card>
@@ -114,17 +90,7 @@ function ScoreboardSide({ side }: { side: MatchSideSummary }) {
   );
 }
 
-function SideCard({
-  side,
-  deltaByPlayer,
-  mvpPlayerId,
-  onPlayerPress,
-}: {
-  side: MatchSideSummary;
-  deltaByPlayer: Map<string, number>;
-  mvpPlayerId: string | null;
-  onPlayerPress: (id: string) => void;
-}) {
+function SideCard({ side, onPlayerPress }: { side: MatchSideSummary; onPlayerPress: (id: string) => void }) {
   return (
     <Card style={styles.sideCard}>
       <View style={styles.sideHeader}>
@@ -132,35 +98,22 @@ function SideCard({
         <Badge label={resultLabel[side.result]} tone={resultTone[side.result]} />
       </View>
       <View style={styles.playersRow}>
-        {side.players.map((player) => {
-          const delta = deltaByPlayer.get(player.id);
-          const isMvp = player.id === mvpPlayerId;
-          return (
-            <Pressable
-              key={player.id}
-              style={[styles.playerChip, isMvp && styles.playerChipMvp]}
-              onPress={() => onPlayerPress(player.id)}
-              accessibilityRole="button"
-              accessibilityLabel={`${player.display_name}${isMvp ? ", MVP" : ""}${delta !== undefined ? `, ${delta > 0 ? "+" : ""}${delta} Elo` : ""}`}
-            >
-              <Avatar uri={player.avatar_url} name={player.display_name} color={player.custom_color} size={36} />
-              <View style={styles.playerInfo}>
-                <View style={styles.playerNameRow}>
-                  <Text style={styles.playerName} numberOfLines={1}>
-                    {player.display_name}
-                  </Text>
-                  {isMvp ? <Badge label="MVP" tone="gold" /> : null}
-                </View>
-                {delta !== undefined ? (
-                  <Text style={[styles.playerDelta, { color: delta > 0 ? colors.win : delta < 0 ? colors.loss : colors.textMuted }]}>
-                    {delta > 0 ? "+" : ""}
-                    {delta} Elo
-                  </Text>
-                ) : null}
-              </View>
-            </Pressable>
-          );
-        })}
+        {side.players.map((player) => (
+          <Pressable
+            key={player.id}
+            style={styles.playerChip}
+            onPress={() => onPlayerPress(player.id)}
+            accessibilityRole="button"
+            accessibilityLabel={player.display_name}
+          >
+            <Avatar uri={player.avatar_url} name={player.display_name} color={player.custom_color} size={36} />
+            <View style={styles.playerInfo}>
+              <Text style={styles.playerName} numberOfLines={1}>
+                {player.display_name}
+              </Text>
+            </View>
+          </Pressable>
+        ))}
       </View>
     </Card>
   );
@@ -234,29 +187,14 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     padding: spacing.xs,
     borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  playerChipMvp: {
-    borderColor: colors.gold,
-    backgroundColor: colors.goldSubtle,
   },
   playerInfo: {
     flex: 1,
     gap: 2,
   },
-  playerNameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
   playerName: {
     ...typography.body,
     flexShrink: 1,
-  },
-  playerDelta: {
-    ...typography.small,
-    fontWeight: "700",
   },
   notesLabel: {
     ...typography.caption,

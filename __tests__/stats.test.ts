@@ -6,8 +6,6 @@ import {
   computeCleanSheetsLeaderboard,
   computeClubPerformance,
   computeDoublesPartnerships,
-  computeEloLeaderboard,
-  computeEloRank,
   computeFewestConcededLeaderboard,
   computeGoalDifferenceLeaderboard,
   computeGoalsScoredLeaderboard,
@@ -16,13 +14,15 @@ import {
   computeLastNStats,
   computeLongestLossStreakLeaderboard,
   computeLongestStreakLeaderboard,
-  computeMatchMvp,
   computeMonthlyLeaderboard,
   computeMostMatchesLeaderboard,
+  computeNotYetQualified,
   computePlayerStats,
   computeRecordFromRows,
   computeStreaks,
   computeWinRateLeaderboard,
+  computeWinRateProgression,
+  computeWinRateRank,
   findSides,
 } from "../src/lib/stats";
 import type { MatchSidePlayer, MatchSummary, PlayerRecordRow } from "../src/lib/matches";
@@ -295,18 +295,6 @@ function roster(ids: string[]): MatchSidePlayer[] {
   return ids.map((id) => ({ id, display_name: id, avatar_url: null, custom_color: "#000" }));
 }
 
-describe("computeEloLeaderboard", () => {
-  it("sorts players by Elo descending", () => {
-    const players = [
-      { id: "p1", displayName: "p1", avatarUrl: null, color: "#000", elo: 1000 },
-      { id: "p2", displayName: "p2", avatarUrl: null, color: "#000", elo: 1200 },
-      { id: "p3", displayName: "p3", avatarUrl: null, color: "#000", elo: 1100 },
-    ];
-    expect(computeEloLeaderboard(players).map((r) => r.playerId)).toEqual(["p2", "p3", "p1"]);
-    expect(computeEloLeaderboard(players)[0]).toMatchObject({ value: 1200, valueLabel: "1200" });
-  });
-});
-
 describe("computeWinRateLeaderboard", () => {
   it("excludes players below the minPlayed threshold and sorts by win rate", () => {
     const matches = [
@@ -319,6 +307,88 @@ describe("computeWinRateLeaderboard", () => {
     expect(rows.map((r) => r.playerId)).toEqual(["p1", "p2"]);
     expect(rows[0]).toMatchObject({ value: 1, valueLabel: "100%", detail: "3W-0L-0D" });
     expect(rows[1]).toMatchObject({ value: 0, valueLabel: "0%", detail: "0W-3L-0D" });
+  });
+
+  it("defaults to a 5-match qualification threshold", () => {
+    const matches = [0, 1, 2, 3].map(() =>
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }),
+    );
+    expect(computeWinRateLeaderboard(roster(["p1", "p2"]), matches)).toEqual([]);
+  });
+
+  it("breaks win-rate ties by wins, then goal difference, then goals scored, then matches played", () => {
+    // p1 and p2 both go 3-2 (60% win rate) across 5 matches -- tie broken by the chain below.
+    const matches = [
+      // p1: 3 wins (2-0, 3-0, 1-0 -- goals for 6, against 0), 2 losses (0-1, 0-1 -- against 2 more) => GD +4, GF 6.
+      makeDetailedMatch({ playerIds: ["p1"], score: 2, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 3, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 0, result: "loss" }, { playerIds: ["x"], score: 1, result: "win" }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 0, result: "loss" }, { playerIds: ["x"], score: 1, result: "win" }),
+      // p2: same win/loss record (3-2) but smaller goal difference (+1) -- should rank below p1.
+      makeDetailedMatch({ playerIds: ["p2"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }),
+      makeDetailedMatch({ playerIds: ["p2"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }),
+      makeDetailedMatch({ playerIds: ["p2"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }),
+      makeDetailedMatch({ playerIds: ["p2"], score: 0, result: "loss" }, { playerIds: ["x"], score: 1, result: "win" }),
+      makeDetailedMatch({ playerIds: ["p2"], score: 0, result: "loss" }, { playerIds: ["x"], score: 1, result: "win" }),
+    ];
+    const rows = computeWinRateLeaderboard(roster(["p1", "p2"]), matches, 5);
+    expect(rows.map((r) => r.playerId)).toEqual(["p1", "p2"]);
+  });
+});
+
+describe("computeNotYetQualified", () => {
+  it("lists players below the threshold, sorted by matches played descending", () => {
+    const matches = [
+      ...[0, 1, 2].map(() => makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" })),
+      makeDetailedMatch({ playerIds: ["p2"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }),
+    ];
+    const rows = computeNotYetQualified(roster(["p1", "p2", "p3"]), matches);
+    expect(rows).toEqual([
+      { playerId: "p1", playerName: "p1", avatarUrl: null, color: "#000", played: 3, matchesRemaining: 2 },
+      { playerId: "p2", playerName: "p2", avatarUrl: null, color: "#000", played: 1, matchesRemaining: 4 },
+      { playerId: "p3", playerName: "p3", avatarUrl: null, color: "#000", played: 0, matchesRemaining: 5 },
+    ]);
+  });
+
+  it("excludes players who've already qualified", () => {
+    const matches = [0, 1, 2, 3, 4].map(() =>
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }),
+    );
+    expect(computeNotYetQualified(roster(["p1"]), matches)).toEqual([]);
+  });
+});
+
+describe("computeWinRateRank", () => {
+  it("ranks a qualified player among other qualified players", () => {
+    const matches = [
+      ...[0, 1, 2, 3, 4].map(() => makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" })),
+      ...[0, 1, 2, 3, 4].map(() => makeDetailedMatch({ playerIds: ["p2"], score: 0, result: "loss" }, { playerIds: ["x"], score: 1, result: "win" })),
+    ];
+    expect(computeWinRateRank("p1", roster(["p1", "p2"]), matches)).toEqual({ position: 1, of: 2 });
+  });
+
+  it("returns null for a player who hasn't qualified yet", () => {
+    const matches = [makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" })];
+    expect(computeWinRateRank("p1", roster(["p1"]), matches)).toBeNull();
+  });
+});
+
+describe("computeWinRateProgression", () => {
+  it("returns the cumulative win rate (as a whole percent) after each match, oldest first", () => {
+    const base = Date.now();
+    const day = (n: number) => new Date(base + n * 86_400_000).toISOString();
+    const matches = [
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }, { playedAt: day(1) }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 0, result: "loss" }, { playerIds: ["x"], score: 1, result: "win" }, { playedAt: day(0) }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }, { playedAt: day(2) }),
+    ];
+    // Oldest first: loss (0%), win (50%), win (67%).
+    expect(computeWinRateProgression("p1", matches)).toEqual([0, 50, 67]);
+  });
+
+  it("returns an empty series for a player with no matches", () => {
+    expect(computeWinRateProgression("p1", [])).toEqual([]);
   });
 });
 
@@ -466,38 +536,3 @@ describe("computeCleanSheetsLeaderboard", () => {
   });
 });
 
-describe("computeEloRank", () => {
-  const players = [
-    { id: "p1", singles_elo: 1000 },
-    { id: "p2", singles_elo: 1200 },
-    { id: "p3", singles_elo: 1100 },
-  ];
-
-  it("returns 1-indexed position, highest Elo first", () => {
-    expect(computeEloRank("p2", players)).toEqual({ position: 1, of: 3 });
-    expect(computeEloRank("p3", players)).toEqual({ position: 2, of: 3 });
-    expect(computeEloRank("p1", players)).toEqual({ position: 3, of: 3 });
-  });
-
-  it("returns null for a player not in the list, or an empty roster", () => {
-    expect(computeEloRank("p4", players)).toBeNull();
-    expect(computeEloRank("p1", [])).toBeNull();
-  });
-});
-
-describe("computeMatchMvp", () => {
-  it("picks the player with the largest Elo gain", () => {
-    const deltas = [
-      { playerId: "p1", delta: 12 },
-      { playerId: "p2", delta: -12 },
-      { playerId: "p3", delta: 18 },
-      { playerId: "p4", delta: -18 },
-    ];
-    expect(computeMatchMvp(deltas)).toBe("p3");
-  });
-
-  it("returns null when nobody gained rating, or there are no deltas at all", () => {
-    expect(computeMatchMvp([{ playerId: "p1", delta: -5 }, { playerId: "p2", delta: 0 }])).toBeNull();
-    expect(computeMatchMvp([])).toBeNull();
-  });
-});

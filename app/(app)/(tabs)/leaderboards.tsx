@@ -23,7 +23,6 @@ import type { PlayerProfile } from "../../../src/lib/types/database";
 import {
   computeBestDoublesPairs,
   computeCleanSheetsLeaderboard,
-  computeEloLeaderboard,
   computeFewestConcededLeaderboard,
   computeGoalDifferenceLeaderboard,
   computeGoalsScoredLeaderboard,
@@ -31,13 +30,13 @@ import {
   computeLongestStreakLeaderboard,
   computeMonthlyLeaderboard,
   computeMostMatchesLeaderboard,
+  computeNotYetQualified,
   computeWinRateLeaderboard,
   type LeaderboardRow,
 } from "../../../src/lib/stats";
 import { colors, radius, spacing, typography } from "../../../src/theme";
 
 type Category =
-  | "elo"
   | "winRate"
   | "mostMatches"
   | "winStreak"
@@ -52,8 +51,7 @@ type Category =
 type MatchTypeFilter = "overall" | "singles" | "doubles";
 
 const CATEGORIES: { id: Category; label: string; emptyMessage: string }[] = [
-  { id: "elo", label: "Elo", emptyMessage: "Add players to start tracking Elo ratings." },
-  { id: "winRate", label: "Win %", emptyMessage: "Players need a few matches played before a win rate is meaningful." },
+  { id: "winRate", label: "Win Rate", emptyMessage: "Players need at least 5 matches played before a win rate is meaningful." },
   { id: "mostMatches", label: "Most Matches", emptyMessage: "Record a match to see who's most active." },
   { id: "winStreak", label: "Win Streak", emptyMessage: "No active win streaks yet -- win a couple in a row to show up here." },
   { id: "lossStreak", label: "Loss Streak", emptyMessage: "Nobody's on a losing streak yet." },
@@ -89,7 +87,7 @@ export default function LeaderboardsScreen() {
   const players = usePlayers(groupId);
   const matchHistory = useGroupMatchHistory(groupId);
 
-  const [category, setCategory] = useState<Category>("elo");
+  const [category, setCategory] = useState<Category>("winRate");
   const [matchTypeFilter, setMatchTypeFilter] = useState<MatchTypeFilter>("overall");
   const [descending, setDescending] = useState(true);
   const [monthOffset, setMonthOffset] = useState(0);
@@ -115,18 +113,6 @@ export default function LeaderboardsScreen() {
 
   const rows: LeaderboardRow[] = useMemo(() => {
     switch (category) {
-      case "elo":
-        return computeEloLeaderboard(
-          roster.map((p) => {
-            const elo =
-              matchTypeFilter === "singles"
-                ? p.singles_elo
-                : matchTypeFilter === "doubles"
-                  ? p.doubles_elo
-                  : Math.round((p.singles_elo + p.doubles_elo) / 2);
-            return { id: p.id, displayName: p.display_name, avatarUrl: p.avatar_url, color: p.custom_color, elo };
-          }),
-        );
       case "winRate":
         return computeWinRateLeaderboard(roster, filteredMatches);
       case "mostMatches":
@@ -190,6 +176,10 @@ export default function LeaderboardsScreen() {
   }, [category, matchTypeFilter, rows]);
 
   const doublesPairs = useMemo(() => (category === "doublesPairs" ? computeBestDoublesPairs(matches) : []), [category, matches]);
+  const notYetQualified = useMemo(
+    () => (category === "winRate" ? computeNotYetQualified(roster, filteredMatches) : []),
+    [category, roster, filteredMatches],
+  );
 
   const displayRows = descending ? rows : [...rows].reverse();
   const displayPairs = descending ? doublesPairs : [...doublesPairs].reverse();
@@ -380,6 +370,25 @@ export default function LeaderboardsScreen() {
                 ))}
               </View>
             ) : null}
+            {category === "winRate" && notYetQualified.length > 0 ? (
+              <View style={styles.notQualifiedSection}>
+                <Text style={styles.notQualifiedTitle}>Not Yet Qualified</Text>
+                <Text style={styles.notQualifiedSubtitle}>Needs 5 matches played to appear on the win-rate ranking.</Text>
+                <View style={styles.list}>
+                  {notYetQualified.map((row) => (
+                    <Card key={row.playerId} compact style={styles.notQualifiedRow}>
+                      <Avatar uri={row.avatarUrl} name={row.playerName} color={row.color} size={32} />
+                      <Text style={styles.notQualifiedName} numberOfLines={1}>
+                        {row.playerName}
+                      </Text>
+                      <Text style={styles.notQualifiedDetail}>
+                        {row.played}/5 played · {row.matchesRemaining} to go
+                      </Text>
+                    </Card>
+                  ))}
+                </View>
+              </View>
+            ) : null}
           </>
         )}
       </ScrollView>
@@ -493,5 +502,28 @@ const styles = StyleSheet.create({
   pairWinRate: {
     ...typography.heading,
     color: colors.accent,
+  },
+  notQualifiedSection: {
+    marginTop: spacing.lg,
+    gap: spacing.sm,
+  },
+  notQualifiedTitle: {
+    ...typography.heading,
+  },
+  notQualifiedSubtitle: {
+    ...typography.small,
+    marginBottom: spacing.xs,
+  },
+  notQualifiedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  notQualifiedName: {
+    ...typography.body,
+    flex: 1,
+  },
+  notQualifiedDetail: {
+    ...typography.small,
   },
 });

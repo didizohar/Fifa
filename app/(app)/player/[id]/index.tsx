@@ -17,7 +17,7 @@ import { Sparkline } from "../../../../src/components/Sparkline";
 import { StatTile } from "../../../../src/components/StatTile";
 import { useAuth } from "../../../../src/hooks/useAuth";
 import { useGroup } from "../../../../src/hooks/useGroup";
-import { useEloHistory, usePlayerMatchHistory } from "../../../../src/hooks/useMatches";
+import { usePlayerMatchHistory } from "../../../../src/hooks/useMatches";
 import { useArchivePlayer, useUpdatePlayer } from "../../../../src/hooks/usePlayerMutations";
 import { usePlayer, usePlayers } from "../../../../src/hooks/usePlayers";
 import { confirmAction, notify } from "../../../../src/lib/confirm";
@@ -25,7 +25,6 @@ import type { MatchSummary } from "../../../../src/lib/matches";
 import { toPickablePlayer, type PickablePlayer } from "../../../../src/lib/players";
 import {
   computeBiggestLoss,
-  computeEloRank,
   computeBiggestWin,
   computeClubPerformance,
   computeDoublesPartnerships,
@@ -34,6 +33,8 @@ import {
   computeLastNStats,
   computePlayerStats,
   computeStreaks,
+  computeWinRateProgression,
+  computeWinRateRank,
   findSides,
   MIN_SAMPLE_SIZE,
 } from "../../../../src/lib/stats";
@@ -63,7 +64,6 @@ export default function PlayerDetailScreen() {
   const { currentGroupId, currentRole } = useGroup();
   const { data: player, isLoading, isError, refetch } = usePlayer(id);
   const matchHistory = usePlayerMatchHistory(id);
-  const eloHistoryQuery = useEloHistory(id);
   const roster = usePlayers(currentGroupId);
   const updatePlayer = useUpdatePlayer(currentGroupId);
   const archivePlayer = useArchivePlayer(currentGroupId);
@@ -73,7 +73,6 @@ export default function PlayerDetailScreen() {
 
   const playerId = id ?? "";
   const matches = matchHistory.data ?? EMPTY_MATCHES;
-  const eloEntries = eloHistoryQuery.data ?? [];
 
   const goalStats = useMemo(() => computeGoalStats(playerId, matches), [playerId, matches]);
   const streaks = useMemo(() => computeStreaks(playerId, matches), [playerId, matches]);
@@ -99,15 +98,15 @@ export default function PlayerDetailScreen() {
     () => (headToHeadOpponentId ? computeHeadToHead(playerId, headToHeadOpponentId, matches) : null),
     [playerId, headToHeadOpponentId, matches],
   );
-  const singlesEloSeries = useMemo(
-    () => eloEntries.filter((e) => e.match_type === "singles").map((e) => e.rating_after),
-    [eloEntries],
+  const singlesWinRateSeries = useMemo(
+    () => computeWinRateProgression(playerId, matches.filter((m) => m.match_type === "singles")),
+    [playerId, matches],
   );
-  const doublesEloSeries = useMemo(
-    () => eloEntries.filter((e) => e.match_type === "doubles").map((e) => e.rating_after),
-    [eloEntries],
+  const doublesWinRateSeries = useMemo(
+    () => computeWinRateProgression(playerId, matches.filter((m) => m.match_type === "doubles")),
+    [playerId, matches],
   );
-  const rank = useMemo(() => computeEloRank(playerId, roster.data ?? []), [roster.data, playerId]);
+  const rank = useMemo(() => computeWinRateRank(playerId, roster.data ?? [], matches), [roster.data, playerId, matches]);
   // Derived from matches (already fetched via usePlayerMatchHistory, uncapped) instead of a
   // second usePlayerRecords network round-trip for the same win/loss/draw fact.
   const stats = useMemo(() => computePlayerStats(playerId, matches), [playerId, matches]);
@@ -189,12 +188,17 @@ export default function PlayerDetailScreen() {
         </LinearGradient>
 
         <View style={styles.tileGrid}>
-          <StatTile label="Singles Elo" value={player.singles_elo} style={styles.tile} variant="elevated" />
-          <StatTile label="Doubles Elo" value={player.doubles_elo} style={styles.tile} variant="elevated" />
-          <StatTile label="Rank" value={rank ? `#${rank.position} of ${rank.of}` : "–"} style={styles.tile} variant="elevated" />
+          <StatTile label="Rank" value={rank ? `#${rank.position} of ${rank.of}` : "Not yet qualified"} style={styles.tile} variant="elevated" />
           <StatTile
             label="Win Rate"
             value={stats.winRate !== null ? `${Math.round(stats.winRate * 100)}%` : "–"}
+            style={styles.tile}
+            variant="elevated"
+          />
+          <StatTile label="Matches Played" value={stats.played} style={styles.tile} variant="elevated" />
+          <StatTile
+            label="Current Streak"
+            value={streaks.currentStreak.count > 0 ? `${streaks.currentStreak.count} ${streaks.currentStreak.result}` : "–"}
             style={styles.tile}
             variant="elevated"
           />
@@ -302,18 +306,18 @@ export default function PlayerDetailScreen() {
         {tab === "charts" ? (
           <View style={styles.tabContent}>
             <Card>
-              <Text style={styles.sectionTitle}>Elo Progression</Text>
-              {eloHistoryQuery.isLoading ? (
+              <Text style={styles.sectionTitle}>Win Rate Progression</Text>
+              {matchHistory.isLoading ? (
                 <Skeleton height={80} />
               ) : (
-                <View style={styles.eloSection}>
+                <View style={styles.progressionSection}>
                   <View>
                     <Text style={styles.subLabel}>Singles</Text>
-                    <Sparkline values={singlesEloSeries} />
+                    <Sparkline values={singlesWinRateSeries} />
                   </View>
                   <View>
                     <Text style={styles.subLabel}>Doubles</Text>
-                    <Sparkline values={doublesEloSeries} />
+                    <Sparkline values={doublesWinRateSeries} />
                   </View>
                 </View>
               )}
@@ -539,7 +543,7 @@ const styles = StyleSheet.create({
   bestWorstEmpty: {
     ...typography.caption,
   },
-  eloSection: {
+  progressionSection: {
     gap: spacing.md,
   },
   subLabel: {

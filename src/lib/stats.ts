@@ -286,39 +286,30 @@ export interface LeaderboardRow {
   detail: string;
 }
 
-export interface EloLeaderboardPlayer {
-  id: string;
-  displayName: string;
-  avatarUrl: string | null;
-  color: string;
-  elo: number;
-}
-
-export function computeEloLeaderboard(players: EloLeaderboardPlayer[]): LeaderboardRow[] {
-  return players
-    .slice()
-    .sort((a, b) => b.elo - a.elo)
-    .map((p) => ({
-      playerId: p.id,
-      playerName: p.displayName,
-      avatarUrl: p.avatarUrl,
-      color: p.color,
-      value: p.elo,
-      valueLabel: `${p.elo}`,
-      detail: "Elo rating",
-    }));
-}
-
 function recordDetail(stats: PlayerStats): string {
   return `${stats.wins}W-${stats.losses}L-${stats.draws}D`;
 }
 
-/** Win-rate leaderboard, restricted to players with at least minPlayed matches so a 1-0 record can't top the board. */
-export function computeWinRateLeaderboard(players: MatchSidePlayer[], matches: MatchSummary[], minPlayed = MIN_SAMPLE_SIZE): LeaderboardRow[] {
+/** Qualification threshold for the primary win-rate ranking -- below this, a small sample (e.g. 1-0) could misleadingly top the board. */
+export const WIN_RATE_MIN_PLAYED = 5;
+
+/**
+ * Primary ranking leaderboard. Restricted to players with at least minPlayed
+ * matches; ranked by win rate, then wins, then goal difference, then goals
+ * scored, then matches played (in that order) so ties resolve deterministically.
+ */
+export function computeWinRateLeaderboard(players: MatchSidePlayer[], matches: MatchSummary[], minPlayed = WIN_RATE_MIN_PLAYED): LeaderboardRow[] {
   return players
-    .map((p) => ({ player: p, stats: computePlayerStats(p.id, matches) }))
+    .map((p) => ({ player: p, stats: computePlayerStats(p.id, matches), goals: computeGoalStats(p.id, matches) }))
     .filter((r) => r.stats.played >= minPlayed)
-    .sort((a, b) => (b.stats.winRate ?? 0) - (a.stats.winRate ?? 0))
+    .sort(
+      (a, b) =>
+        (b.stats.winRate ?? 0) - (a.stats.winRate ?? 0) ||
+        b.stats.wins - a.stats.wins ||
+        (b.goals.goalsScored - b.goals.goalsConceded) - (a.goals.goalsScored - a.goals.goalsConceded) ||
+        b.goals.goalsScored - a.goals.goalsScored ||
+        b.stats.played - a.stats.played,
+    )
     .map((r) => ({
       playerId: r.player.id,
       playerName: r.player.display_name,
@@ -328,6 +319,57 @@ export function computeWinRateLeaderboard(players: MatchSidePlayer[], matches: M
       valueLabel: `${Math.round((r.stats.winRate ?? 0) * 100)}%`,
       detail: recordDetail(r.stats),
     }));
+}
+
+export interface NotYetQualifiedRow {
+  playerId: string;
+  playerName: string;
+  avatarUrl: string | null;
+  color: string;
+  played: number;
+  matchesRemaining: number;
+}
+
+/** Players who haven't reached the win-rate ranking's qualification threshold yet, sorted by matches played (closest to qualifying first). */
+export function computeNotYetQualified(players: MatchSidePlayer[], matches: MatchSummary[], minPlayed = WIN_RATE_MIN_PLAYED): NotYetQualifiedRow[] {
+  return players
+    .map((p) => ({ player: p, played: computePlayerStats(p.id, matches).played }))
+    .filter((r) => r.played < minPlayed)
+    .sort((a, b) => b.played - a.played)
+    .map((r) => ({
+      playerId: r.player.id,
+      playerName: r.player.display_name,
+      avatarUrl: r.player.avatar_url,
+      color: r.player.custom_color,
+      played: r.played,
+      matchesRemaining: minPlayed - r.played,
+    }));
+}
+
+export interface WinRateRank {
+  position: number;
+  of: number;
+}
+
+/** 1-indexed rank among qualified players on the win-rate leaderboard. Null if the player isn't qualified (or the roster has nobody qualified). */
+export function computeWinRateRank(playerId: string, players: MatchSidePlayer[], matches: MatchSummary[], minPlayed = WIN_RATE_MIN_PLAYED): WinRateRank | null {
+  const leaderboard = computeWinRateLeaderboard(players, matches, minPlayed);
+  const index = leaderboard.findIndex((r) => r.playerId === playerId);
+  return index >= 0 ? { position: index + 1, of: leaderboard.length } : null;
+}
+
+/** Cumulative win rate (0-100) after each of the player's matches, oldest first -- an honest trend line derived purely from stored results. */
+export function computeWinRateProgression(playerId: string, matches: MatchSummary[]): number[] {
+  const ordered = matches
+    .filter((m) => findSides(playerId, m) !== null)
+    .slice()
+    .sort((a, b) => new Date(a.played_at).getTime() - new Date(b.played_at).getTime());
+
+  let wins = 0;
+  return ordered.map((m, i) => {
+    if (findSides(playerId, m)!.own.result === "win") wins++;
+    return Math.round((wins / (i + 1)) * 100);
+  });
 }
 
 export function computeMostMatchesLeaderboard(players: MatchSidePlayer[], matches: MatchSummary[]): LeaderboardRow[] {
@@ -510,29 +552,3 @@ export function computeBestDoublesPairs(matches: MatchSummary[], minPlayed = MIN
     .sort((a, b) => (b.winRate ?? 0) - (a.winRate ?? 0) || b.played - a.played);
 }
 
-export interface EloRank {
-  position: number;
-  of: number;
-}
-
-/** 1-indexed rank among the given roster by singles Elo, highest first. Null if the player isn't in the list. */
-export function computeEloRank(playerId: string, players: { id: string; singles_elo: number }[]): EloRank | null {
-  if (players.length === 0) return null;
-  const sorted = [...players].sort((a, b) => b.singles_elo - a.singles_elo);
-  const index = sorted.findIndex((p) => p.id === playerId);
-  return index >= 0 ? { position: index + 1, of: sorted.length } : null;
-}
-
-/**
- * Match-detail "MVP": whoever gained the most Elo in that one match -- a
- * real, performance-adjusted-for-opponent-strength signal, not a fabricated
- * stat (the schema has no per-player goal/assist tracking within a match).
- * Null if nobody gained rating (e.g. a draw with no rating movement).
- */
-export function computeMatchMvp(deltas: { playerId: string; delta: number }[]): string | null {
-  let best: { playerId: string; delta: number } | null = null;
-  for (const row of deltas) {
-    if (!best || row.delta > best.delta) best = row;
-  }
-  return best && best.delta > 0 ? best.playerId : null;
-}
