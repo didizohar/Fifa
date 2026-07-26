@@ -367,23 +367,6 @@ export default function PlayerDetailScreen() {
               )}
             </Card>
 
-            {afterBreak.played > 0 ? (
-              <Card>
-                <Text style={styles.sectionTitle}>After a Break</Text>
-                <View style={styles.recordRow}>
-                  <RecordStat label="Played" value={afterBreak.played} />
-                  <RecordStat label="Wins" value={afterBreak.wins} color={colors.win} />
-                  <RecordStat label="Losses" value={afterBreak.losses} color={colors.loss} />
-                  <RecordStat
-                    label="Win Rate"
-                    value={afterBreak.winRate !== null ? `${Math.round(afterBreak.winRate * 100)}%` : "–"}
-                    color={colors.accent}
-                  />
-                </View>
-                <Text style={styles.insufficientData}>Matches played after a 7+ day gap since the previous one.</Text>
-              </Card>
-            ) : null}
-
             <Card>
               <Text style={styles.sectionTitle}>Form (last 10)</Text>
               {matchHistory.isLoading ? (
@@ -527,6 +510,23 @@ export default function PlayerDetailScreen() {
               </Card>
             ) : null}
 
+            {afterBreak.played > 0 ? (
+              <Card>
+                <Text style={styles.sectionTitle}>After a Break</Text>
+                <View style={styles.recordRow}>
+                  <RecordStat label="Played" value={afterBreak.played} />
+                  <RecordStat label="Wins" value={afterBreak.wins} color={colors.win} />
+                  <RecordStat label="Losses" value={afterBreak.losses} color={colors.loss} />
+                  <RecordStat
+                    label="Win Rate"
+                    value={afterBreak.winRate !== null ? `${Math.round(afterBreak.winRate * 100)}%` : "–"}
+                    color={colors.accent}
+                  />
+                </View>
+                <Text style={styles.insufficientData}>Matches played after a 7+ day gap since the previous one.</Text>
+              </Card>
+            ) : null}
+
             {clubPerformance.length > 0 ? (
               <Card>
                 <Text style={styles.sectionTitle}>By Club</Text>
@@ -567,6 +567,7 @@ export default function PlayerDetailScreen() {
             !dayOfWeekPerformance.some((d) => d.stats.played > 0) &&
             specialConditions.overtime.played === 0 &&
             specialConditions.penalties.played === 0 &&
+            afterBreak.played === 0 &&
             !matchHistory.isLoading ? (
               <Card>
                 <Text style={styles.emptyChartsTitle}>Not enough data yet</Text>
