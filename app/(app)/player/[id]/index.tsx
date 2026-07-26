@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -7,6 +7,7 @@ import { Badge, rankBadgeTone } from "../../../../src/components/Badge";
 import { BarChart } from "../../../../src/components/BarChart";
 import { Button } from "../../../../src/components/Button";
 import { Card } from "../../../../src/components/Card";
+import { CareerSummaryCard } from "../../../../src/components/CareerSummaryCard";
 import { ErrorState } from "../../../../src/components/ErrorState";
 import { FormStrip } from "../../../../src/components/FormStrip";
 import { PlayerPicker } from "../../../../src/components/PlayerPicker";
@@ -45,6 +46,7 @@ import {
   findSides,
   MIN_SAMPLE_SIZE,
 } from "../../../../src/lib/stats";
+import { shareViewAsImage } from "../../../../src/lib/shareCard";
 import { pickAndUploadAvatar } from "../../../../src/lib/storage";
 import type { PlayerProfile } from "../../../../src/lib/types/database";
 import { colors, spacing, typography } from "../../../../src/theme";
@@ -81,8 +83,10 @@ export default function PlayerDetailScreen() {
   const updatePlayer = useUpdatePlayer(currentGroupId);
   const archivePlayer = useArchivePlayer(currentGroupId);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
   const [headToHeadOpponentId, setHeadToHeadOpponentId] = useState<string | null>(null);
   const [tab, setTab] = useState<ProfileTab>("overview");
+  const careerCardRef = useRef<View>(null);
 
   const playerId = id ?? "";
   const matches = matchHistory.data ?? EMPTY_MATCHES;
@@ -194,6 +198,20 @@ export default function PlayerDetailScreen() {
         router.back();
       },
     );
+  };
+
+  const cardHeadline = heldRecords[0]?.label ?? (achievements.length > 0 ? achievements[achievements.length - 1]!.label : null);
+
+  const handleShareCareerCard = async () => {
+    if (isSharing) return;
+    setIsSharing(true);
+    try {
+      await shareViewAsImage(careerCardRef, `${player.display_name}-fc-rival-career.png`);
+    } catch (e) {
+      notify("Couldn't share career card", e instanceof Error ? e.message : "Please try again.");
+    } finally {
+      setIsSharing(false);
+    }
   };
 
   return (
@@ -551,14 +569,36 @@ export default function PlayerDetailScreen() {
           </View>
         ) : null}
 
-        {canManage ? (
-          <View style={styles.actions}>
-            <Button label="Edit player" variant="secondary" onPress={() => router.push(`/player/${player.id}/edit`)} />
-            {player.is_active ? (
-              <Button label="Archive player" variant="danger" onPress={handleArchive} loading={archivePlayer.isPending} />
-            ) : null}
-          </View>
-        ) : null}
+        <View style={styles.actions}>
+          <Button label="Share career card" variant="secondary" onPress={handleShareCareerCard} loading={isSharing} />
+          {canManage ? (
+            <>
+              <Button label="Edit player" variant="secondary" onPress={() => router.push(`/player/${player.id}/edit`)} />
+              {player.is_active ? (
+                <Button label="Archive player" variant="danger" onPress={handleArchive} loading={archivePlayer.isPending} />
+              ) : null}
+            </>
+          ) : null}
+        </View>
+
+        {/* Off-screen -- laid out for react-native-view-shot to capture, never shown directly. */}
+        <View style={styles.offscreenCard} pointerEvents="none">
+          <CareerSummaryCard
+            ref={careerCardRef}
+            data={{
+              displayName: player.display_name,
+              avatarUrl: player.avatar_url,
+              color: player.custom_color,
+              winRate: stats.winRate,
+              played: stats.played,
+              wins: stats.wins,
+              losses: stats.losses,
+              draws: stats.draws,
+              currentStreak: streaks.currentStreak,
+              headline: cardHeadline,
+            }}
+          />
+        </View>
       </ScrollView>
     </Screen>
   );
@@ -653,6 +693,11 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     marginTop: spacing.lg,
     paddingHorizontal: spacing.lg,
+  },
+  offscreenCard: {
+    position: "absolute",
+    top: -9999,
+    left: -9999,
   },
   errorText: {
     ...typography.caption,
