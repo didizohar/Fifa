@@ -8,6 +8,7 @@ import {
   computeConsistency,
   computeDayOfWeekPerformance,
   computeDoublesPartnerships,
+  computeFavoriteOpponent,
   computeFewestConcededLeaderboard,
   computeFormTrend,
   computeGoalDifferenceLeaderboard,
@@ -19,12 +20,16 @@ import {
   computeLongestStreakLeaderboard,
   computeMatchTypeSplit,
   computeMonthlyLeaderboard,
+  computeMostBalancedRivalry,
   computeMostMatchesLeaderboard,
+  computeNemesis,
   computeNotYetQualified,
+  computeOldestRivalry,
   computePerformanceAfterBreak,
   computePlayerMonthlyTrend,
   computePlayerStats,
   computeRecordFromRows,
+  computeRivalries,
   computeSpecialConditionsPerformance,
   computeStreaks,
   computeWinRateLeaderboard,
@@ -230,13 +235,17 @@ describe("computeBiggestWin / computeBiggestLoss", () => {
 });
 
 describe("computeHeadToHead", () => {
-  it("only counts matches played directly against the given opponent", () => {
+  const base = Date.now();
+  const day = (n: number) => new Date(base + n * 86_400_000).toISOString();
+
+  it("only counts matches played directly against the given opponent, with averages, best/worst result, and current streak", () => {
     const matches = [
-      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }),
-      makeDetailedMatch({ playerIds: ["p1"], score: 0, result: "loss" }, { playerIds: ["p3"], score: 1, result: "win" }),
-      makeDetailedMatch({ playerIds: ["p1"], score: 2, result: "win" }, { playerIds: ["p2"], score: 1, result: "loss" }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }, { playedAt: day(0) }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 0, result: "loss" }, { playerIds: ["p3"], score: 1, result: "win" }, { playedAt: day(1) }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 2, result: "win" }, { playerIds: ["p2"], score: 1, result: "loss" }, { playedAt: day(2) }),
     ];
-    expect(computeHeadToHead("p1", "p2", matches)).toEqual({
+    const vsP2 = computeHeadToHead("p1", "p2", matches);
+    expect(vsP2).toMatchObject({
       played: 2,
       wins: 2,
       losses: 0,
@@ -245,8 +254,15 @@ describe("computeHeadToHead", () => {
       goalsFor: 3,
       goalsAgainst: 1,
       goalDifference: 2,
+      averageScoreFor: 1.5,
+      averageScoreAgainst: 0.5,
     });
-    expect(computeHeadToHead("p1", "p3", matches)).toEqual({
+    expect(vsP2.largestVictory).toMatchObject({ ownScore: 1, opponentScore: 0, margin: 1 });
+    expect(vsP2.largestDefeat).toBeNull();
+    expect(vsP2.currentStreak).toEqual({ result: "win", count: 2 });
+
+    const vsP3 = computeHeadToHead("p1", "p3", matches);
+    expect(vsP3).toMatchObject({
       played: 1,
       wins: 0,
       losses: 1,
@@ -255,7 +271,78 @@ describe("computeHeadToHead", () => {
       goalsFor: 0,
       goalsAgainst: 1,
       goalDifference: -1,
+      averageScoreFor: 0,
+      averageScoreAgainst: 1,
     });
+    expect(vsP3.largestVictory).toBeNull();
+    expect(vsP3.largestDefeat).toMatchObject({ ownScore: 0, opponentScore: 1, margin: 1 });
+    expect(vsP3.currentStreak).toEqual({ result: "loss", count: 1 });
+  });
+
+  it("returns null averages/streak and zeroed stats for two players who've never played each other", () => {
+    const h2h = computeHeadToHead("p1", "p2", []);
+    expect(h2h).toMatchObject({ played: 0, averageScoreFor: null, averageScoreAgainst: null });
+    expect(h2h.currentStreak).toEqual({ result: null, count: 0 });
+  });
+});
+
+describe("computeFavoriteOpponent / computeNemesis", () => {
+  const base = Date.now();
+  const day = (n: number) => new Date(base + n * 86_400_000).toISOString();
+
+  it("finds the most-played opponent and the opponent with the lowest qualified win rate", () => {
+    const matches = [
+      // p1 plays p2 three times, losing every time (nemesis candidate).
+      ...[0, 1, 2].map((n) => makeDetailedMatch({ playerIds: ["p1"], score: 0, result: "loss" }, { playerIds: ["p2"], score: 1, result: "win" }, { playedAt: day(n) })),
+      // p1 plays p3 once, winning (too few matches to qualify as nemesis, but still the favorite-opponent tiebreak candidate if most played).
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p3"], score: 0, result: "loss" }, { playedAt: day(3) }),
+    ];
+    const roster = [
+      { id: "p1", display_name: "p1", avatar_url: null, custom_color: "#000" },
+      { id: "p2", display_name: "p2", avatar_url: null, custom_color: "#000" },
+      { id: "p3", display_name: "p3", avatar_url: null, custom_color: "#000" },
+    ];
+    expect(computeFavoriteOpponent("p1", roster, matches)?.opponentId).toBe("p2");
+    expect(computeNemesis("p1", roster, matches, 3)?.opponentId).toBe("p2");
+    // p3 is excluded from nemesis consideration -- only 1 match, below the minPlayed of 3.
+    expect(computeNemesis("p1", roster, matches, 3)?.opponentId).not.toBe("p3");
+  });
+
+  it("returns null when there are no qualifying opponents", () => {
+    const roster = [{ id: "p1", display_name: "p1", avatar_url: null, custom_color: "#000" }];
+    expect(computeFavoriteOpponent("p1", roster, [])).toBeNull();
+    expect(computeNemesis("p1", roster, [])).toBeNull();
+  });
+});
+
+describe("computeRivalries / computeMostBalancedRivalry / computeOldestRivalry", () => {
+  const base = Date.now();
+  const day = (n: number) => new Date(base + n * 86_400_000).toISOString();
+  const roster = [
+    { id: "p1", display_name: "p1", avatar_url: null, custom_color: "#000" },
+    { id: "p2", display_name: "p2", avatar_url: null, custom_color: "#000" },
+    { id: "p3", display_name: "p3", avatar_url: null, custom_color: "#000" },
+  ];
+
+  it("only includes pairs who've played at least minPlayed times, and picks the most balanced and oldest", () => {
+    const matches = [
+      // p1 vs p2: perfectly balanced (1-1), starting earlier.
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }, { playedAt: day(0) }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 0, result: "loss" }, { playerIds: ["p2"], score: 1, result: "win" }, { playedAt: day(1) }),
+      // p1 vs p3: lopsided (2-0), starting later.
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p3"], score: 0, result: "loss" }, { playedAt: day(5) }),
+      makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p3"], score: 0, result: "loss" }, { playedAt: day(6) }),
+    ];
+    const rivalries = computeRivalries(roster, matches, 2);
+    expect(rivalries).toHaveLength(2);
+    expect(computeMostBalancedRivalry(roster, matches, 2)?.playerIds).toEqual(["p1", "p2"]);
+    expect(computeOldestRivalry(roster, matches, 2)?.playerIds).toEqual(["p1", "p2"]);
+  });
+
+  it("returns null when no pair meets the threshold", () => {
+    const matches = [makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" })];
+    expect(computeMostBalancedRivalry(roster, matches, 2)).toBeNull();
+    expect(computeOldestRivalry(roster, matches, 2)).toBeNull();
   });
 });
 

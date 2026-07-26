@@ -192,17 +192,119 @@ export interface HeadToHeadStats extends PlayerStats {
   goalsFor: number;
   goalsAgainst: number;
   goalDifference: number;
+  averageScoreFor: number | null;
+  averageScoreAgainst: number | null;
+  largestVictory: MarginResult | null;
+  largestDefeat: MarginResult | null;
+  currentStreak: StreakStats["currentStreak"];
 }
 
-/** playerId's record, plus goal tally, in matches played directly against opponentId. */
-export function computeHeadToHead(playerId: string, opponentId: string, matches: MatchSummary[]): HeadToHeadStats {
-  const shared = matches.filter((m) => {
+function sharedMatches(playerId: string, opponentId: string, matches: MatchSummary[]): MatchSummary[] {
+  return matches.filter((m) => {
     const sides = findSides(playerId, m);
     return sides !== null && sides.opponent.players.some((p) => p.id === opponentId);
   });
+}
+
+/** playerId's full record against opponentId: result, goals, averages, best/worst result, and current streak in this rivalry specifically. */
+export function computeHeadToHead(playerId: string, opponentId: string, matches: MatchSummary[]): HeadToHeadStats {
+  const shared = sharedMatches(playerId, opponentId, matches);
   const record = computePlayerStats(playerId, shared);
   const goals = computeGoalStats(playerId, shared);
-  return { ...record, goalsFor: goals.goalsScored, goalsAgainst: goals.goalsConceded, goalDifference: goals.goalsScored - goals.goalsConceded };
+  return {
+    ...record,
+    goalsFor: goals.goalsScored,
+    goalsAgainst: goals.goalsConceded,
+    goalDifference: goals.goalsScored - goals.goalsConceded,
+    averageScoreFor: record.played === 0 ? null : goals.goalsScored / record.played,
+    averageScoreAgainst: record.played === 0 ? null : goals.goalsConceded / record.played,
+    largestVictory: computeBiggestWin(playerId, shared),
+    largestDefeat: computeBiggestLoss(playerId, shared),
+    currentStreak: computeStreaks(playerId, shared).currentStreak,
+  };
+}
+
+export interface OpponentSummary {
+  opponentId: string;
+  opponentName: string;
+  headToHead: HeadToHeadStats;
+}
+
+/** The opponent playerId has played the most matches against (qualified by at least one shared match). Null with no opponents. */
+export function computeFavoriteOpponent(playerId: string, roster: MatchSidePlayer[], matches: MatchSummary[]): OpponentSummary | null {
+  let best: OpponentSummary | null = null;
+  for (const opponent of roster) {
+    if (opponent.id === playerId) continue;
+    const headToHead = computeHeadToHead(playerId, opponent.id, matches);
+    if (headToHead.played === 0) continue;
+    if (!best || headToHead.played > best.headToHead.played) {
+      best = { opponentId: opponent.id, opponentName: opponent.display_name, headToHead };
+    }
+  }
+  return best;
+}
+
+/** The opponent playerId has the lowest win rate against, among opponents played at least minPlayed times. Null if nobody qualifies. */
+export function computeNemesis(playerId: string, roster: MatchSidePlayer[], matches: MatchSummary[], minPlayed = MIN_SAMPLE_SIZE): OpponentSummary | null {
+  let worst: OpponentSummary | null = null;
+  for (const opponent of roster) {
+    if (opponent.id === playerId) continue;
+    const headToHead = computeHeadToHead(playerId, opponent.id, matches);
+    if (headToHead.played < minPlayed) continue;
+    if (!worst || (headToHead.winRate ?? 0) < (worst.headToHead.winRate ?? 0)) {
+      worst = { opponentId: opponent.id, opponentName: opponent.display_name, headToHead };
+    }
+  }
+  return worst;
+}
+
+export interface RivalryRow {
+  playerIds: [string, string];
+  playerNames: [string, string];
+  played: number;
+  /** Win rate of playerIds[0] against playerIds[1]. */
+  winRateForFirst: number;
+  /** How close the rivalry is to a 50/50 split -- 0 is perfectly balanced. */
+  balance: number;
+  /** When this pair first played each other. */
+  firstMatchAt: string;
+}
+
+/** Every pair of players who've faced each other at least minPlayed times, one row per pair. */
+export function computeRivalries(roster: MatchSidePlayer[], matches: MatchSummary[], minPlayed = MIN_SAMPLE_SIZE): RivalryRow[] {
+  const rows: RivalryRow[] = [];
+  for (let i = 0; i < roster.length; i++) {
+    for (let j = i + 1; j < roster.length; j++) {
+      const [a, b] = [roster[i]!, roster[j]!];
+      const shared = sharedMatches(a.id, b.id, matches);
+      if (shared.length < minPlayed) continue;
+      const stats = computePlayerStats(a.id, shared);
+      const firstMatchAt = shared.reduce((earliest, m) => (m.played_at < earliest ? m.played_at : earliest), shared[0]!.played_at);
+      rows.push({
+        playerIds: [a.id, b.id],
+        playerNames: [a.display_name, b.display_name],
+        played: shared.length,
+        winRateForFirst: stats.winRate ?? 0,
+        balance: Math.abs((stats.winRate ?? 0) - 0.5),
+        firstMatchAt,
+      });
+    }
+  }
+  return rows;
+}
+
+/** The rivalry closest to a 50/50 split among qualified pairs. Null if no pair qualifies. */
+export function computeMostBalancedRivalry(roster: MatchSidePlayer[], matches: MatchSummary[], minPlayed = MIN_SAMPLE_SIZE): RivalryRow | null {
+  const rivalries = computeRivalries(roster, matches, minPlayed);
+  if (rivalries.length === 0) return null;
+  return rivalries.reduce((best, row) => (row.balance < best.balance ? row : best));
+}
+
+/** The longest-running rivalry, by the date the pair first played each other. Null if no pair qualifies. */
+export function computeOldestRivalry(roster: MatchSidePlayer[], matches: MatchSummary[], minPlayed = MIN_SAMPLE_SIZE): RivalryRow | null {
+  const rivalries = computeRivalries(roster, matches, minPlayed);
+  if (rivalries.length === 0) return null;
+  return rivalries.reduce((oldest, row) => (row.firstMatchAt < oldest.firstMatchAt ? row : oldest));
 }
 
 export interface ClubPerformanceRow {
