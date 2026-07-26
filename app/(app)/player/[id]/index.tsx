@@ -17,20 +17,25 @@ import { Sparkline } from "../../../../src/components/Sparkline";
 import { StatTile } from "../../../../src/components/StatTile";
 import { useAuth } from "../../../../src/hooks/useAuth";
 import { useGroup } from "../../../../src/hooks/useGroup";
-import { usePlayerMatchHistory } from "../../../../src/hooks/useMatches";
+import { useGroupMatchHistory, usePlayerMatchHistory } from "../../../../src/hooks/useMatches";
 import { useArchivePlayer, useUpdatePlayer } from "../../../../src/hooks/usePlayerMutations";
 import { usePlayer, usePlayers } from "../../../../src/hooks/usePlayers";
 import { confirmAction, notify } from "../../../../src/lib/confirm";
+import { generateFunFacts, type FunFact } from "../../../../src/lib/facts";
+import { generateInsights, type Insight } from "../../../../src/lib/insights";
 import type { MatchSummary } from "../../../../src/lib/matches";
 import { toPickablePlayer, type PickablePlayer } from "../../../../src/lib/players";
+import { computeAllRecords, type RecordEntry } from "../../../../src/lib/records";
 import {
   computeBiggestLoss,
   computeBiggestWin,
   computeClubPerformance,
   computeDoublesPartnerships,
+  computeFavoriteOpponent,
   computeGoalStats,
   computeHeadToHead,
   computeLastNStats,
+  computeNemesis,
   computePlayerStats,
   computeStreaks,
   computeWinRateProgression,
@@ -39,9 +44,11 @@ import {
   MIN_SAMPLE_SIZE,
 } from "../../../../src/lib/stats";
 import { pickAndUploadAvatar } from "../../../../src/lib/storage";
+import type { PlayerProfile } from "../../../../src/lib/types/database";
 import { colors, spacing, typography } from "../../../../src/theme";
 
 const EMPTY_MATCHES: MatchSummary[] = [];
+const EMPTY_PLAYERS: PlayerProfile[] = [];
 
 type ProfileTab = "overview" | "charts" | "h2h";
 const TABS: { value: ProfileTab; label: string }[] = [
@@ -65,6 +72,10 @@ export default function PlayerDetailScreen() {
   const { data: player, isLoading, isError, refetch } = usePlayer(id);
   const matchHistory = usePlayerMatchHistory(id);
   const roster = usePlayers(currentGroupId);
+  // Same query key as Home/Leaderboards/Players, so this is usually already
+  // warm in the cache -- needed here because "records held" is a group-wide
+  // question that a player's own match history alone can't answer.
+  const groupHistory = useGroupMatchHistory(currentGroupId);
   const updatePlayer = useUpdatePlayer(currentGroupId);
   const archivePlayer = useArchivePlayer(currentGroupId);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -106,10 +117,31 @@ export default function PlayerDetailScreen() {
     () => computeWinRateProgression(playerId, matches.filter((m) => m.match_type === "doubles")),
     [playerId, matches],
   );
-  const rank = useMemo(() => computeWinRateRank(playerId, roster.data ?? [], matches), [roster.data, playerId, matches]);
+  const rank = useMemo(() => computeWinRateRank(playerId, roster.data ?? EMPTY_PLAYERS, matches), [roster.data, playerId, matches]);
   // Derived from matches (already fetched via usePlayerMatchHistory, uncapped) instead of a
   // second usePlayerRecords network round-trip for the same win/loss/draw fact.
   const stats = useMemo(() => computePlayerStats(playerId, matches), [playerId, matches]);
+
+  const favoriteOpponent = useMemo(
+    () => computeFavoriteOpponent(playerId, roster.data ?? EMPTY_PLAYERS, matches),
+    [playerId, roster.data, matches],
+  );
+  const nemesis = useMemo(() => computeNemesis(playerId, roster.data ?? EMPTY_PLAYERS, matches), [playerId, roster.data, matches]);
+  const favoritePartner = partnerships.find((p) => p.played >= MIN_SAMPLE_SIZE) ?? null;
+
+  const personalHighlights = useMemo(() => {
+    const combined: Array<FunFact | Insight> = [
+      ...generateFunFacts(playerId, roster.data ?? EMPTY_PLAYERS, matches),
+      ...generateInsights(playerId, roster.data ?? EMPTY_PLAYERS, matches),
+    ];
+    return combined.sort((a, b) => b.score - a.score).slice(0, 3);
+  }, [playerId, roster.data, matches]);
+
+  const heldRecords: RecordEntry[] = useMemo(() => {
+    if (!player) return [];
+    const allRecords = computeAllRecords(roster.data ?? EMPTY_PLAYERS, groupHistory.data ?? EMPTY_MATCHES);
+    return allRecords.filter((r) => r.holderName.split(" & ").includes(player.display_name));
+  }, [player, roster.data, groupHistory.data]);
 
   if (isLoading) {
     return (
@@ -210,6 +242,66 @@ export default function PlayerDetailScreen() {
 
         {tab === "overview" ? (
           <View style={styles.tabContent}>
+            {personalHighlights.length > 0 ? (
+              <Card>
+                <Text style={styles.sectionTitle}>Highlights</Text>
+                <View style={styles.highlightsList}>
+                  {personalHighlights.map((item) => (
+                    <Text key={item.id} style={styles.highlightText}>
+                      • {item.text}
+                    </Text>
+                  ))}
+                </View>
+              </Card>
+            ) : null}
+
+            {heldRecords.length > 0 ? (
+              <Card>
+                <Text style={styles.sectionTitle}>Records Held</Text>
+                <View style={styles.highlightsList}>
+                  {heldRecords.map((record) => (
+                    <View key={record.id} style={styles.recordHeldRow}>
+                      <Text style={styles.recordHeldLabel}>{record.label}</Text>
+                      <Text style={styles.recordHeldValue}>{record.valueLabel}</Text>
+                    </View>
+                  ))}
+                </View>
+              </Card>
+            ) : null}
+
+            {favoriteOpponent || nemesis || favoritePartner ? (
+              <Card>
+                <Text style={styles.sectionTitle}>Rivalries</Text>
+                <View style={styles.bestWorst}>
+                  {favoriteOpponent ? (
+                    <View style={styles.bestWorstRow}>
+                      <Text style={styles.bestWorstLabel}>Most-played opponent</Text>
+                      <Text style={styles.bestWorstValue} numberOfLines={1}>
+                        {favoriteOpponent.opponentName} ({favoriteOpponent.headToHead.wins}-{favoriteOpponent.headToHead.losses}-
+                        {favoriteOpponent.headToHead.draws} in {favoriteOpponent.headToHead.played})
+                      </Text>
+                    </View>
+                  ) : null}
+                  {nemesis ? (
+                    <View style={styles.bestWorstRow}>
+                      <Text style={styles.bestWorstLabel}>Toughest matchup</Text>
+                      <Text style={styles.bestWorstValue} numberOfLines={1}>
+                        {nemesis.opponentName} ({nemesis.headToHead.winRate !== null ? Math.round(nemesis.headToHead.winRate * 100) : 0}% win rate)
+                      </Text>
+                    </View>
+                  ) : null}
+                  {favoritePartner ? (
+                    <View style={styles.bestWorstRow}>
+                      <Text style={styles.bestWorstLabel}>Favorite doubles partner</Text>
+                      <Text style={styles.bestWorstValue} numberOfLines={1}>
+                        {favoritePartner.teammateName} ({favoritePartner.played} matches together)
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              </Card>
+            ) : null}
+
             <Card>
               <Text style={styles.sectionTitle}>Record</Text>
               {matchHistory.isLoading ? (
@@ -394,6 +486,37 @@ export default function PlayerDetailScreen() {
                         color={headToHead.goalDifference > 0 ? colors.win : headToHead.goalDifference < 0 ? colors.loss : undefined}
                       />
                     </View>
+                    <View style={styles.recordRow}>
+                      <RecordStat label="Avg Scored" value={headToHead.averageScoreFor !== null ? headToHead.averageScoreFor.toFixed(2) : "–"} />
+                      <RecordStat label="Avg Conceded" value={headToHead.averageScoreAgainst !== null ? headToHead.averageScoreAgainst.toFixed(2) : "–"} />
+                      <RecordStat
+                        label="Streak"
+                        value={headToHead.currentStreak.count > 0 ? `${headToHead.currentStreak.count} ${headToHead.currentStreak.result}` : "–"}
+                        color={headToHead.currentStreak.result === "win" ? colors.win : headToHead.currentStreak.result === "loss" ? colors.loss : undefined}
+                      />
+                    </View>
+                    <View style={styles.bestWorst}>
+                      <View style={styles.bestWorstRow}>
+                        <Text style={styles.bestWorstLabel}>Largest victory</Text>
+                        {headToHead.largestVictory ? (
+                          <Text style={styles.bestWorstValue}>
+                            {headToHead.largestVictory.ownScore}-{headToHead.largestVictory.opponentScore}
+                          </Text>
+                        ) : (
+                          <Text style={styles.bestWorstEmpty}>No wins yet</Text>
+                        )}
+                      </View>
+                      <View style={styles.bestWorstRow}>
+                        <Text style={styles.bestWorstLabel}>Largest defeat</Text>
+                        {headToHead.largestDefeat ? (
+                          <Text style={styles.bestWorstValue}>
+                            {headToHead.largestDefeat.ownScore}-{headToHead.largestDefeat.opponentScore}
+                          </Text>
+                        ) : (
+                          <Text style={styles.bestWorstEmpty}>No losses yet</Text>
+                        )}
+                      </View>
+                    </View>
                   </View>
                 ) : null}
               </Card>
@@ -542,6 +665,25 @@ const styles = StyleSheet.create({
   },
   bestWorstEmpty: {
     ...typography.caption,
+  },
+  highlightsList: {
+    gap: spacing.sm,
+  },
+  highlightText: {
+    ...typography.body,
+  },
+  recordHeldRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  recordHeldLabel: {
+    ...typography.body,
+    flexShrink: 1,
+  },
+  recordHeldValue: {
+    ...typography.bodyStrong,
+    color: colors.gold,
   },
   progressionSection: {
     gap: spacing.md,
