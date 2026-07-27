@@ -2,7 +2,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import type { ComponentProps, ReactNode } from "react";
 import { useMemo } from "react";
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { ActionButton } from "../../../src/components/ActionButton";
 import { AnimatedNumber } from "../../../src/components/AnimatedNumber";
 import { Avatar } from "../../../src/components/Avatar";
@@ -18,6 +18,7 @@ import { RankingRow } from "../../../src/components/RankingRow";
 import { Screen } from "../../../src/components/Screen";
 import { SkeletonList } from "../../../src/components/Skeleton";
 import { StatTile } from "../../../src/components/StatTile";
+import { TrendBadge } from "../../../src/components/TrendBadge";
 import { useAuth } from "../../../src/hooks/useAuth";
 import { useGroup } from "../../../src/hooks/useGroup";
 import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
@@ -27,15 +28,10 @@ import { useTranslation } from "../../../src/lib/i18n";
 import { selectInsightOfTheDay } from "../../../src/lib/leagueInsights";
 import { computeLeagueSummary, computeMatchesPerWeek } from "../../../src/lib/leagueStats";
 import { matchSideLabel, formatRelativeDate } from "../../../src/lib/format";
-import {
-  computeFormTrend,
-  computeLastNStats,
-  computePlayerStats,
-  computeStreaks,
-  computeWinRateLeaderboard,
-  computeWinRateRank,
-  WIN_RATE_MIN_PLAYED,
-} from "../../../src/lib/stats";
+import { computeLastNStats, computePlayerStats, computeStreaks, computeWinRateLeaderboard, computeWinRateRank, WIN_RATE_MIN_PLAYED } from "../../../src/lib/stats";
+import { explainActivity, explainConsistency, explainDirection, explainMomentum, type TrendExplanation } from "../../../src/lib/trends/explanations";
+import { calculateLeagueTrendSummary } from "../../../src/lib/trends/leagueTrends";
+import type { PlayerTrendMetrics } from "../../../src/lib/trends/types";
 import type { MatchSummary } from "../../../src/lib/matches";
 import type { PlayerProfile } from "../../../src/lib/types/database";
 import { colors, radius, spacing, typography } from "../../../src/theme";
@@ -92,19 +88,61 @@ export default function HomeScreen() {
     [allMatches],
   );
 
-  const trendingPlayers = useMemo(() => {
-    return roster
-      .map((player) => ({ player, formTrend: computeFormTrend(player.id, allMatches) }))
-      .filter((r): r is typeof r & { formTrend: { trend: "improving" | "declining"; recentWinRate: number; previousWinRate: number } } => r.formTrend.trend === "improving" || r.formTrend.trend === "declining")
-      .map((r) => ({
-        player: r.player,
-        trend: r.formTrend.trend,
-        delta: r.formTrend.recentWinRate - r.formTrend.previousWinRate,
-        recentWinRate: r.formTrend.recentWinRate,
-      }))
-      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+  // Stage 7 M4 trends engine -- every dashboard trend card below reads
+  // straight from this one memoized summary, never recalculating stats itself.
+  const leagueTrendSummary = useMemo(
+    () => calculateLeagueTrendSummary(roster, allMatches, new Date()),
+    // "now" is intentionally the only non-listed input, same rationale as weeklyActivity/insightOfTheDay above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [roster, allMatches],
+  );
+
+  const trendCards = useMemo(() => {
+    const rosterById = new Map(roster.map((p) => [p.id, p]));
+    const configs: {
+      key: string;
+      titleKey: string;
+      trend: PlayerTrendMetrics | null;
+      score: number;
+      explanation: TrendExplanation;
+    }[] = [
+      { key: "hot", titleKey: "trends.hotPlayerTitle", trend: leagueTrendSummary.hotPlayer, score: leagueTrendSummary.hotPlayer?.momentumScore ?? 0, explanation: leagueTrendSummary.hotPlayer ? explainMomentum(leagueTrendSummary.hotPlayer) : { key: "", params: {} } },
+      {
+        key: "rising",
+        titleKey: "trends.risingPlayerTitle",
+        trend: leagueTrendSummary.biggestImprovement,
+        score: leagueTrendSummary.biggestImprovement?.improvementScore ?? 0,
+        explanation: leagueTrendSummary.biggestImprovement ? explainDirection(leagueTrendSummary.biggestImprovement) : { key: "", params: {} },
+      },
+      {
+        key: "falling",
+        titleKey: "trends.fallingPlayerTitle",
+        trend: leagueTrendSummary.biggestDecline,
+        score: leagueTrendSummary.biggestDecline?.improvementScore ?? 0,
+        explanation: leagueTrendSummary.biggestDecline ? explainDirection(leagueTrendSummary.biggestDecline) : { key: "", params: {} },
+      },
+      {
+        key: "consistent",
+        titleKey: "trends.mostConsistentTitle",
+        trend: leagueTrendSummary.mostConsistent,
+        score: leagueTrendSummary.mostConsistent?.consistencyScore ?? 0,
+        explanation: leagueTrendSummary.mostConsistent ? explainConsistency(leagueTrendSummary.mostConsistent) : { key: "", params: {} },
+      },
+      {
+        key: "active",
+        titleKey: "trends.mostActiveTitle",
+        trend: leagueTrendSummary.mostActive,
+        score: leagueTrendSummary.mostActive?.activityScore ?? 0,
+        explanation: leagueTrendSummary.mostActive ? explainActivity(leagueTrendSummary.mostActive) : { key: "", params: {} },
+      },
+    ];
+
+    return configs
+      .filter((c): c is typeof c & { trend: PlayerTrendMetrics } => c.trend !== null)
+      .map((c) => ({ ...c, player: rosterById.get(c.trend.playerId) ?? null }))
+      .filter((c): c is typeof c & { player: PlayerProfile } => c.player !== null)
       .slice(0, TRENDING_PREVIEW);
-  }, [roster, allMatches]);
+  }, [roster, leagueTrendSummary]);
 
   const insightOfTheDay = useMemo(
     () => selectInsightOfTheDay(roster, allMatches, new Date()),
@@ -246,22 +284,40 @@ export default function HomeScreen() {
               title={t("home.trendingPlayers")}
               seeAllLabel={t("home.seeAll")}
               onSeeAll={() => router.push("/leaderboards")}
-              isEmpty={trendingPlayers.length === 0}
+              isEmpty={trendCards.length === 0}
               emptyProps={{ icon: "📈", title: t("home.notEnoughTrendData") }}
             >
-              {trendingPlayers.map((row, index) => (
-                <RankingRow
-                  key={row.player.id}
-                  rank={index + 1}
-                  name={row.player.display_name}
-                  avatarUrl={row.player.avatar_url}
-                  color={row.player.custom_color}
-                  value={`${Math.round(row.recentWinRate * 100)}%`}
-                  detail={row.trend === "improving" ? t("home.rising") : t("home.falling")}
-                  movement={Math.round(row.delta * 100)}
-                  onPress={() => router.push(`/player/${row.player.id}`)}
-                />
-              ))}
+              {trendCards.map((card) => {
+                const scoreLabel = card.key === "rising" || card.key === "falling" ? (card.score > 0 ? `+${card.score}` : `${card.score}`) : `${card.score}`;
+                const directionLabel = t(`trends.direction.${card.trend.direction}`);
+                const explanationText = card.explanation.key ? t(card.explanation.key, card.explanation.params) : "";
+                return (
+                  <Pressable
+                    key={card.key}
+                    onPress={() => router.push(`/player/${card.player.id}?tab=analytics`)}
+                    style={({ pressed }) => [styles.trendCard, pressed && styles.trendCardPressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t(card.titleKey)}: ${card.player.display_name}, ${directionLabel}. ${explanationText}`}
+                  >
+                    <Avatar uri={card.player.avatar_url} name={card.player.display_name} color={card.player.custom_color} size={40} />
+                    <View style={styles.trendCardInfo}>
+                      <View style={styles.trendCardNameRow}>
+                        <Text style={styles.trendCardName} numberOfLines={1}>
+                          {card.player.display_name}
+                        </Text>
+                        <Text style={styles.trendCardCaption}>{t(card.titleKey)}</Text>
+                      </View>
+                      <Text style={styles.trendCardExplanation} numberOfLines={2}>
+                        {explanationText}
+                      </Text>
+                    </View>
+                    <View style={styles.trendCardScoreCol}>
+                      <Text style={styles.trendCardScore}>{scoreLabel}</Text>
+                      <TrendBadge direction={card.trend.direction} label={directionLabel} />
+                    </View>
+                  </Pressable>
+                );
+              })}
             </Section>
 
             <View style={styles.section}>
@@ -517,5 +573,46 @@ const styles = StyleSheet.create({
   },
   sectionList: {
     gap: spacing.sm,
+  },
+  trendCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    backgroundColor: colors.surface,
+  },
+  trendCardPressed: {
+    backgroundColor: colors.surfaceElevated,
+  },
+  trendCardInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  trendCardNameRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: spacing.xs,
+  },
+  trendCardName: {
+    ...typography.bodyStrong,
+    flexShrink: 1,
+  },
+  trendCardCaption: {
+    ...typography.small,
+    color: colors.textSecondary,
+  },
+  trendCardExplanation: {
+    ...typography.small,
+  },
+  trendCardScoreCol: {
+    alignItems: "flex-end",
+    gap: 4,
+  },
+  trendCardScore: {
+    ...typography.bodyStrong,
+    color: colors.accent,
   },
 });

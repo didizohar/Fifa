@@ -14,6 +14,7 @@ import { ErrorBoundary } from "../../../../src/components/ErrorBoundary";
 import { ErrorState } from "../../../../src/components/ErrorState";
 import { FormStrip } from "../../../../src/components/FormStrip";
 import { InfoBanner } from "../../../../src/components/InfoBanner";
+import { MomentumIndicator } from "../../../../src/components/MomentumIndicator";
 import { OpponentPerformanceList } from "../../../../src/components/OpponentPerformanceList";
 import { PerformanceTimelineChart } from "../../../../src/components/PerformanceTimelineChart";
 import { PlayerPicker } from "../../../../src/components/PlayerPicker";
@@ -24,6 +25,9 @@ import { Skeleton, SkeletonList } from "../../../../src/components/Skeleton";
 import { Sparkline } from "../../../../src/components/Sparkline";
 import { StatTile } from "../../../../src/components/StatTile";
 import { TimelineChart } from "../../../../src/components/TimelineChart";
+import { TrendComparisonRow } from "../../../../src/components/TrendComparisonRow";
+import { TrendExplanationCard } from "../../../../src/components/TrendExplanationCard";
+import { TrendScoreCard } from "../../../../src/components/TrendScoreCard";
 import { useAuth } from "../../../../src/hooks/useAuth";
 import { useGroup } from "../../../../src/hooks/useGroup";
 import { useGroupMatchHistory, usePlayerMatchHistory } from "../../../../src/hooks/useMatches";
@@ -31,6 +35,8 @@ import { useArchivePlayer, useUpdatePlayer } from "../../../../src/hooks/usePlay
 import { usePlayer, usePlayers } from "../../../../src/hooks/usePlayers";
 import { computeAllAchievements } from "../../../../src/lib/achievements";
 import { calculatePlayerAnalytics, NOT_RANKED } from "../../../../src/lib/analytics/playerAnalytics";
+import { explainActivity, explainAttack, explainConsistency, explainDefence, explainDirection } from "../../../../src/lib/trends/explanations";
+import { calculatePlayerTrend } from "../../../../src/lib/trends/playerTrends";
 import type { AnalyticsRange, TimelinePoint } from "../../../../src/lib/analytics/types";
 import { confirmAction, notify } from "../../../../src/lib/confirm";
 import { formatRelativeDate, matchSideLabel } from "../../../../src/lib/format";
@@ -101,8 +107,10 @@ function opponentLabel(playerId: string, match: MatchSummary): string {
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_SHORT_LABEL = new Intl.DateTimeFormat(undefined, { month: "short", year: "2-digit" });
 
+const VALID_TABS: ProfileTab[] = ["overview", "charts", "h2h", "analytics"];
+
 export default function PlayerDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, tab: initialTabParam } = useLocalSearchParams<{ id: string; tab?: string }>();
   const router = useRouter();
   const { user } = useAuth();
   const { t } = useTranslation();
@@ -119,7 +127,8 @@ export default function PlayerDetailScreen() {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [headToHeadOpponentId, setHeadToHeadOpponentId] = useState<string | null>(null);
-  const [tab, setTab] = useState<ProfileTab>("overview");
+  // Lets a "jump to a player's Analytics tab" link (e.g. Home's trend cards) land directly on it, e.g. /player/[id]?tab=analytics.
+  const [tab, setTab] = useState<ProfileTab>((VALID_TABS as string[]).includes(initialTabParam ?? "") ? (initialTabParam as ProfileTab) : "overview");
   const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>("30d");
   const careerCardRef = useRef<View>(null);
 
@@ -239,6 +248,10 @@ export default function PlayerDetailScreen() {
     insufficientSample: t("playerAnalytics.noticeInsufficientSample"),
     legacyDataExcluded: t("playerAnalytics.noticeLegacyData"),
   };
+
+  // Stage 7 M4 trends engine -- momentum/consistency/activity/attack/defence,
+  // all derived from this single memoized call.
+  const playerTrend = useMemo(() => calculatePlayerTrend(playerId, roster.data ?? EMPTY_PLAYERS, matches), [playerId, roster.data, matches]);
 
   if (isLoading) {
     return (
@@ -784,6 +797,52 @@ export default function PlayerDetailScreen() {
               </Card>
 
               {!matchHistory.isLoading && !matchHistory.isError ? (
+                <Card>
+                  <Text style={styles.sectionTitle}>{t("trends.sectionTitle")}</Text>
+                  {playerTrend.direction === "insufficientData" ? (
+                    <InfoBanner tone="info" message={t("trends.insufficientDataNotice")} />
+                  ) : (
+                    <View style={styles.trendSection}>
+                      <MomentumIndicator
+                        score={playerTrend.momentumScore}
+                        direction={playerTrend.direction}
+                        directionLabel={t(`trends.direction.${playerTrend.direction}`)}
+                        label={t("trends.momentumLabel")}
+                      />
+
+                      <View style={styles.trendComparisons}>
+                        <TrendComparisonRow
+                          label={t("trends.winRateLabel")}
+                          previousLabel={`${Math.round((playerTrend.previousWinRate ?? 0) * 100)}%`}
+                          recentLabel={`${Math.round((playerTrend.recentWinRate ?? 0) * 100)}%`}
+                          improved={compareNullable(playerTrend.recentWinRate, playerTrend.previousWinRate)}
+                        />
+                        <TrendComparisonRow
+                          label={t("trends.goalsPerMatchLabel")}
+                          previousLabel={playerTrend.previousGoalsPerMatch !== null ? playerTrend.previousGoalsPerMatch.toFixed(2) : "–"}
+                          recentLabel={playerTrend.recentGoalsPerMatch !== null ? playerTrend.recentGoalsPerMatch.toFixed(2) : "–"}
+                          improved={compareNullable(playerTrend.recentGoalsPerMatch, playerTrend.previousGoalsPerMatch)}
+                        />
+                      </View>
+
+                      <View style={styles.trendScoreGrid}>
+                        <TrendScoreCard label={t("trends.consistencyLabel")} score={playerTrend.consistencyScore} explanation={t(explainConsistency(playerTrend).key, explainConsistency(playerTrend).params)} />
+                        <TrendScoreCard label={t("trends.activityLabel")} score={playerTrend.activityScore} explanation={t(explainActivity(playerTrend).key, explainActivity(playerTrend).params)} />
+                        <TrendScoreCard label={t("trends.attackLabel")} score={playerTrend.attackScore} explanation={t(explainAttack(playerTrend).key, explainAttack(playerTrend).params)} />
+                        <TrendScoreCard label={t("trends.defenceLabel")} score={playerTrend.defenceScore} explanation={t(explainDefence(playerTrend).key, explainDefence(playerTrend).params)} />
+                      </View>
+
+                      <TrendExplanationCard
+                        title={t(`trends.direction.${playerTrend.direction}`)}
+                        message={t(explainDirection(playerTrend).key, explainDirection(playerTrend).params)}
+                      />
+                      <Text style={styles.confidenceNote}>{t("trends.confidenceNotice", { matches: playerTrend.matchesConsidered, confidence: playerTrend.confidence })}</Text>
+                    </View>
+                  )}
+                </Card>
+              ) : null}
+
+              {!matchHistory.isLoading && !matchHistory.isError ? (
                 <>
                   <Card>
                     <Text style={styles.sectionTitle}>{t("playerAnalytics.sectionPerformance")}</Text>
@@ -871,6 +930,12 @@ export default function PlayerDetailScreen() {
       </ScrollView>
     </Screen>
   );
+}
+
+/** true = recent is strictly better, false = strictly worse, null = equal or either side unknown. */
+function compareNullable(recent: number | null, previous: number | null): boolean | null {
+  if (recent === null || previous === null || recent === previous) return null;
+  return recent > previous;
 }
 
 function RecordStat({ label, value, color }: { label: string; value: number | string; color?: string }) {
@@ -1124,5 +1189,20 @@ const styles = StyleSheet.create({
   },
   chartGroup: {
     marginBottom: spacing.lg,
+  },
+  trendSection: {
+    gap: spacing.lg,
+  },
+  trendComparisons: {
+    gap: spacing.xs,
+  },
+  trendScoreGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.md,
+  },
+  confidenceNote: {
+    ...typography.small,
+    textAlign: "center",
   },
 });

@@ -217,3 +217,57 @@ describe("Stage 7 M3 player analytics translation coverage", () => {
     expect(typeof heValue === "string" && heValue.trim().length > 0).toBe(true);
   });
 });
+
+/** Explicit, named coverage for Stage 7 M4's player trends engine UI (direction labels, score labels, dashboard trend cards, and every trend explanation template). */
+describe("Stage 7 M4 player trends translation coverage", () => {
+  const stage7M4Keys = [
+    "trends.sectionTitle",
+    "trends.direction.rising",
+    "trends.direction.falling",
+    "trends.direction.stable",
+    "trends.direction.insufficientData",
+    "trends.momentumLabel",
+    "trends.consistencyLabel",
+    "trends.activityLabel",
+    "trends.attackLabel",
+    "trends.defenceLabel",
+    "trends.recentWindowLabel",
+    "trends.previousWindowLabel",
+    "trends.winRateLabel",
+    "trends.goalsPerMatchLabel",
+    "trends.confidenceLabel",
+    "trends.confidenceNotice",
+    "trends.insufficientDataNotice",
+    "trends.hotPlayerTitle",
+    "trends.risingPlayerTitle",
+    "trends.fallingPlayerTitle",
+    "trends.mostConsistentTitle",
+    "trends.mostActiveTitle",
+    "trends.noTrendsYet",
+    "trends.explanation.insufficientData",
+    "trends.explanation.stronglyRising",
+    "trends.explanation.rising",
+    "trends.explanation.stable",
+    "trends.explanation.falling",
+    "trends.explanation.stronglyFalling",
+    "trends.explanation.momentum",
+    "trends.explanation.consistencyHigh",
+    "trends.explanation.consistencyMedium",
+    "trends.explanation.consistencyLow",
+    "trends.explanation.activityHigh",
+    "trends.explanation.activityLow",
+    "trends.explanation.attackStrong",
+    "trends.explanation.attackWeak",
+    "trends.explanation.defenceStrong",
+    "trends.explanation.defenceWeak",
+  ];
+
+  const readPath = (dict: unknown, path: string) => path.split(".").reduce<unknown>((acc, part) => (acc as Record<string, unknown>)?.[part], dict);
+
+  it.each(stage7M4Keys)("%s exists as a non-empty string in English and Hebrew", (path) => {
+    const enValue = readPath(en, path);
+    const heValue = readPath(he, path);
+    expect(typeof enValue === "string" && enValue.trim().length > 0).toBe(true);
+    expect(typeof heValue === "string" && heValue.trim().length > 0).toBe(true);
+  });
+});
