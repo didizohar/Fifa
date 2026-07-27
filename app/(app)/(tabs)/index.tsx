@@ -1,9 +1,9 @@
-import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import type { ComponentProps, ReactNode } from "react";
 import { useMemo } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActionButton } from "../../../src/components/ActionButton";
 import { AnimatedNumber } from "../../../src/components/AnimatedNumber";
 import { Avatar } from "../../../src/components/Avatar";
 import { Badge, rankBadgeTone } from "../../../src/components/Badge";
@@ -37,7 +37,7 @@ import {
 } from "../../../src/lib/stats";
 import type { MatchSummary } from "../../../src/lib/matches";
 import type { PlayerProfile } from "../../../src/lib/types/database";
-import { colors, iconSize, radius, spacing, typography } from "../../../src/theme";
+import { colors, radius, spacing, typography } from "../../../src/theme";
 
 const RANKINGS_PREVIEW = 5;
 const MATCHES_PREVIEW = 5;
@@ -172,10 +172,11 @@ export default function HomeScreen() {
         ) : null}
 
         <View style={styles.quickActions}>
-          <QuickAction icon="add-circle" label={t("home.quickActionRecord")} onPress={() => router.push("/record-match")} />
-          <QuickAction icon="person-add" label={t("home.quickActionAddPlayer")} onPress={() => router.push("/player/new")} />
-          <QuickAction icon="trophy" label={t("home.quickActionLeaderboards")} onPress={() => router.push("/leaderboards")} />
-          <QuickAction icon="time" label={t("home.quickActionHistory")} onPress={() => router.push("/history")} />
+          <ActionButton icon="add-circle" label={t("home.quickActionRecord")} onPress={() => router.push("/record-match")} />
+          <ActionButton icon="shuffle" label={t("home.quickActionDraw")} onPress={() => router.push("/draw")} />
+          <ActionButton icon="person-add" label={t("home.quickActionAddPlayer")} onPress={() => router.push("/player/new")} />
+          <ActionButton icon="trophy" label={t("home.quickActionLeaderboards")} onPress={() => router.push("/leaderboards")} />
+          <ActionButton icon="time" label={t("home.quickActionHistory")} onPress={() => router.push("/history")} />
         </View>
 
         {isLoading ? (
@@ -318,24 +319,6 @@ export default function HomeScreen() {
   );
 }
 
-function QuickAction({ icon, label, onPress }: { icon: ComponentProps<typeof Ionicons>["name"]; label: string; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.quickAction, pressed && styles.quickActionPressed]}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-    >
-      <View style={styles.quickActionIcon}>
-        <Ionicons name={icon} size={iconSize.md} color={colors.accent} />
-      </View>
-      <Text style={styles.quickActionLabel} numberOfLines={1}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
 function Section({
   title,
   seeAllLabel,
@@ -445,29 +428,8 @@ const styles = StyleSheet.create({
   },
   quickActions: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing.sm,
-  },
-  quickAction: {
-    flex: 1,
-    alignItems: "center",
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-  },
-  quickActionPressed: {
-    backgroundColor: colors.surfaceElevated,
-  },
-  quickActionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.pill,
-    backgroundColor: colors.accentSubtle,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  quickActionLabel: {
-    ...typography.small,
-    textAlign: "center",
   },
   statTileRow: {
     flexDirection: "row",
