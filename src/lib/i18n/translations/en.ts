@@ -268,6 +268,26 @@ const en = {
       defenceWeak: "Conceding more goals recently than usual.",
     },
   },
+  rotation: {
+    title: "Winners Stay",
+    winningPairLabel: "Winning Pair",
+    incomingPairLabel: "Incoming Pair",
+    waitingQueueLabel: "Waiting Queue",
+    nextMatchLabel: "Next Match",
+    waitingPlayerLabel: "Waiting Player",
+    randomPartnerLabel: "Random Partner",
+    redrawPartnerLabel: "Redraw Partner",
+    acceptNextMatch: "Accept Next Match",
+    drawRotationLabel: "Draw Rotation",
+    notEnoughPlayersTitle: "Not Enough Players",
+    notEnoughPlayersMessage: "At least one waiting player is required.",
+    emptyQueueMessage: "Nobody's waiting right now.",
+    reasonNotEnoughWaiting: "At least one waiting player is required.",
+    reasonRandomPartner: "{waitingName} was randomly paired with {partnerName} from the losing pair.",
+    reasonWaitingEnter: "{firstName} and {secondName} entered from the waiting queue.",
+    stayingExplanation: "{first} and {second} stay after winning.",
+    drawStayingExplanation: "{first} and {second} stay after the draw.",
+  },
 } as const;
 
 export default en;

@@ -271,3 +271,36 @@ describe("Stage 7 M4 player trends translation coverage", () => {
     expect(typeof heValue === "string" && heValue.trim().length > 0).toBe(true);
   });
 });
+
+/** Explicit, named coverage for the "Winners Stay" doubles rotation mode (labels, buttons, empty/not-enough-players states, and every rotation-engine reason/explanation template). */
+describe("Winners Stay rotation translation coverage", () => {
+  const rotationKeys = [
+    "rotation.title",
+    "rotation.winningPairLabel",
+    "rotation.incomingPairLabel",
+    "rotation.waitingQueueLabel",
+    "rotation.nextMatchLabel",
+    "rotation.waitingPlayerLabel",
+    "rotation.randomPartnerLabel",
+    "rotation.redrawPartnerLabel",
+    "rotation.acceptNextMatch",
+    "rotation.drawRotationLabel",
+    "rotation.notEnoughPlayersTitle",
+    "rotation.notEnoughPlayersMessage",
+    "rotation.emptyQueueMessage",
+    "rotation.reasonNotEnoughWaiting",
+    "rotation.reasonRandomPartner",
+    "rotation.reasonWaitingEnter",
+    "rotation.stayingExplanation",
+    "rotation.drawStayingExplanation",
+  ];
+
+  const readPath = (dict: unknown, path: string) => path.split(".").reduce<unknown>((acc, part) => (acc as Record<string, unknown>)?.[part], dict);
+
+  it.each(rotationKeys)("%s exists as a non-empty string in English and Hebrew", (path) => {
+    const enValue = readPath(en, path);
+    const heValue = readPath(he, path);
+    expect(typeof enValue === "string" && enValue.trim().length > 0).toBe(true);
+    expect(typeof heValue === "string" && heValue.trim().length > 0).toBe(true);
+  });
+});

@@ -265,6 +265,26 @@ const he = {
       defenceWeak: "סופג יותר שערים לאחרונה מהרגיל.",
     },
   },
+  rotation: {
+    title: "המנצחים נשארים",
+    winningPairLabel: "זוג מנצח",
+    incomingPairLabel: "זוג נכנס",
+    waitingQueueLabel: "תור ממתינים",
+    nextMatchLabel: "המשחק הבא",
+    waitingPlayerLabel: "שחקן ממתין",
+    randomPartnerLabel: "בן זוג אקראי",
+    redrawPartnerLabel: "הגרל בן זוג מחדש",
+    acceptNextMatch: "אשר משחק הבא",
+    drawRotationLabel: "רוטציה לאחר תיקו",
+    notEnoughPlayersTitle: "אין מספיק שחקנים",
+    notEnoughPlayersMessage: "נדרש לפחות שחקן ממתין אחד.",
+    emptyQueueMessage: "אין כרגע אף אחד בהמתנה.",
+    reasonNotEnoughWaiting: "נדרש לפחות שחקן ממתין אחד.",
+    reasonRandomPartner: "{waitingName} שובץ באקראי עם {partnerName} מהזוג המפסיד.",
+    reasonWaitingEnter: "{firstName} ו-{secondName} נכנסו מתור הממתינים.",
+    stayingExplanation: "{first} ו-{second} נשארים לאחר הניצחון.",
+    drawStayingExplanation: "{first} ו-{second} נשארים לאחר התיקו.",
+  },
 } as const satisfies TranslationKeys;
 
 export default he;

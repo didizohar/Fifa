@@ -2,12 +2,14 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../src/components/Avatar";
 import { Badge, type BadgeTone } from "../../../src/components/Badge";
+import { Button } from "../../../src/components/Button";
 import { Card } from "../../../src/components/Card";
 import { ErrorState } from "../../../src/components/ErrorState";
 import { Screen } from "../../../src/components/Screen";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { useMatch } from "../../../src/hooks/useMatches";
 import { formatDateTime } from "../../../src/lib/format";
+import { useTranslation } from "../../../src/lib/i18n";
 import type { MatchSideSummary } from "../../../src/lib/matches";
 import { colors, radius, spacing, typography } from "../../../src/theme";
 
@@ -18,6 +20,7 @@ const resultTone: Record<MatchSideSummary["result"], BadgeTone> = { win: "win", 
 export default function MatchDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { t } = useTranslation();
   const { data: match, isLoading, isError, refetch } = useMatch(id);
 
   if (isLoading) {
@@ -67,6 +70,10 @@ export default function MatchDetailScreen() {
 
         <SideCard side={side1} onPlayerPress={(playerId) => router.push(`/player/${playerId}`)} />
         <SideCard side={side2} onPlayerPress={(playerId) => router.push(`/player/${playerId}`)} />
+
+        {match.match_type === "doubles" ? (
+          <Button label={t("rotation.title")} variant="secondary" onPress={() => router.push({ pathname: "/winners-stay", params: { matchId: match.id } })} />
+        ) : null}
 
         {match.notes ? (
           <Card>
