@@ -20,11 +20,12 @@ import { useGroup } from "../../../src/hooks/useGroup";
 import { usePlayers } from "../../../src/hooks/usePlayers";
 import { useTranslation } from "../../../src/lib/i18n";
 import { toPickablePlayer } from "../../../src/lib/players";
-import { assignBalancedClubs, assignRandomClubs, filterClubsByExactStars, filterClubsByStarRange } from "../../../src/lib/random";
+import { assignBalancedClubs, assignHandicapClubs, assignRandomClubs, filterClubsByExactStars, filterClubsByStarRange } from "../../../src/lib/random";
 import type { ClubVersion, PlayerProfile } from "../../../src/lib/types/database";
 import { colors, iconSize, spacing, typography } from "../../../src/theme";
 
-type ClubMode = "random" | "exactStars" | "starRange" | "balanced";
+type ClubMode = "random" | "exactStars" | "starRange" | "balanced" | "handicap";
+const DRAW_LEVEL_DEFAULT = 3;
 
 export default function ClubDrawScreen() {
   const router = useRouter();
@@ -86,14 +87,26 @@ export default function ClubDrawScreen() {
     AccessibilityInfo.announceForAccessibility(t("draw.resultAnnouncement", { summary }));
   };
 
-  const draw = () => {
-    if (participants.length === 0 || filteredClubs.length === 0) return;
+  const assignForParticipants = (pool: ClubVersion[], targetParticipants: PlayerProfile[]): ClubVersion[] => {
+    if (targetParticipants.length === 0) return [];
+    if (mode === "handicap") {
+      const handicapInput = targetParticipants.map((p) => ({ participant: p, drawLevel: p.draw_level ?? DRAW_LEVEL_DEFAULT }));
+      const result = assignHandicapClubs(handicapInput, pool, { allowDuplicates });
+      const byId = new Map(result.map((r) => [r.participant.id, r.club]));
+      return targetParticipants.map((p) => byId.get(p.id)!);
+    }
     const result =
       mode === "balanced"
-        ? assignBalancedClubs(filteredClubs, participants.length, { allowDuplicates })
-        : assignRandomClubs(filteredClubs, participants.length, { allowDuplicates });
+        ? assignBalancedClubs(pool, targetParticipants.length, { allowDuplicates })
+        : assignRandomClubs(pool, targetParticipants.length, { allowDuplicates });
+    return result.assignments;
+  };
+
+  const draw = () => {
+    if (participants.length === 0 || filteredClubs.length === 0) return;
+    const assigned = assignForParticipants(filteredClubs, participants);
     const map = new Map<string, ClubVersion>();
-    participants.forEach((p, i) => map.set(p.id, result.assignments[i]));
+    participants.forEach((p, i) => map.set(p.id, assigned[i]));
     suspense.start(() => {
       setAssignments(map);
       setLockedClubs(new Map());
@@ -108,13 +121,10 @@ export default function ClubDrawScreen() {
     const unlockedParticipants = participants.filter((p) => !lockedClubs.has(p.id));
     const excludeIds = new Set([...lockedClubs.values()].map((c) => c.id));
     const pool = allowDuplicates ? filteredClubs : filteredClubs.filter((c) => !excludeIds.has(c.id));
-    const result =
-      mode === "balanced"
-        ? assignBalancedClubs(pool.length > 0 ? pool : filteredClubs, unlockedParticipants.length, { allowDuplicates })
-        : assignRandomClubs(pool.length > 0 ? pool : filteredClubs, unlockedParticipants.length, { allowDuplicates });
+    const assigned = assignForParticipants(pool.length > 0 ? pool : filteredClubs, unlockedParticipants);
     const map = new Map<string, ClubVersion>();
     lockedParticipants.forEach((p) => map.set(p.id, lockedClubs.get(p.id)!));
-    unlockedParticipants.forEach((p, i) => map.set(p.id, result.assignments[i]));
+    unlockedParticipants.forEach((p, i) => map.set(p.id, assigned[i]));
     suspense.start(() => {
       setAssignments(map);
       setRevealKey((k) => k + 1);
@@ -193,6 +203,10 @@ export default function ClubDrawScreen() {
 
   const pickablePlayers = players.map(toPickablePlayer);
   const noClubsMatch = (mode === "exactStars" || mode === "starRange") && filteredClubs.length === 0;
+  const averageDrawLevel =
+    participants.length > 0
+      ? participants.reduce((sum, p) => sum + (p.draw_level ?? DRAW_LEVEL_DEFAULT), 0) / participants.length
+      : DRAW_LEVEL_DEFAULT;
   const resultText = assignments
     ? participants.map((p) => `${p.display_name}: ${assignments.get(p.id)?.club.name ?? "?"} (${assignments.get(p.id)?.star_rating ?? "?"}★)`).join("\n")
     : "";
@@ -237,6 +251,7 @@ export default function ClubDrawScreen() {
             <FilterChip label={t("draw.clubModeExactStars")} active={mode === "exactStars"} onPress={() => setMode("exactStars")} />
             <FilterChip label={t("draw.clubModeStarRange")} active={mode === "starRange"} onPress={() => setMode("starRange")} />
             <FilterChip label={t("draw.clubModeBalanced")} active={mode === "balanced"} onPress={() => setMode("balanced")} />
+            <FilterChip label={t("draw.clubModeHandicap")} active={mode === "handicap"} onPress={() => setMode("handicap")} />
           </ScrollView>
 
           {mode === "exactStars" ? (
@@ -297,6 +312,15 @@ export default function ClubDrawScreen() {
                       {player.display_name}
                     </Text>
                     {club ? <ClubBadge name={club.club.name} starRating={club.star_rating} size="sm" /> : null}
+                    {mode === "handicap" ? (
+                      player.draw_level === null ? (
+                        <Text style={styles.handicapNote}>{t("draw.missingDrawLevel", { name: player.display_name })}</Text>
+                      ) : club && player.draw_level > averageDrawLevel ? (
+                        <Text style={styles.handicapNote}>
+                          {t("draw.handicapExplanation", { name: player.display_name, stars: String(club.star_rating) })}
+                        </Text>
+                      ) : null
+                    ) : null}
                   </View>
                   <Pressable
                     onPress={() => toggleLock(player.id)}
@@ -385,5 +409,9 @@ const styles = StyleSheet.create({
   },
   resultName: {
     ...typography.bodyStrong,
+  },
+  handicapNote: {
+    ...typography.small,
+    color: colors.textMuted,
   },
 });
