@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useRouter } from "expo-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { Button } from "../../src/components/Button";
 import { Card } from "../../src/components/Card";
@@ -13,6 +13,7 @@ import { useClubVersions } from "../../src/hooks/useClubVersions";
 import { useGroup } from "../../src/hooks/useGroup";
 import { usePlayers } from "../../src/hooks/usePlayers";
 import { useRecordMatch } from "../../src/hooks/useRecordMatch";
+import { type MatchPrefillRouteParams, validateMatchPrefill } from "../../src/lib/matchPrefill";
 import { toPickablePlayer } from "../../src/lib/players";
 import type { ClubVersion, MatchType } from "../../src/lib/types/database";
 import { validateMatchForm } from "../../src/lib/validation/matchForm";
@@ -22,6 +23,14 @@ const MIN_PLAYERS_TO_RECORD = 2;
 
 export default function RecordMatchScreen() {
   const router = useRouter();
+  const rawParams = useLocalSearchParams();
+  const prefillParams: MatchPrefillRouteParams = {
+    matchType: typeof rawParams.matchType === "string" ? rawParams.matchType : undefined,
+    side1Players: typeof rawParams.side1Players === "string" ? rawParams.side1Players : undefined,
+    side2Players: typeof rawParams.side2Players === "string" ? rawParams.side2Players : undefined,
+    side1Club: typeof rawParams.side1Club === "string" ? rawParams.side1Club : undefined,
+    side2Club: typeof rawParams.side2Club === "string" ? rawParams.side2Club : undefined,
+  };
   const { currentGroup } = useGroup();
   const { data: players, isLoading: playersLoading } = usePlayers(currentGroup?.id ?? null);
   const { data: clubVersions, isLoading: clubsLoading } = useClubVersions(currentGroup?.default_game_version_id);
@@ -39,6 +48,28 @@ export default function RecordMatchScreen() {
   const [penaltyScore1, setPenaltyScore1] = useState(0);
   const [penaltyScore2, setPenaltyScore2] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
+
+  // Apply a draw-result prefill (see app/(app)/draw/matchup.tsx) exactly once, as soon as
+  // the roster/club data needed to re-validate it has loaded -- never on a later refetch,
+  // or it would silently stomp on whatever the user has already edited.
+  const hasAppliedPrefill = useRef(false);
+  useEffect(() => {
+    if (hasAppliedPrefill.current || !players || !clubVersions) return;
+    if (!prefillParams.matchType) return;
+    hasAppliedPrefill.current = true;
+    const prefill = validateMatchPrefill(
+      prefillParams,
+      players.map((p) => p.id),
+      clubVersions.map((cv) => cv.id),
+    );
+    if (!prefill) return;
+    setMatchType(prefill.matchType);
+    setSide1PlayerIds(prefill.side1PlayerIds);
+    setSide2PlayerIds(prefill.side2PlayerIds);
+    setSide1ClubId(prefill.side1ClubId);
+    setSide2ClubId(prefill.side2ClubId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [players, clubVersions]);
 
   const requiredCount = matchType === "singles" ? 1 : 2;
   const scoresLevel = side1Score === side2Score;

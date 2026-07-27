@@ -20,6 +20,7 @@ import { useDrawSuspense } from "../../../src/hooks/useDrawSuspense";
 import { useGroup } from "../../../src/hooks/useGroup";
 import { usePlayers } from "../../../src/hooks/usePlayers";
 import { useTranslation } from "../../../src/lib/i18n";
+import { buildMatchPrefillParams } from "../../../src/lib/matchPrefill";
 import { toPickablePlayer } from "../../../src/lib/players";
 import {
   assignBalancedClubs,
@@ -437,7 +438,16 @@ export default function FullMatchupScreen() {
               </View>
             ))}
             <View style={styles.recordAction}>
-              <Button label={t("draw.proceedToRecordMatch")} onPress={() => router.push("/record-match")} />
+              <Button
+                label={t("draw.proceedToRecordMatch")}
+                onPress={() =>
+                  sides &&
+                  router.push({
+                    pathname: "/record-match",
+                    params: buildMatchPrefillParams(matchType, sides, sideClubs),
+                  })
+                }
+              />
             </View>
             <ShareCopyRow text={resultText} />
           </ResultRevealCard>
