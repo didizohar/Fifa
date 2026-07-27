@@ -19,9 +19,9 @@ export function filterClubsByStarRange<T extends StarRatedClub>(clubs: readonly 
   return clubs.filter((club) => club.star_rating >= min && club.star_rating <= max);
 }
 
-/** Drops any club version with a missing/non-numeric star rating before it ever reaches a draw pool, so a data gap can't crash a filter or assignment downstream. */
+/** Drops any club version with a missing, non-numeric, or NaN star rating before it ever reaches a draw pool, so a data gap can't crash a filter or assignment downstream. */
 export function filterValidClubVersions<T extends { star_rating: number | null | undefined }>(clubVersions: readonly T[]): T[] {
-  return clubVersions.filter((cv) => typeof cv.star_rating === "number");
+  return clubVersions.filter((cv) => typeof cv.star_rating === "number" && !Number.isNaN(cv.star_rating));
 }
 
 function hasDuplicates<T extends StarRatedClub>(assignments: readonly T[]): boolean {

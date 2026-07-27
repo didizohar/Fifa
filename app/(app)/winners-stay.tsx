@@ -144,7 +144,7 @@ export default function WinnersStayScreen() {
       now: new Date(),
     });
     setSession(started);
-    router.push({ pathname: "/record-match", params: buildMatchPrefillParams("doubles", [pairA, pairB], null) });
+    router.push({ pathname: "/record-match", params: { ...buildMatchPrefillParams("doubles", [pairA, pairB], null), source: "winnersStay" } });
   };
 
   const handleStartRandom = () => {
@@ -243,7 +243,7 @@ export default function WinnersStayScreen() {
     setSession(accepted);
     router.push({
       pathname: "/record-match",
-      params: buildMatchPrefillParams("doubles", [accepted.currentPairA.players, accepted.currentPairB!.players], null),
+      params: { ...buildMatchPrefillParams("doubles", [accepted.currentPairA.players, accepted.currentPairB!.players], null), source: "winnersStay" },
     });
   };
 
@@ -261,7 +261,7 @@ export default function WinnersStayScreen() {
     if (!session.currentPairB) return;
     router.push({
       pathname: "/record-match",
-      params: buildMatchPrefillParams("doubles", [session.currentPairA.players, session.currentPairB.players], null),
+      params: { ...buildMatchPrefillParams("doubles", [session.currentPairA.players, session.currentPairB.players], null), source: "winnersStay" },
     });
   };
 

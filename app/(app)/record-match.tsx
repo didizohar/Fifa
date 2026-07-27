@@ -3,7 +3,10 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { Button } from "../../src/components/Button";
 import { Card } from "../../src/components/Card";
+import { ClubBadge } from "../../src/components/ClubBadge";
 import { EmptyState } from "../../src/components/EmptyState";
+import { FilterChip } from "../../src/components/FilterChip";
+import { InfoBanner } from "../../src/components/InfoBanner";
 import { PlayerPicker } from "../../src/components/PlayerPicker";
 import { Screen } from "../../src/components/Screen";
 import { ScoreStepper } from "../../src/components/ScoreStepper";
@@ -13,12 +16,17 @@ import { useClubVersions } from "../../src/hooks/useClubVersions";
 import { useGroup } from "../../src/hooks/useGroup";
 import { usePlayers } from "../../src/hooks/usePlayers";
 import { useRecordMatch } from "../../src/hooks/useRecordMatch";
+import { matchSideLabel } from "../../src/lib/format";
 import { useTranslation } from "../../src/lib/i18n";
 import { type MatchPrefillRouteParams, validateMatchPrefill } from "../../src/lib/matchPrefill";
 import { toPickablePlayer } from "../../src/lib/players";
+import { filterValidClubVersions } from "../../src/lib/random/clubs";
+import { drawClubsForMatch, type ClubDrawStarMode } from "../../src/lib/random/matchClubDraw";
 import type { ClubVersion, MatchType } from "../../src/lib/types/database";
 import { validateMatchForm } from "../../src/lib/validation/matchForm";
 import { colors, radius, spacing, typography } from "../../src/theme";
+
+const STAR_MODES: ClubDrawStarMode[] = ["sameStar", "similarStrength", "anyStrength"];
 
 const MIN_PLAYERS_TO_RECORD = 2;
 
@@ -33,6 +41,7 @@ export default function RecordMatchScreen() {
     side1Club: typeof rawParams.side1Club === "string" ? rawParams.side1Club : undefined,
     side2Club: typeof rawParams.side2Club === "string" ? rawParams.side2Club : undefined,
   };
+  const isFromWinnersStay = rawParams.source === "winnersStay";
   const { currentGroup } = useGroup();
   const { data: players, isLoading: playersLoading } = usePlayers(currentGroup?.id ?? null);
   const { data: clubVersions, isLoading: clubsLoading } = useClubVersions(currentGroup?.default_game_version_id);
@@ -51,6 +60,36 @@ export default function RecordMatchScreen() {
   const [penaltyScore2, setPenaltyScore2] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
   const [showPrefillBanner, setShowPrefillBanner] = useState(false);
+
+  // Winners Stay's "Draw Clubs by Stars" -- only ever touches side1ClubId/side2ClubId,
+  // never the players, pairings, score, or waiting queue.
+  const [starMode, setStarMode] = useState<ClubDrawStarMode>("sameStar");
+  const [selectedStarLevel, setSelectedStarLevel] = useState<number | null>(null);
+  const [hasDrawnClubs, setHasDrawnClubs] = useState(false);
+  const [clubDrawFailed, setClubDrawFailed] = useState(false);
+
+  const validClubPool = useMemo(() => filterValidClubVersions(clubVersions ?? []), [clubVersions]);
+  const availableStarLevels = useMemo(() => Array.from(new Set(validClubPool.map((cv) => cv.star_rating))).sort((a, b) => b - a), [validClubPool]);
+
+  // Default to the highest available star level once clubs load, without stomping on a later user choice.
+  const hasSetDefaultStarLevel = useRef(false);
+  useEffect(() => {
+    if (hasSetDefaultStarLevel.current || availableStarLevels.length === 0) return;
+    hasSetDefaultStarLevel.current = true;
+    setSelectedStarLevel(availableStarLevels[0]!);
+  }, [availableStarLevels]);
+
+  const handleDrawClubs = () => {
+    const outcome = drawClubsForMatch({ clubs: validClubPool, starMode, selectedStarLevel });
+    if (!outcome.ok) {
+      setClubDrawFailed(true);
+      return;
+    }
+    setClubDrawFailed(false);
+    setHasDrawnClubs(true);
+    setSide1ClubId(outcome.result.clubA.id);
+    setSide2ClubId(outcome.result.clubB.id);
+  };
 
   // Apply a draw-result prefill (see app/(app)/draw/matchup.tsx) exactly once, as soon as
   // the roster/club data needed to re-validate it has loaded -- never on a later refetch,
@@ -81,6 +120,8 @@ export default function RecordMatchScreen() {
   const scoresLevel = side1Score === side2Score;
 
   const pickablePlayers = useMemo(() => (players ?? []).map(toPickablePlayer), [players]);
+
+  const pairLabel = (playerIds: string[]): string => matchSideLabel(playerIds.map((id) => (players ?? []).find((p) => p.id === id)?.display_name ?? "?"));
 
   const changeMatchType = (type: MatchType) => {
     setMatchType(type);
@@ -181,10 +222,40 @@ export default function RecordMatchScreen() {
           onChange={changeMatchType}
         />
 
+        {isFromWinnersStay && matchType === "doubles" ? (
+          <Card style={styles.clubDrawCard}>
+            <Text style={styles.sideTitle}>{t("rotation.drawClubsByStars")}</Text>
+            <View style={styles.chipRow}>
+              <FilterChip label={t("rotation.starModeSameLevel")} active={starMode === "sameStar"} onPress={() => setStarMode("sameStar")} />
+              <FilterChip label={t("rotation.starModeSimilar")} active={starMode === "similarStrength"} onPress={() => setStarMode("similarStrength")} />
+              <FilterChip label={t("rotation.starModeAny")} active={starMode === "anyStrength"} onPress={() => setStarMode("anyStrength")} />
+            </View>
+
+            {starMode === "sameStar" ? (
+              <View style={styles.chipRow}>
+                {availableStarLevels.map((stars) => (
+                  <FilterChip key={stars} label={t("draw.exactStarsLabel", { stars: String(stars) })} active={selectedStarLevel === stars} onPress={() => setSelectedStarLevel(stars)} />
+                ))}
+              </View>
+            ) : null}
+
+            {clubDrawFailed ? <InfoBanner tone="warning" message={`${t("rotation.notEnoughClubsAtLevel")} ${t("rotation.chooseAnotherLevel")}`} /> : null}
+
+            <Button label={hasDrawnClubs ? t("rotation.drawClubsAgain") : t("rotation.drawClubsByStars")} variant="secondary" onPress={handleDrawClubs} />
+
+            {hasDrawnClubs && side1ClubId && side2ClubId ? (
+              <View style={styles.clubDrawResultRow}>
+                <ClubDrawResult label={t("rotation.pairALabel")} playerNames={pairLabel(side1PlayerIds)} clubVersion={clubVersions?.find((cv) => cv.id === side1ClubId) ?? null} />
+                <ClubDrawResult label={t("rotation.pairBLabel")} playerNames={pairLabel(side2PlayerIds)} clubVersion={clubVersions?.find((cv) => cv.id === side2ClubId) ?? null} />
+              </View>
+            ) : null}
+          </Card>
+        ) : null}
+
         <Card style={styles.sideCard}>
           <Text style={styles.sideTitle}>Side 1</Text>
           {clubsLoading ? <Skeleton height={40} /> : (
-            <ClubSelect clubVersions={clubVersions ?? []} selectedId={side1ClubId} onSelect={setSide1ClubId} />
+            <ClubSelect clubVersions={clubVersions ?? []} selectedId={side1ClubId} onSelect={setSide1ClubId} disabledId={isFromWinnersStay ? side2ClubId : null} />
           )}
           {playersLoading ? <Skeleton height={80} /> : (
             <PlayerPicker
@@ -201,7 +272,7 @@ export default function RecordMatchScreen() {
         <Card style={styles.sideCard}>
           <Text style={styles.sideTitle}>Side 2</Text>
           {clubsLoading ? <Skeleton height={40} /> : (
-            <ClubSelect clubVersions={clubVersions ?? []} selectedId={side2ClubId} onSelect={setSide2ClubId} />
+            <ClubSelect clubVersions={clubVersions ?? []} selectedId={side2ClubId} onSelect={setSide2ClubId} disabledId={isFromWinnersStay ? side1ClubId : null} />
           )}
           {playersLoading ? <Skeleton height={80} /> : (
             <PlayerPicker
@@ -255,6 +326,8 @@ export default function RecordMatchScreen() {
         ) : null}
 
         <Button label="Save match" onPress={handleSubmit} loading={recordMatch.isPending} />
+
+        {isFromWinnersStay ? <Button label={t("rotation.backToHome")} variant="secondary" onPress={() => router.replace("/")} /> : null}
       </ScrollView>
     </Screen>
   );
@@ -264,28 +337,47 @@ function ClubSelect({
   clubVersions,
   selectedId,
   onSelect,
+  disabledId = null,
 }: {
   clubVersions: ClubVersion[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  /** The other side's currently selected club -- when set, prevents (and visually disables) choosing that same club here too. Only passed in the Winners Stay context. */
+  disabledId?: string | null;
 }) {
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.clubScroll}>
-      {clubVersions.map((cv) => (
-        <Pressable
-          key={cv.id}
-          onPress={() => onSelect(cv.id)}
-          style={[styles.clubChip, selectedId === cv.id && styles.clubChipSelected]}
-          accessibilityRole="button"
-          accessibilityLabel={cv.club.name}
-          accessibilityState={{ selected: selectedId === cv.id }}
-        >
-          <Text style={[styles.clubChipLabel, selectedId === cv.id && styles.clubChipLabelSelected]} numberOfLines={1}>
-            {cv.club.name}
-          </Text>
-        </Pressable>
-      ))}
+      {clubVersions.map((cv) => {
+        const isDisabled = disabledId !== null && cv.id === disabledId && cv.id !== selectedId;
+        return (
+          <Pressable
+            key={cv.id}
+            onPress={() => !isDisabled && onSelect(cv.id)}
+            disabled={isDisabled}
+            style={[styles.clubChip, selectedId === cv.id && styles.clubChipSelected, isDisabled && styles.clubChipDisabled]}
+            accessibilityRole="button"
+            accessibilityLabel={cv.club.name}
+            accessibilityState={{ selected: selectedId === cv.id, disabled: isDisabled }}
+          >
+            <Text style={[styles.clubChipLabel, selectedId === cv.id && styles.clubChipLabelSelected]} numberOfLines={1}>
+              {cv.club.name}
+            </Text>
+          </Pressable>
+        );
+      })}
     </ScrollView>
+  );
+}
+
+function ClubDrawResult({ label, playerNames, clubVersion }: { label: string; playerNames: string; clubVersion: ClubVersion | null }) {
+  return (
+    <View style={styles.clubDrawResult}>
+      <Text style={styles.clubDrawResultLabel}>{label}</Text>
+      <Text style={styles.clubDrawResultNames} numberOfLines={1}>
+        {playerNames}
+      </Text>
+      {clubVersion ? <ClubBadge name={clubVersion.club.name} starRating={clubVersion.star_rating} size="sm" /> : null}
+    </View>
   );
 }
 
@@ -335,6 +427,37 @@ const styles = StyleSheet.create({
   clubChipLabelSelected: {
     color: colors.accent,
     fontWeight: "700",
+  },
+  clubChipDisabled: {
+    opacity: 0.35,
+  },
+  clubDrawCard: {
+    gap: spacing.md,
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  clubDrawResultRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  clubDrawResult: {
+    flex: 1,
+    alignItems: "center",
+    gap: spacing.xs,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceElevated,
+  },
+  clubDrawResultLabel: {
+    ...typography.small,
+    color: colors.textSecondary,
+  },
+  clubDrawResultNames: {
+    ...typography.bodyStrong,
+    textAlign: "center",
   },
   optionsCard: {
     gap: spacing.md,

@@ -325,6 +325,18 @@ const en = {
     corruptedSessionMessage: "The saved Winners Stay session looks corrupted or out of date.",
     waitingForResult: "Play this match, then come back to continue the rotation.",
     nextMatchupReady: "Next matchup ready.",
+    drawClubsByStars: "Draw Clubs by Stars",
+    drawClubsAgain: "Draw Clubs Again",
+    starModeSameLevel: "Same Star Level",
+    starModeSimilar: "Similar Strength",
+    starModeAny: "Any Strength",
+    starLevelLabel: "Star level",
+    notEnoughClubsAtLevel: "Not enough clubs at this star level.",
+    chooseAnotherLevel: "Choose another star level.",
+    backToHome: "Back to Home",
+    duplicateClubWarning: "Pair A and Pair B can't use the same club.",
+    pairALabel: "Pair A",
+    pairBLabel: "Pair B",
   },
 } as const;
 

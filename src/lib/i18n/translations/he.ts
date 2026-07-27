@@ -322,6 +322,18 @@ const he = {
     corruptedSessionMessage: "נתוני מושב \"המנצחים נשארים\" השמורים נראים פגומים או לא עדכניים.",
     waitingForResult: "שחקו את המשחק הזה, ואז חזרו לכאן כדי להמשיך את הרוטציה.",
     nextMatchupReady: "המשחק הבא מוכן.",
+    drawClubsByStars: "הגרל קבוצות לפי כוכבים",
+    drawClubsAgain: "הגרל קבוצות שוב",
+    starModeSameLevel: "אותה רמת כוכבים",
+    starModeSimilar: "רמה דומה",
+    starModeAny: "כל הרמות",
+    starLevelLabel: "רמת כוכבים",
+    notEnoughClubsAtLevel: "אין מספיק מועדונים ברמת כוכבים זו.",
+    chooseAnotherLevel: "בחרו רמת כוכבים אחרת.",
+    backToHome: "חזרה לבית",
+    duplicateClubWarning: "לזוג א ולזוג ב לא יכול להיות אותו מועדון.",
+    pairALabel: "זוג א",
+    pairBLabel: "זוג ב",
   },
 } as const satisfies TranslationKeys;
 

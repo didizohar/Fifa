@@ -331,6 +331,18 @@ describe("Winners Stay rotation translation coverage", () => {
     "rotation.corruptedSessionMessage",
     "rotation.waitingForResult",
     "rotation.nextMatchupReady",
+    "rotation.drawClubsByStars",
+    "rotation.drawClubsAgain",
+    "rotation.starModeSameLevel",
+    "rotation.starModeSimilar",
+    "rotation.starModeAny",
+    "rotation.starLevelLabel",
+    "rotation.notEnoughClubsAtLevel",
+    "rotation.chooseAnotherLevel",
+    "rotation.backToHome",
+    "rotation.duplicateClubWarning",
+    "rotation.pairALabel",
+    "rotation.pairBLabel",
   ];
 
   const readPath = (dict: unknown, path: string) => path.split(".").reduce<unknown>((acc, part) => (acc as Record<string, unknown>)?.[part], dict);
