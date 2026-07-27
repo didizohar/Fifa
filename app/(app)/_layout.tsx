@@ -1,4 +1,5 @@
 import { Stack } from "expo-router";
+import { useTranslation } from "../../src/lib/i18n";
 import { colors } from "../../src/theme";
 
 const themedHeaderOptions = {
@@ -8,6 +9,8 @@ const themedHeaderOptions = {
 };
 
 export default function AppLayout() {
+  const { t } = useTranslation();
+
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
       <Stack.Screen name="(tabs)" />
@@ -19,6 +22,8 @@ export default function AppLayout() {
       <Stack.Screen name="player/[id]/index" options={{ headerShown: true, title: "Player", ...themedHeaderOptions }} />
       <Stack.Screen name="player/[id]/edit" options={{ headerShown: true, title: "Edit player", ...themedHeaderOptions }} />
       <Stack.Screen name="match/[id]" options={{ headerShown: true, title: "Match", ...themedHeaderOptions }} />
+      <Stack.Screen name="draw/index" options={{ headerShown: true, title: t("draw.title"), ...themedHeaderOptions }} />
+      <Stack.Screen name="draw/players" options={{ headerShown: true, title: t("draw.randomPlayers"), ...themedHeaderOptions }} />
     </Stack>
   );
 }
