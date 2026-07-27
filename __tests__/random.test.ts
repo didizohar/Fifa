@@ -1,6 +1,6 @@
 import { assignBalancedClubs, assignHandicapClubs, assignRandomClubs, filterClubsByExactStars, filterClubsByStarRange } from "../src/lib/random/clubs";
 import { createSeededRng, sample, shuffle } from "../src/lib/random/rng";
-import { splitIntoBalancedTeams, splitIntoTeams } from "../src/lib/random/teams";
+import { movePlayerBetweenTeams, splitIntoBalancedTeams, splitIntoTeams } from "../src/lib/random/teams";
 
 const rng = () => createSeededRng(42);
 
@@ -123,6 +123,37 @@ describe("splitIntoBalancedTeams", () => {
     const a = splitIntoBalancedTeams(input, 2, getRating, { rng: createSeededRng(1) });
     const b = splitIntoBalancedTeams(input, 2, getRating, { rng: createSeededRng(2) });
     expect(a.map((t) => t.map((p) => p.id).sort())).not.toEqual(b.map((t) => t.map((p) => p.id).sort()));
+  });
+});
+
+describe("movePlayerBetweenTeams", () => {
+  it("moves a player from one team to another", () => {
+    const teams = [
+      [{ id: "a" }, { id: "b" }],
+      [{ id: "c" }],
+    ];
+    const result = movePlayerBetweenTeams(teams, "a", 0, 1);
+    expect(result[0].map((p) => p.id)).toEqual(["b"]);
+    expect(result[1].map((p) => p.id)).toEqual(["c", "a"]);
+  });
+
+  it("never mutates the input teams", () => {
+    const teams = [[{ id: "a" }], [{ id: "b" }]];
+    const before = JSON.parse(JSON.stringify(teams));
+    movePlayerBetweenTeams(teams, "a", 0, 1);
+    expect(teams).toEqual(before);
+  });
+
+  it("is a no-op when the player isn't found", () => {
+    const teams = [[{ id: "a" }], [{ id: "b" }]];
+    const result = movePlayerBetweenTeams(teams, "missing", 0, 1);
+    expect(result).toEqual(teams);
+  });
+
+  it("is a no-op when the target team index is out of range", () => {
+    const teams = [[{ id: "a" }], [{ id: "b" }]];
+    const result = movePlayerBetweenTeams(teams, "a", 0, 5);
+    expect(result).toEqual(teams);
   });
 });
 

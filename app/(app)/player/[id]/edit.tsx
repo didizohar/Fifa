@@ -5,6 +5,7 @@ import { Button } from "../../../../src/components/Button";
 import { ErrorState } from "../../../../src/components/ErrorState";
 import { Screen } from "../../../../src/components/Screen";
 import { Skeleton } from "../../../../src/components/Skeleton";
+import { StarRating } from "../../../../src/components/StarRating";
 import { TextField } from "../../../../src/components/TextField";
 import { useGroup } from "../../../../src/hooks/useGroup";
 import { useUpdatePlayer } from "../../../../src/hooks/usePlayerMutations";
@@ -23,6 +24,7 @@ export default function EditPlayerScreen() {
   const [displayName, setDisplayName] = useState("");
   const [nickname, setNickname] = useState("");
   const [color, setColor] = useState(COLOR_SWATCHES[0]!);
+  const [drawLevel, setDrawLevel] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Seed the form from server data exactly once, the first time it loads --
@@ -36,6 +38,7 @@ export default function EditPlayerScreen() {
       setDisplayName(player.display_name);
       setNickname(player.nickname ?? "");
       setColor(player.custom_color);
+      setDrawLevel(player.draw_level);
     }
   }, [player]);
 
@@ -60,7 +63,7 @@ export default function EditPlayerScreen() {
     try {
       await updatePlayer.mutateAsync({
         playerId: player.id,
-        patch: { display_name: displayName.trim(), nickname: nickname.trim() || null, custom_color: color },
+        patch: { display_name: displayName.trim(), nickname: nickname.trim() || null, custom_color: color, draw_level: drawLevel },
       });
       router.back();
     } catch (e) {
@@ -86,6 +89,18 @@ export default function EditPlayerScreen() {
                 accessibilityState={{ selected: color === swatch }}
               />
             ))}
+          </View>
+        </View>
+        <View style={styles.drawLevelSection}>
+          <Text style={styles.colorLabel}>Draw level (optional)</Text>
+          <Text style={styles.drawLevelHint}>Used only to balance random team and club draws -- not a performance rating.</Text>
+          <View style={styles.drawLevelRow}>
+            <StarRating value={drawLevel} onChange={setDrawLevel} size={28} />
+            {drawLevel !== null ? (
+              <Pressable onPress={() => setDrawLevel(null)} accessibilityRole="button" accessibilityLabel="Clear draw level">
+                <Text style={styles.drawLevelClear}>Clear</Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
         <Button label="Save changes" onPress={handleSubmit} loading={updatePlayer.isPending} />
@@ -121,5 +136,23 @@ const styles = StyleSheet.create({
   },
   swatchSelected: {
     borderColor: colors.textPrimary,
+  },
+  drawLevelSection: {
+    gap: spacing.xs,
+  },
+  drawLevelHint: {
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  drawLevelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginTop: spacing.xs,
+  },
+  drawLevelClear: {
+    fontSize: 13,
+    color: colors.accent,
+    fontWeight: "600",
   },
 });

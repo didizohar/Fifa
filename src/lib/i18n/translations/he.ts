@@ -97,6 +97,7 @@ const he = {
     zeroPlayers: "אין עדיין שחקנים",
     zeroPlayersMessage: "הוסיפו שחקנים לקבוצה זו לפני ההגרלה.",
     teamCount: "מספר קבוצות",
+    teamLabel: "קבוצה {number}",
     teamMode: "מצב חלוקה",
     modeRandom: "אקראי לחלוטין",
     modeBalanced: "מאוזן לפי רמת הגרלה",

@@ -50,6 +50,8 @@ export interface PlayerProfile {
   singles_elo: number;
   doubles_elo: number;
   preferred_club_id: string | null;
+  /** Optional manual 1-5 rating used only to balance draw teams/clubs -- never Elo, never shown as a performance score. */
+  draw_level: number | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;

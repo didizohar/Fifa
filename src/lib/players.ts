@@ -40,6 +40,7 @@ export interface UpdatePlayerInput {
   preferred_club_id?: string | null;
   is_active?: boolean;
   deleted_at?: string | null;
+  draw_level?: number | null;
 }
 
 const DUPLICATE_NAME_CODE = "23505";

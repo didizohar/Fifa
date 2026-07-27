@@ -86,3 +86,21 @@ export function splitIntoBalancedTeams<T extends Identifiable>(
 
   return teams;
 }
+
+/** Moves one player from one team to another after a draw. A no-op (returns a shallow copy) if the player or either team index isn't found. */
+export function movePlayerBetweenTeams<T extends Identifiable>(
+  teams: readonly (readonly T[])[],
+  playerId: string,
+  fromTeam: number,
+  toTeam: number,
+): T[][] {
+  const next = teams.map((team) => [...team]);
+  if (fromTeam < 0 || fromTeam >= next.length || toTeam < 0 || toTeam >= next.length) return next;
+
+  const idx = next[fromTeam].findIndex((player) => player.id === playerId);
+  if (idx === -1) return next;
+
+  const [player] = next[fromTeam].splice(idx, 1);
+  next[toTeam].push(player);
+  return next;
+}

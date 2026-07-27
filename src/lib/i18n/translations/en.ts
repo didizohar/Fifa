@@ -100,6 +100,7 @@ const en = {
     zeroPlayers: "No players yet",
     zeroPlayersMessage: "Add players to this group before drawing.",
     teamCount: "Number of teams",
+    teamLabel: "Team {number}",
     teamMode: "Team mode",
     modeRandom: "Fully Random",
     modeBalanced: "Balanced by Draw Level",

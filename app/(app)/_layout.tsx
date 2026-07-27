@@ -24,6 +24,7 @@ export default function AppLayout() {
       <Stack.Screen name="match/[id]" options={{ headerShown: true, title: "Match", ...themedHeaderOptions }} />
       <Stack.Screen name="draw/index" options={{ headerShown: true, title: t("draw.title"), ...themedHeaderOptions }} />
       <Stack.Screen name="draw/players" options={{ headerShown: true, title: t("draw.randomPlayers"), ...themedHeaderOptions }} />
+      <Stack.Screen name="draw/teams" options={{ headerShown: true, title: t("draw.createTeams"), ...themedHeaderOptions }} />
     </Stack>
   );
 }
