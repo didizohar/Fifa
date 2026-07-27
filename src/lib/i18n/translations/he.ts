@@ -115,6 +115,8 @@ const he = {
     clubModeHandicap: "מצב הנדיקפ",
     exactStarsLabel: "מועדוני {stars} כוכבים בלבד",
     starRangeLabel: "בין {min} ל-{max} כוכבים",
+    rangeFrom: "מ-",
+    rangeTo: "עד",
     allowDuplicateClubs: "אפשר אותו מועדון פעמיים",
     noClubsInRange: "אין מועדונים התואמים את הסינון",
     noClubsInRangeMessage: "הרחיבו את טווח הכוכבים או החליפו מצב.",

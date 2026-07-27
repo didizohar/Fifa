@@ -29,4 +29,5 @@ export const groupKeys = {
 
 export const clubKeys = {
   versions: (gameVersionId: string) => ["clubVersions", gameVersionId] as const,
+  gameVersions: ["gameVersions"] as const,
 };

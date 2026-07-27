@@ -2,7 +2,7 @@ import { type RNG, defaultRNG, sample, shuffle } from "./rng";
 
 interface StarRatedClub {
   id: string;
-  starRating: number;
+  star_rating: number;
 }
 
 export interface ClubAssignmentResult<T> {
@@ -12,11 +12,11 @@ export interface ClubAssignmentResult<T> {
 }
 
 export function filterClubsByExactStars<T extends StarRatedClub>(clubs: readonly T[], stars: number): T[] {
-  return clubs.filter((club) => club.starRating === stars);
+  return clubs.filter((club) => club.star_rating === stars);
 }
 
 export function filterClubsByStarRange<T extends StarRatedClub>(clubs: readonly T[], min: number, max: number): T[] {
-  return clubs.filter((club) => club.starRating >= min && club.starRating <= max);
+  return clubs.filter((club) => club.star_rating >= min && club.star_rating <= max);
 }
 
 function hasDuplicates<T extends StarRatedClub>(assignments: readonly T[]): boolean {
@@ -60,11 +60,11 @@ export function assignBalancedClubs<T extends StarRatedClub>(
     return assignRandomClubs(clubs, participantCount, { rng, allowDuplicates: true });
   }
 
-  const sorted = [...clubs].sort((a, b) => a.starRating - b.starRating);
+  const sorted = [...clubs].sort((a, b) => a.star_rating - b.star_rating);
   let bestSpread = Infinity;
   let bestStarts: number[] = [];
   for (let start = 0; start + participantCount <= sorted.length; start++) {
-    const spread = sorted[start + participantCount - 1].starRating - sorted[start].starRating;
+    const spread = sorted[start + participantCount - 1].star_rating - sorted[start].star_rating;
     if (spread < bestSpread - 1e-9) {
       bestSpread = spread;
       bestStarts = [start];
@@ -105,7 +105,7 @@ export function assignHandicapClubs<P extends { id: string }, C extends StarRate
     .sort((a, b) => b.drawLevel - a.drawLevel || a.index - b.index);
 
   const clubPool = useReplacement ? clubs : sample(clubs, participants.length, rng);
-  const rankedClubs = [...clubPool].sort((a, b) => a.starRating - b.starRating);
+  const rankedClubs = [...clubPool].sort((a, b) => a.star_rating - b.star_rating);
 
   return rankedParticipants.map((entry, i) => ({
     participant: entry.participant,

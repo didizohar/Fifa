@@ -1,5 +1,11 @@
 import { supabase } from "./supabase";
-import type { ClubVersion } from "./types/database";
+import type { ClubVersion, GameVersion } from "./types/database";
+
+export async function fetchGameVersions(): Promise<GameVersion[]> {
+  const { data, error } = await supabase.from("game_versions").select("*").order("name");
+  if (error) throw new Error(`Failed to load game versions: ${error.message}`);
+  return data ?? [];
+}
 
 export async function fetchClubVersions(gameVersionId: string): Promise<ClubVersion[]> {
   const { data, error } = await supabase

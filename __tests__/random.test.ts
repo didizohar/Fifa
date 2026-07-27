@@ -9,7 +9,7 @@ function players(count: number) {
 }
 
 function clubs(starRatings: number[]) {
-  return starRatings.map((starRating, i) => ({ id: `c${i}`, starRating }));
+  return starRatings.map((star_rating, i) => ({ id: `c${i}`, star_rating }));
 }
 
 describe("shuffle", () => {
@@ -160,12 +160,12 @@ describe("movePlayerBetweenTeams", () => {
 describe("club star filters", () => {
   it("filters to an exact star rating", () => {
     const result = filterClubsByExactStars(clubs([3, 4, 5, 5, 2]), 5);
-    expect(result.map((c) => c.starRating)).toEqual([5, 5]);
+    expect(result.map((c) => c.star_rating)).toEqual([5, 5]);
   });
 
   it("filters to a star range inclusive of both ends", () => {
     const result = filterClubsByStarRange(clubs([1, 2, 3, 4, 5]), 3, 4);
-    expect(result.map((c) => c.starRating)).toEqual([3, 4]);
+    expect(result.map((c) => c.star_rating)).toEqual([3, 4]);
   });
 });
 
@@ -195,7 +195,7 @@ describe("assignRandomClubs", () => {
 describe("assignBalancedClubs", () => {
   it("picks the window of clubs with the smallest star spread", () => {
     const result = assignBalancedClubs(clubs([1, 1.5, 4, 4.5, 5]), 2, { rng: rng() });
-    const ratings = result.assignments.map((c) => c.starRating).sort((a, b) => a - b);
+    const ratings = result.assignments.map((c) => c.star_rating).sort((a, b) => a - b);
     expect(ratings[1] - ratings[0]).toBeCloseTo(0.5);
   });
 
@@ -215,8 +215,8 @@ describe("assignHandicapClubs", () => {
     const result = assignHandicapClubs(participants, clubs([1, 5]), { rng: rng() });
     const strong = result.find((r) => r.participant.id === "strong");
     const weak = result.find((r) => r.participant.id === "weak");
-    expect(strong?.club.starRating).toBe(1);
-    expect(weak?.club.starRating).toBe(5);
+    expect(strong?.club.star_rating).toBe(1);
+    expect(weak?.club.star_rating).toBe(5);
   });
 
   it("never drops a participant when clubs are scarcer than participants", () => {

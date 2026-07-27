@@ -118,6 +118,8 @@ const en = {
     clubModeHandicap: "Handicap Mode",
     exactStarsLabel: "{stars}-star clubs only",
     starRangeLabel: "{min} to {max} stars",
+    rangeFrom: "From",
+    rangeTo: "To",
     allowDuplicateClubs: "Allow the same club twice",
     noClubsInRange: "No clubs match this filter",
     noClubsInRangeMessage: "Widen the star range or switch modes.",
