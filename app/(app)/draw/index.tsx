@@ -19,7 +19,7 @@ const OPTIONS: DrawOption[] = [
   { icon: "shuffle", titleKey: "draw.randomPlayers", subtitleKey: "draw.randomPlayersSubtitle", route: "/draw/players", enabled: true },
   { icon: "people", titleKey: "draw.createTeams", subtitleKey: "draw.createTeamsSubtitle", route: "/draw/teams", enabled: true },
   { icon: "shirt", titleKey: "draw.drawClubs", subtitleKey: "draw.drawClubsSubtitle", route: "/draw/clubs", enabled: true },
-  { icon: "flash", titleKey: "draw.fullMatchup", subtitleKey: "draw.fullMatchupSubtitle", route: "/draw/matchup", enabled: false },
+  { icon: "flash", titleKey: "draw.fullMatchup", subtitleKey: "draw.fullMatchupSubtitle", route: "/draw/matchup", enabled: true },
 ];
 
 export default function DrawHubScreen() {

@@ -1,4 +1,5 @@
 import { assignBalancedClubs, assignHandicapClubs, assignRandomClubs, filterClubsByExactStars, filterClubsByStarRange } from "../src/lib/random/clubs";
+import { chunkIntoSides, generateFullMatchup } from "../src/lib/random/matchup";
 import { createSeededRng, sample, shuffle } from "../src/lib/random/rng";
 import { movePlayerBetweenTeams, splitIntoBalancedTeams, splitIntoTeams } from "../src/lib/random/teams";
 
@@ -227,5 +228,93 @@ describe("assignHandicapClubs", () => {
     ];
     const result = assignHandicapClubs(participants, clubs([2]), { rng: rng() });
     expect(result).toHaveLength(3);
+  });
+});
+
+describe("chunkIntoSides", () => {
+  it("splits an even list into two equal halves in order", () => {
+    const [side1, side2] = chunkIntoSides(players(4));
+    expect(side1.map((p) => p.id)).toEqual(["p0", "p1"]);
+    expect(side2.map((p) => p.id)).toEqual(["p2", "p3"]);
+  });
+
+  it("gives the extra item to the first side for an odd list", () => {
+    const [side1, side2] = chunkIntoSides(players(3));
+    expect(side1).toHaveLength(2);
+    expect(side2).toHaveLength(1);
+  });
+});
+
+describe("generateFullMatchup", () => {
+  it("returns null when there aren't enough eligible players", () => {
+    const result = generateFullMatchup({
+      eligiblePlayers: players(3),
+      requiredPlayers: 4,
+      randomizeSides: true,
+      clubPool: clubs([3, 4]),
+      clubMode: "random",
+      rng: rng(),
+    });
+    expect(result).toBeNull();
+  });
+
+  it("draws exactly the required players split across two sides, and one club per side", () => {
+    const result = generateFullMatchup({
+      eligiblePlayers: players(6),
+      requiredPlayers: 4,
+      randomizeSides: true,
+      clubPool: clubs([1, 2, 3, 4, 5]),
+      clubMode: "random",
+      rng: rng(),
+    });
+    expect(result).not.toBeNull();
+    expect(result!.sides[0].length + result!.sides[1].length).toBe(4);
+    expect(new Set(result!.sides.flat().map((p) => p.id)).size).toBe(4);
+    expect(result!.clubs).toHaveLength(2);
+    expect(result!.clubs![0].id).not.toBe(result!.clubs![1].id);
+  });
+
+  it("returns null clubs when the club pool is empty, without failing the player draw", () => {
+    const result = generateFullMatchup({
+      eligiblePlayers: players(4),
+      requiredPlayers: 2,
+      randomizeSides: true,
+      clubPool: [],
+      clubMode: "random",
+      rng: rng(),
+    });
+    expect(result).not.toBeNull();
+    expect(result!.clubs).toBeNull();
+  });
+
+  it("uses a fixed, non-randomized side split when randomizeSides is false", () => {
+    const result = generateFullMatchup({
+      eligiblePlayers: players(2),
+      requiredPlayers: 2,
+      randomizeSides: false,
+      clubPool: [],
+      clubMode: "random",
+      rng: rng(),
+    });
+    expect(result!.sides[0]).toHaveLength(1);
+    expect(result!.sides[1]).toHaveLength(1);
+  });
+
+  it("assigns handicap clubs using only the supplied draw level, not player order", () => {
+    const rated = [
+      { id: "strong", drawLevel: 5 },
+      { id: "weak", drawLevel: 1 },
+    ];
+    const result = generateFullMatchup({
+      eligiblePlayers: rated,
+      requiredPlayers: 2,
+      randomizeSides: false,
+      clubPool: clubs([1, 5]),
+      clubMode: "handicap",
+      getDrawLevel: (p) => p.drawLevel,
+      rng: rng(),
+    });
+    const strongSideStars = result!.sides[0][0].drawLevel === 5 ? result!.clubs![0].star_rating : result!.clubs![1].star_rating;
+    expect(strongSideStars).toBe(1);
   });
 });
