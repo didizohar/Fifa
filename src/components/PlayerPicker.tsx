@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useTranslation } from "../lib/i18n";
 import type { PickablePlayer } from "../lib/players";
 import { colors, radius, spacing, typography } from "../theme";
 import { Avatar } from "./Avatar";
@@ -13,6 +14,7 @@ interface PlayerPickerProps {
 }
 
 export function PlayerPicker({ players, selectedIds, onToggle, disabledIds = [], maxSelected }: PlayerPickerProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
@@ -25,13 +27,13 @@ export function PlayerPicker({ players, selectedIds, onToggle, disabledIds = [],
     <View style={styles.container}>
       {maxSelected > 1 ? (
         <Text style={styles.counter}>
-          {selectedIds.length} of {maxSelected} selected
+          {t("common.playersSelectedCount", { selected: String(selectedIds.length), total: String(maxSelected) })}
         </Text>
       ) : null}
       <TextInput
         value={query}
         onChangeText={setQuery}
-        placeholder="Search players"
+        placeholder={t("common.searchPlayers")}
         placeholderTextColor={colors.textMuted}
         style={styles.search}
       />
@@ -60,7 +62,7 @@ export function PlayerPicker({ players, selectedIds, onToggle, disabledIds = [],
             </Pressable>
           );
         })}
-        {filtered.length === 0 ? <Text style={styles.empty}>No players match "{query}"</Text> : null}
+        {filtered.length === 0 ? <Text style={styles.empty}>{t("common.noPlayersMatch", { query })}</Text> : null}
       </View>
     </View>
   );

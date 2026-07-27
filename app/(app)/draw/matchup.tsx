@@ -26,10 +26,13 @@ import {
   assignBalancedClubs,
   assignHandicapClubs,
   assignRandomClubs,
+  averageDrawLevel,
   chunkIntoSides,
   filterClubsByExactStars,
   filterClubsByStarRange,
+  filterValidClubVersions,
   generateFullMatchup,
+  resolveDrawLevel,
   sample,
   splitIntoTeams,
 } from "../../../src/lib/random";
@@ -37,13 +40,7 @@ import type { ClubVersion, MatchType, PlayerProfile } from "../../../src/lib/typ
 import { colors, iconSize, spacing, typography } from "../../../src/theme";
 
 type ClubMode = "random" | "exactStars" | "starRange" | "balanced" | "handicap";
-const DRAW_LEVEL_DEFAULT = 3;
 const SIDE_COUNT = 2;
-
-function averageDrawLevel(sidePlayers: PlayerProfile[]): number {
-  if (sidePlayers.length === 0) return DRAW_LEVEL_DEFAULT;
-  return sidePlayers.reduce((sum, p) => sum + (p.draw_level ?? DRAW_LEVEL_DEFAULT), 0) / sidePlayers.length;
-}
 
 export default function FullMatchupScreen() {
   const router = useRouter();
@@ -63,7 +60,7 @@ export default function FullMatchupScreen() {
   }, [gameVersionId, currentGroup, gameVersions]);
 
   const { data: clubVersions, isLoading: clubsLoading, isError: clubsError, refetch: refetchClubs } = useClubVersions(gameVersionId);
-  const basePool = useMemo(() => (clubVersions ?? []).filter((cv) => typeof cv.star_rating === "number"), [clubVersions]);
+  const basePool = useMemo(() => filterValidClubVersions(clubVersions ?? []), [clubVersions]);
   const distinctStars = useMemo(() => Array.from(new Set(basePool.map((cv) => cv.star_rating))).sort((a, b) => b - a), [basePool]);
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -79,6 +76,7 @@ export default function FullMatchupScreen() {
   const [sideClubs, setSideClubs] = useState<[ClubVersion, ClubVersion] | null>(null);
   const [lockedPlayers, setLockedPlayers] = useState<Map<string, number>>(new Map());
   const [lockedClubSides, setLockedClubSides] = useState<Set<number>>(new Set());
+  const [usedDuplicateClub, setUsedDuplicateClub] = useState(false);
   const [revealKey, setRevealKey] = useState(0);
   const suspense = useDrawSuspense();
 
@@ -136,7 +134,7 @@ export default function FullMatchupScreen() {
     let newClubsByIndex: Map<number, ClubVersion>;
     if (clubMode === "handicap") {
       // assignHandicapClubs returns results ordered by draw level, not input order -- map back by id to preserve side index.
-      const entries = unlockedIndexes.map((i) => ({ participant: { id: `side${i}` }, drawLevel: averageDrawLevel(currentSides[i]) }));
+      const entries = unlockedIndexes.map((i) => ({ participant: { id: `side${i}` }, drawLevel: averageDrawLevel(currentSides[i], (p) => p.draw_level) }));
       const byId = new Map(assignHandicapClubs(entries, pool, { allowDuplicates }).map((r) => [r.participant.id, r.club]));
       newClubsByIndex = new Map(unlockedIndexes.map((i) => [i, byId.get(`side${i}`)!]));
     } else {
@@ -168,7 +166,7 @@ export default function FullMatchupScreen() {
       clubPool: filteredClubs,
       clubMode: clubMode === "balanced" || clubMode === "handicap" ? clubMode : "random",
       allowDuplicates,
-      getDrawLevel: (p) => p.draw_level ?? DRAW_LEVEL_DEFAULT,
+      getDrawLevel: (p) => resolveDrawLevel(p.draw_level),
     });
     if (!result) return;
     suspense.start(() => {
@@ -176,6 +174,7 @@ export default function FullMatchupScreen() {
       setSideClubs(result.clubs);
       setLockedPlayers(new Map());
       setLockedClubSides(new Set());
+      setUsedDuplicateClub(result.usedDuplicateClub);
       setRevealKey((k) => k + 1);
       announce(result.sides, result.clubs);
     });
@@ -213,6 +212,7 @@ export default function FullMatchupScreen() {
     if (!newClubs) return;
     suspense.start(() => {
       setSideClubs(newClubs);
+      setUsedDuplicateClub(newClubs[0].id === newClubs[1].id);
       setRevealKey((k) => k + 1);
       announce(sides, newClubs);
     });
@@ -223,6 +223,7 @@ export default function FullMatchupScreen() {
     setSideClubs(null);
     setLockedPlayers(new Map());
     setLockedClubSides(new Set());
+    setUsedDuplicateClub(false);
   };
 
   const togglePlayerLock = (playerId: string, sideIndex: number) => {
@@ -394,6 +395,7 @@ export default function FullMatchupScreen() {
 
         {sides ? (
           <ResultRevealCard revealKey={revealKey}>
+            {usedDuplicateClub && !allowDuplicates ? <Text style={styles.duplicateNote}>{t("draw.duplicateClubsUsed")}</Text> : null}
             {sides.map((side, sideIndex) => (
               <View key={sideIndex}>
                 <Card variant="elevated" style={styles.sideCard}>
@@ -530,6 +532,11 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: colors.textMuted,
     marginVertical: spacing.sm,
+  },
+  duplicateNote: {
+    ...typography.small,
+    color: colors.textMuted,
+    textAlign: "center",
   },
   recordAction: {
     marginTop: spacing.sm,

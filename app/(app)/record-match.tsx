@@ -13,6 +13,7 @@ import { useClubVersions } from "../../src/hooks/useClubVersions";
 import { useGroup } from "../../src/hooks/useGroup";
 import { usePlayers } from "../../src/hooks/usePlayers";
 import { useRecordMatch } from "../../src/hooks/useRecordMatch";
+import { useTranslation } from "../../src/lib/i18n";
 import { type MatchPrefillRouteParams, validateMatchPrefill } from "../../src/lib/matchPrefill";
 import { toPickablePlayer } from "../../src/lib/players";
 import type { ClubVersion, MatchType } from "../../src/lib/types/database";
@@ -23,6 +24,7 @@ const MIN_PLAYERS_TO_RECORD = 2;
 
 export default function RecordMatchScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const rawParams = useLocalSearchParams();
   const prefillParams: MatchPrefillRouteParams = {
     matchType: typeof rawParams.matchType === "string" ? rawParams.matchType : undefined,
@@ -48,6 +50,7 @@ export default function RecordMatchScreen() {
   const [penaltyScore1, setPenaltyScore1] = useState(0);
   const [penaltyScore2, setPenaltyScore2] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
+  const [showPrefillBanner, setShowPrefillBanner] = useState(false);
 
   // Apply a draw-result prefill (see app/(app)/draw/matchup.tsx) exactly once, as soon as
   // the roster/club data needed to re-validate it has loaded -- never on a later refetch,
@@ -68,6 +71,9 @@ export default function RecordMatchScreen() {
     setSide2PlayerIds(prefill.side2PlayerIds);
     setSide1ClubId(prefill.side1ClubId);
     setSide2ClubId(prefill.side2ClubId);
+    if (prefill.side1PlayerIds.length > 0 || prefill.side2PlayerIds.length > 0 || prefill.side1ClubId || prefill.side2ClubId) {
+      setShowPrefillBanner(true);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [players, clubVersions]);
 
@@ -160,6 +166,12 @@ export default function RecordMatchScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {showPrefillBanner ? (
+          <View style={styles.prefillBanner}>
+            <Text style={styles.prefillBannerText}>{t("draw.prefillBannerMessage")}</Text>
+          </View>
+        ) : null}
+
         <SegmentedControl
           options={[
             { value: "singles" as const, label: "1 v 1" },
@@ -282,6 +294,18 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
     paddingVertical: spacing.lg,
     paddingBottom: spacing.xxl,
+  },
+  prefillBanner: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSubtle,
+    padding: spacing.md,
+  },
+  prefillBannerText: {
+    ...typography.small,
+    color: colors.accent,
+    textAlign: "center",
   },
   sideCard: {
     gap: spacing.md,

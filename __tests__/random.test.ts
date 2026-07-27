@@ -1,4 +1,5 @@
-import { assignBalancedClubs, assignHandicapClubs, assignRandomClubs, filterClubsByExactStars, filterClubsByStarRange } from "../src/lib/random/clubs";
+import { assignBalancedClubs, assignHandicapClubs, assignRandomClubs, filterClubsByExactStars, filterClubsByStarRange, filterValidClubVersions } from "../src/lib/random/clubs";
+import { DRAW_LEVEL_DEFAULT, averageDrawLevel, resolveDrawLevel } from "../src/lib/random/drawLevel";
 import { chunkIntoSides, generateFullMatchup } from "../src/lib/random/matchup";
 import { createSeededRng, sample, shuffle } from "../src/lib/random/rng";
 import { movePlayerBetweenTeams, splitIntoBalancedTeams, splitIntoTeams } from "../src/lib/random/teams";
@@ -316,5 +317,50 @@ describe("generateFullMatchup", () => {
     });
     const strongSideStars = result!.sides[0][0].drawLevel === 5 ? result!.clubs![0].star_rating : result!.clubs![1].star_rating;
     expect(strongSideStars).toBe(1);
+  });
+});
+
+describe("resolveDrawLevel", () => {
+  it("returns the configured level unchanged", () => {
+    expect(resolveDrawLevel(5)).toBe(5);
+    expect(resolveDrawLevel(1)).toBe(1);
+  });
+
+  it("defaults a missing draw level to average (3), predictably, not by excluding the player", () => {
+    expect(resolveDrawLevel(null)).toBe(DRAW_LEVEL_DEFAULT);
+    expect(resolveDrawLevel(undefined)).toBe(DRAW_LEVEL_DEFAULT);
+  });
+});
+
+describe("averageDrawLevel", () => {
+  it("averages configured levels", () => {
+    const group = [{ level: 5 }, { level: 1 }];
+    expect(averageDrawLevel(group, (p) => p.level)).toBe(3);
+  });
+
+  it("substitutes the default for missing levels individually rather than dropping those players", () => {
+    const group = [{ level: 5 }, { level: null }];
+    expect(averageDrawLevel(group, (p) => p.level)).toBe((5 + DRAW_LEVEL_DEFAULT) / 2);
+  });
+
+  it("returns the default for an empty group", () => {
+    expect(averageDrawLevel([], () => null)).toBe(DRAW_LEVEL_DEFAULT);
+  });
+});
+
+describe("filterValidClubVersions", () => {
+  it("drops entries with a missing or non-numeric star rating without crashing", () => {
+    const input = [
+      { id: "a", star_rating: 4 },
+      { id: "b", star_rating: null },
+      { id: "c", star_rating: undefined },
+      { id: "d", star_rating: 3.5 },
+    ];
+    const result = filterValidClubVersions(input);
+    expect(result.map((c) => c.id)).toEqual(["a", "d"]);
+  });
+
+  it("returns an empty array when every entry is invalid, instead of throwing", () => {
+    expect(filterValidClubVersions([{ id: "a", star_rating: null }])).toEqual([]);
   });
 });

@@ -1,4 +1,5 @@
 import { assignBalancedClubs, assignHandicapClubs, assignRandomClubs } from "./clubs";
+import { averageDrawLevel } from "./drawLevel";
 import { type RNG, defaultRNG, sample } from "./rng";
 import { splitIntoTeams } from "./teams";
 
@@ -17,6 +18,8 @@ export interface FullMatchupResult<P, C> {
   sides: [P[], P[]];
   /** null when the club pool was empty -- players/sides are still valid, there's just no club to show yet. */
   clubs: [C, C] | null;
+  /** True when the two sides ended up with the same club -- only possible when duplicates were allowed or the pool was too small to avoid it. */
+  usedDuplicateClub: boolean;
 }
 
 /** Splits a drawn player list into two sides in a fixed, non-randomized order (first half / second half). */
@@ -54,16 +57,12 @@ export function generateFullMatchup<P extends Identifiable, C extends StarRatedC
       })()
     : chunkIntoSides(drawn);
 
-  if (clubPool.length === 0) return { sides, clubs: null };
-
-  const DRAW_LEVEL_DEFAULT = 3;
-  const averageDrawLevel = (side: P[]) =>
-    side.length === 0 ? DRAW_LEVEL_DEFAULT : side.reduce((sum, p) => sum + (getDrawLevel?.(p) ?? DRAW_LEVEL_DEFAULT), 0) / side.length;
+  if (clubPool.length === 0) return { sides, clubs: null, usedDuplicateClub: false };
 
   let assignedClubs: C[];
   if (clubMode === "handicap") {
     // assignHandicapClubs returns results ordered by draw level, not input order -- map back by id to preserve side 0 / side 1.
-    const entries = sides.map((side, i) => ({ participant: { id: `side${i}` }, drawLevel: averageDrawLevel(side) }));
+    const entries = sides.map((side, i) => ({ participant: { id: `side${i}` }, drawLevel: averageDrawLevel(side, (p) => getDrawLevel?.(p) ?? null) }));
     const byId = new Map(assignHandicapClubs(entries, clubPool, { rng, allowDuplicates }).map((r) => [r.participant.id, r.club]));
     assignedClubs = entries.map((entry) => byId.get(entry.participant.id)!);
   } else if (clubMode === "balanced") {
@@ -72,5 +71,6 @@ export function generateFullMatchup<P extends Identifiable, C extends StarRatedC
     assignedClubs = assignRandomClubs(clubPool, 2, { rng, allowDuplicates }).assignments;
   }
 
-  return { sides, clubs: assignedClubs.length === 2 ? [assignedClubs[0], assignedClubs[1]] : null };
+  const usedDuplicateClub = assignedClubs.length === 2 && assignedClubs[0].id === assignedClubs[1].id;
+  return { sides, clubs: assignedClubs.length === 2 ? [assignedClubs[0], assignedClubs[1]] : null, usedDuplicateClub };
 }

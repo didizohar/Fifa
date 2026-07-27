@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "../lib/i18n";
 import { spacing, typography } from "../theme";
 import { Button } from "./Button";
 
@@ -7,12 +8,13 @@ interface ErrorStateProps {
   onRetry?: () => void;
 }
 
-export function ErrorState({ message = "Something went wrong.", onRetry }: ErrorStateProps) {
+export function ErrorState({ message, onRetry }: ErrorStateProps) {
+  const { t } = useTranslation();
   return (
     <View style={styles.container}>
       <Text style={styles.icon}>⚠️</Text>
-      <Text style={styles.message}>{message}</Text>
-      {onRetry ? <Button label="Try again" variant="secondary" onPress={onRetry} style={styles.action} /> : null}
+      <Text style={styles.message}>{message ?? t("common.somethingWentWrong")}</Text>
+      {onRetry ? <Button label={t("common.retry")} variant="secondary" onPress={onRetry} style={styles.action} /> : null}
     </View>
   );
 }

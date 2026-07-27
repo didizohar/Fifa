@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "../lib/i18n";
 import { colors, radius, spacing, typography } from "../theme";
 
 interface ScoreStepperProps {
@@ -9,6 +10,7 @@ interface ScoreStepperProps {
 }
 
 export function ScoreStepper({ label, value, onChange, max = 99 }: ScoreStepperProps) {
+  const { t } = useTranslation();
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
@@ -18,17 +20,17 @@ export function ScoreStepper({ label, value, onChange, max = 99 }: ScoreStepperP
           style={styles.button}
           disabled={value <= 0}
           accessibilityRole="button"
-          accessibilityLabel={`Decrease ${label}`}
+          accessibilityLabel={t("common.decreaseLabel", { label })}
         >
           <Text style={[styles.buttonLabel, value <= 0 && styles.buttonLabelDisabled]}>–</Text>
         </Pressable>
-        <Text style={styles.value} accessibilityLabel={`${label}: ${value}`}>{value}</Text>
+        <Text style={styles.value} accessibilityLabel={t("common.valueLabel", { label, value: String(value) })}>{value}</Text>
         <Pressable
           onPress={() => onChange(Math.min(max, value + 1))}
           style={styles.button}
           disabled={value >= max}
           accessibilityRole="button"
-          accessibilityLabel={`Increase ${label}`}
+          accessibilityLabel={t("common.increaseLabel", { label })}
         >
           <Text style={[styles.buttonLabel, value >= max && styles.buttonLabelDisabled]}>+</Text>
         </Pressable>

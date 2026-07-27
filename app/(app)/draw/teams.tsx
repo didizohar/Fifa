@@ -21,7 +21,7 @@ import { useGroup } from "../../../src/hooks/useGroup";
 import { usePlayers } from "../../../src/hooks/usePlayers";
 import { useTranslation } from "../../../src/lib/i18n";
 import { toPickablePlayer } from "../../../src/lib/players";
-import { movePlayerBetweenTeams, splitIntoBalancedTeams, splitIntoTeams } from "../../../src/lib/random";
+import { movePlayerBetweenTeams, resolveDrawLevel, splitIntoBalancedTeams, splitIntoTeams } from "../../../src/lib/random";
 import type { PlayerProfile } from "../../../src/lib/types/database";
 import { colors, iconSize, spacing, typography } from "../../../src/theme";
 
@@ -29,7 +29,6 @@ type TeamMode = "random" | "balanced";
 
 const MIN_TEAMS = 2;
 const MAX_TEAMS = 8;
-const DRAW_LEVEL_DEFAULT = 3;
 
 export default function TeamDrawScreen() {
   const router = useRouter();
@@ -74,7 +73,7 @@ export default function TeamDrawScreen() {
   const computeTeams = (lockedMap: Map<string, number>) => {
     const eligible = (players ?? []).filter((p) => selectedIds.includes(p.id));
     return mode === "balanced"
-      ? splitIntoBalancedTeams(eligible, teamCount, (p) => p.draw_level ?? DRAW_LEVEL_DEFAULT, { locked: lockedMap })
+      ? splitIntoBalancedTeams(eligible, teamCount, (p) => resolveDrawLevel(p.draw_level), { locked: lockedMap })
       : splitIntoTeams(eligible, teamCount, { locked: lockedMap });
   };
 
@@ -218,7 +217,7 @@ export default function TeamDrawScreen() {
                   }
                   placeholder={t("draw.teamLabel", { number: String(teamIndex + 1) })}
                 />
-                <Text style={styles.teamCount}>{team.length}</Text>
+                <Text style={styles.teamCount}>{t("draw.teamPlayerCount", { count: String(team.length) })}</Text>
                 {team.map((player) => {
                   const isLocked = locked.get(player.id) === teamIndex;
                   return (

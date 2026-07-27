@@ -10,6 +10,7 @@ import { TextField } from "../../../../src/components/TextField";
 import { useGroup } from "../../../../src/hooks/useGroup";
 import { useUpdatePlayer } from "../../../../src/hooks/usePlayerMutations";
 import { usePlayer } from "../../../../src/hooks/usePlayers";
+import { useTranslation } from "../../../../src/lib/i18n";
 import { colors, radius, spacing } from "../../../../src/theme";
 
 const COLOR_SWATCHES = ["#3EE07A", "#60A5FA", "#F5C451", "#F87171", "#C084FC", "#F97316", "#22D3EE"];
@@ -17,6 +18,7 @@ const COLOR_SWATCHES = ["#3EE07A", "#60A5FA", "#F5C451", "#F87171", "#C084FC", "
 export default function EditPlayerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { t } = useTranslation();
   const { currentGroupId } = useGroup();
   const { data: player, isLoading, isError, refetch } = usePlayer(id);
   const updatePlayer = useUpdatePlayer(currentGroupId);
@@ -92,13 +94,13 @@ export default function EditPlayerScreen() {
           </View>
         </View>
         <View style={styles.drawLevelSection}>
-          <Text style={styles.colorLabel}>Draw level (optional)</Text>
-          <Text style={styles.drawLevelHint}>Used only to balance random team and club draws -- not a performance rating.</Text>
+          <Text style={styles.colorLabel}>{t("draw.drawLevelLabel")}</Text>
+          <Text style={styles.drawLevelHint}>{t("draw.drawLevelHint")}</Text>
           <View style={styles.drawLevelRow}>
             <StarRating value={drawLevel} onChange={setDrawLevel} size={28} />
             {drawLevel !== null ? (
-              <Pressable onPress={() => setDrawLevel(null)} accessibilityRole="button" accessibilityLabel="Clear draw level">
-                <Text style={styles.drawLevelClear}>Clear</Text>
+              <Pressable onPress={() => setDrawLevel(null)} accessibilityRole="button" accessibilityLabel={t("draw.clearDrawLevel")}>
+                <Text style={styles.drawLevelClear}>{t("common.clear")}</Text>
               </Pressable>
             ) : null}
           </View>
