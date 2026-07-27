@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { LayoutAnimation, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../src/components/Avatar";
 import { Card } from "../../../src/components/Card";
+import { Chevron } from "../../../src/components/Chevron";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
 import { ExportButton } from "../../../src/components/ExportButton";
@@ -279,7 +280,7 @@ export default function LeaderboardsScreen() {
             accessibilityRole="button"
             accessibilityLabel="Previous month"
           >
-            <Ionicons name="chevron-back" size={20} color={colors.textPrimary} />
+            <Chevron direction="back" size={20} color={colors.textPrimary} />
           </Pressable>
           <Text style={styles.monthLabel}>{MONTH_LABEL.format(monthTarget)}</Text>
           <Pressable
@@ -292,7 +293,7 @@ export default function LeaderboardsScreen() {
             accessibilityRole="button"
             accessibilityLabel="Next month"
           >
-            <Ionicons name="chevron-forward" size={20} color={isFutureMonth ? colors.textMuted : colors.textPrimary} />
+            <Chevron direction="forward" size={20} color={isFutureMonth ? colors.textMuted : colors.textPrimary} />
           </Pressable>
         </View>
       ) : null}
@@ -508,7 +509,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
   pairAvatarOverlap: {
-    marginLeft: -12,
+    marginStart: -12,
     borderWidth: 2,
     borderColor: colors.surface,
     borderRadius: radius.pill,

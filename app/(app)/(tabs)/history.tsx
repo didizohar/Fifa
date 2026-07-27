@@ -411,7 +411,7 @@ const styles = StyleSheet.create({
   },
   dayHeader: {
     ...typography.eyebrow,
-    paddingLeft: 20 + spacing.sm,
+    paddingStart: 20 + spacing.sm,
     paddingTop: spacing.xs,
     paddingBottom: spacing.xs,
   },

@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
   },
   date: {
     ...typography.small,
-    marginLeft: "auto",
+    marginStart: "auto",
   },
   sideRow: {
     flexDirection: "row",

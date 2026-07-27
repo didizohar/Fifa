@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   },
   value: {
     ...typography.small,
-    marginLeft: spacing.xs,
+    marginStart: spacing.xs,
   },
   missing: {
     ...typography.small,

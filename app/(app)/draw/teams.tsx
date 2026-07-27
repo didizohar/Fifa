@@ -5,6 +5,7 @@ import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Switch, Text, Vie
 import { Avatar } from "../../../src/components/Avatar";
 import { Button } from "../../../src/components/Button";
 import { Card } from "../../../src/components/Card";
+import { Chevron } from "../../../src/components/Chevron";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
 import { PlayerPicker } from "../../../src/components/PlayerPicker";
@@ -233,7 +234,7 @@ export default function TeamDrawScreen() {
                         accessibilityLabel={t("draw.movePlayer", { name: player.display_name })}
                         hitSlop={6}
                       >
-                        <Ionicons name="chevron-back" size={iconSize.sm} color={teamIndex === 0 ? colors.textMuted : colors.accent} />
+                        <Chevron direction="back" size={iconSize.sm} color={teamIndex === 0 ? colors.textMuted : colors.accent} />
                       </Pressable>
                       <Pressable
                         onPress={() => movePlayer(player.id, teamIndex, teamIndex + 1)}
@@ -242,11 +243,7 @@ export default function TeamDrawScreen() {
                         accessibilityLabel={t("draw.movePlayer", { name: player.display_name })}
                         hitSlop={6}
                       >
-                        <Ionicons
-                          name="chevron-forward"
-                          size={iconSize.sm}
-                          color={teamIndex === teams.length - 1 ? colors.textMuted : colors.accent}
-                        />
+                        <Chevron direction="forward" size={iconSize.sm} color={teamIndex === teams.length - 1 ? colors.textMuted : colors.accent} />
                       </Pressable>
                       <Pressable
                         onPress={() => toggleLock(player.id, teamIndex)}

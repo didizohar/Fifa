@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surfaceElevated,
-    marginRight: spacing.sm,
+    marginEnd: spacing.sm,
   },
   clubChipSelected: {
     backgroundColor: colors.accentSubtle,

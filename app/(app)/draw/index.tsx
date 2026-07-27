@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import type { ComponentProps } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Card } from "../../../src/components/Card";
+import { Chevron } from "../../../src/components/Chevron";
 import { Screen } from "../../../src/components/Screen";
 import { useTranslation } from "../../../src/lib/i18n";
 import { colors, iconSize, radius, spacing, typography } from "../../../src/theme";
@@ -50,7 +51,7 @@ export default function DrawHubScreen() {
                 <Text style={styles.cardTitle}>{t(option.titleKey)}</Text>
                 <Text style={styles.cardSubtitle}>{t(option.subtitleKey)}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={iconSize.md} color={colors.textMuted} />
+              <Chevron direction="forward" size={iconSize.md} color={colors.textMuted} />
             </Card>
           </Pressable>
         ))}

@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
   },
   date: {
     ...typography.small,
-    marginLeft: "auto",
+    marginStart: "auto",
   },
   scoreboard: {
     alignItems: "center",
