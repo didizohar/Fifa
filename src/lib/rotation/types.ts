@@ -49,3 +49,53 @@ export interface RotationValidationIssue {
   code: "notDoublesMatch" | "duplicatePlayer";
   message: string;
 }
+
+export type WinnersStaySessionStatus = "active" | "completed";
+
+/** Enough of the session to restore it verbatim -- session.ts's one-slot undo buffer. */
+export interface WinnersStaySessionSnapshot {
+  currentPairA: ActivePair;
+  currentPairB: ActivePair | null;
+  waitingQueue: WaitingQueueItem[];
+  roundNumber: number;
+  lastRecordedMatchId: string | null;
+  updatedAt: string;
+}
+
+/**
+ * A persistent Winners Stay session spanning an entire playing evening.
+ * currentPairA/currentPairB are the two pairs actually accepted to play
+ * next; pendingRotation is a freshly-computed (and possibly redrawn)
+ * rotation still under review -- nothing about it is committed
+ * (currentPairB/waitingQueue) until acceptPendingRotation runs.
+ */
+export interface WinnersStaySession {
+  id: string;
+  groupId: string;
+  /** Every player eligible for this session (the pool the rotation draws from) -- not necessarily still all "active" by the time the session ends. */
+  activePlayerIds: string[];
+  currentPairA: ActivePair;
+  /** Null while this round's opposing pair is still a pending (possibly redrawable) preview, or during a Case 4 "waiting for players" gap. */
+  currentPairB: ActivePair | null;
+  pendingRotation: WinnersStayRotationResult | null;
+  waitingQueue: WaitingQueueItem[];
+  /** Completed rounds so far (a round completes the instant its match result is recorded, independent of whether its next-match preview has been accepted yet). */
+  roundNumber: number;
+  /** ISO 8601, same convention as matches.ts's played_at / created_at. */
+  startedAt: string;
+  updatedAt: string;
+  /** Idempotency guard -- advanceWinnersStaySession refuses to run twice for the same matchId. */
+  lastRecordedMatchId: string | null;
+  status: WinnersStaySessionStatus;
+  /** Highest consecutiveMatchesPlayed any pair has reached this session, updated as pairs rotate out (and, at summary time, compared against whichever pair is still on court). */
+  longestWinningRun: number;
+  previousSnapshot: WinnersStaySessionSnapshot | null;
+}
+
+export interface WinnersStaySessionSummary {
+  roundsPlayed: number;
+  durationMs: number;
+  playersUsedCount: number;
+  longestWinningRun: number;
+  finalWaitingQueue: WaitingQueueItem[];
+}
