@@ -7,6 +7,7 @@ import { ActionButton } from "../../../src/components/ActionButton";
 import { AnimatedNumber } from "../../../src/components/AnimatedNumber";
 import { Avatar } from "../../../src/components/Avatar";
 import { Badge, rankBadgeTone } from "../../../src/components/Badge";
+import { BarChart } from "../../../src/components/BarChart";
 import { Card } from "../../../src/components/Card";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
@@ -23,12 +24,12 @@ import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
 import { type DiscoveryItemType, selectHomeHighlights } from "../../../src/lib/discovery";
 import { useTranslation } from "../../../src/lib/i18n";
-import { DEFAULT_MATCH_FILTERS, filterMatches } from "../../../src/lib/matchFilters";
+import { selectInsightOfTheDay } from "../../../src/lib/leagueInsights";
+import { computeLeagueSummary, computeMatchesPerWeek } from "../../../src/lib/leagueStats";
 import { matchSideLabel, formatRelativeDate } from "../../../src/lib/format";
 import {
+  computeFormTrend,
   computeLastNStats,
-  computeMonthlyLeaderboard,
-  computeMostMatchesLeaderboard,
   computePlayerStats,
   computeStreaks,
   computeWinRateLeaderboard,
@@ -41,8 +42,9 @@ import { colors, radius, spacing, typography } from "../../../src/theme";
 
 const RANKINGS_PREVIEW = 5;
 const MATCHES_PREVIEW = 5;
-const ACTIVE_PREVIEW = 3;
+const TRENDING_PREVIEW = 5;
 const HIGHLIGHTS_COUNT = 4;
+const ACTIVITY_WEEKS = 8;
 
 const DISCOVERY_ICON: Record<DiscoveryItemType, string> = { fact: "💡", insight: "📈", record: "🏆", memory: "📅" };
 
@@ -73,6 +75,7 @@ export default function HomeScreen() {
   // entirely redundant network round-trip for data we're already fetching in full.
   const allMatches = fullHistory.data ?? EMPTY_MATCHES;
   const recentMatches = allMatches.slice(0, MATCHES_PREVIEW);
+  const latestMatch = allMatches[0] ?? null;
   const myPlayer = roster.find((p) => p.linked_user_id === user?.id) ?? null;
 
   const myStreak = useMemo(() => (myPlayer ? computeStreaks(myPlayer.id, allMatches) : null), [myPlayer, allMatches]);
@@ -80,15 +83,35 @@ export default function HomeScreen() {
   const myStats = useMemo(() => (myPlayer ? computePlayerStats(myPlayer.id, allMatches) : null), [myPlayer, allMatches]);
   const myRank = useMemo(() => (myPlayer ? computeWinRateRank(myPlayer.id, roster, allMatches) : null), [myPlayer, roster, allMatches]);
   const winRateLeaders = useMemo(() => computeWinRateLeaderboard(roster, allMatches), [roster, allMatches]);
+  const leagueSummary = useMemo(() => computeLeagueSummary(roster, allMatches), [roster, allMatches]);
+  const weeklyActivity = useMemo(
+    () => computeMatchesPerWeek(allMatches, new Date(), ACTIVITY_WEEKS),
+    // "now" is intentionally the only non-listed input -- week buckets only need to shift when a new
+    // calendar week starts, not on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allMatches],
+  );
 
-  const mostActive = useMemo(() => computeMostMatchesLeaderboard(roster, allMatches).slice(0, ACTIVE_PREVIEW), [roster, allMatches]);
-
-  const matchesThisMonth = useMemo(() => filterMatches(allMatches, { ...DEFAULT_MATCH_FILTERS, dateRange: "month" }), [allMatches]);
-  const monthlyTop = useMemo(() => {
-    const now = new Date();
-    return computeMonthlyLeaderboard(roster, allMatches, now.getFullYear(), now.getMonth())[0] ?? null;
+  const trendingPlayers = useMemo(() => {
+    return roster
+      .map((player) => ({ player, formTrend: computeFormTrend(player.id, allMatches) }))
+      .filter((r): r is typeof r & { formTrend: { trend: "improving" | "declining"; recentWinRate: number; previousWinRate: number } } => r.formTrend.trend === "improving" || r.formTrend.trend === "declining")
+      .map((r) => ({
+        player: r.player,
+        trend: r.formTrend.trend,
+        delta: r.formTrend.recentWinRate - r.formTrend.previousWinRate,
+        recentWinRate: r.formTrend.recentWinRate,
+      }))
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+      .slice(0, TRENDING_PREVIEW);
   }, [roster, allMatches]);
-  const topPerformer = winRateLeaders[0] ?? null;
+
+  const insightOfTheDay = useMemo(
+    () => selectInsightOfTheDay(roster, allMatches, new Date()),
+    // Same day-stable rationale as highlights below -- only rotates once per calendar day.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [roster, allMatches],
+  );
 
   const highlights = useMemo(() => {
     if (!myPlayer) return [];
@@ -117,7 +140,7 @@ export default function HomeScreen() {
                 <Avatar uri={myPlayer.avatar_url} name={myPlayer.display_name} color={myPlayer.custom_color} size={56} />
                 <View style={styles.heroInfo}>
                   <Text style={styles.heroGreeting}>{currentGroup?.name}</Text>
-                  <Text style={styles.heroName}>{myPlayer.display_name}</Text>
+                  <Text style={styles.heroName}>{t("home.greeting", { name: myPlayer.display_name })}</Text>
                 </View>
                 <Badge label={myRank ? `#${myRank.position} of ${myRank.of}` : "Not yet qualified"} tone={rankBadgeTone(myRank?.position ?? null)} />
               </View>
@@ -174,9 +197,9 @@ export default function HomeScreen() {
         <View style={styles.quickActions}>
           <ActionButton icon="add-circle" label={t("home.quickActionRecord")} onPress={() => router.push("/record-match")} />
           <ActionButton icon="shuffle" label={t("home.quickActionDraw")} onPress={() => router.push("/draw")} />
-          <ActionButton icon="person-add" label={t("home.quickActionAddPlayer")} onPress={() => router.push("/player/new")} />
+          <ActionButton icon="people" label={t("home.quickActionPlayers")} onPress={() => router.push("/players")} />
           <ActionButton icon="trophy" label={t("home.quickActionLeaderboards")} onPress={() => router.push("/leaderboards")} />
-          <ActionButton icon="time" label={t("home.quickActionHistory")} onPress={() => router.push("/history")} />
+          <ActionButton icon="shield-checkmark" label={t("home.quickActionLeagueManagement")} onPress={() => router.push("/league-management")} />
         </View>
 
         {isLoading ? (
@@ -185,60 +208,72 @@ export default function HomeScreen() {
           <ErrorState message="Couldn't load your dashboard. Check your connection and try again." onRetry={handleRefresh} />
         ) : (
           <>
-            <View style={styles.statTileRow}>
-              <StatTile label="Matches" value={allMatches.length} />
-              <StatTile label="Players" value={roster.length} />
-              <StatTile label="This month" value={matchesThisMonth.length} />
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t("home.leagueSummary")}</Text>
+              <View style={styles.statTileRow}>
+                <StatTile label={t("home.statMatchesPlayed")} value={leagueSummary.matchesPlayed} />
+                <StatTile label={t("home.statGoals")} value={leagueSummary.totalGoals} />
+                <StatTile label={t("home.statPlayers")} value={leagueSummary.playersCount} />
+                <StatTile label={t("home.statCurrentLeader")} value={leagueSummary.currentLeader?.playerName ?? t("home.noLeaderYet")} />
+              </View>
             </View>
 
-            {topPerformer || monthlyTop ? (
-              <View style={styles.highlightRow}>
-                {topPerformer ? (
-                  <Card compact variant="elevated" style={styles.highlightCard}>
-                    <Text style={styles.highlightLabel}>{t("home.topPerformer")}</Text>
-                    <Text style={styles.highlightName} numberOfLines={1}>
-                      {topPerformer.playerName}
-                    </Text>
-                    <Badge label={`${topPerformer.valueLabel} win rate`} tone="gold" />
-                  </Card>
-                ) : null}
-                {monthlyTop ? (
-                  <Card compact variant="elevated" style={styles.highlightCard}>
-                    <Text style={styles.highlightLabel}>{t("home.topThisMonth")}</Text>
-                    <Text style={styles.highlightName} numberOfLines={1}>
-                      {monthlyTop.playerName}
-                    </Text>
-                    <Badge label={monthlyTop.valueLabel} tone="accent" />
-                  </Card>
-                ) : null}
+            {latestMatch ? (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>{t("home.latestMatch")}</Text>
+                <MatchRow
+                  matchType={latestMatch.match_type}
+                  isPenalties={latestMatch.is_penalties}
+                  playedAtLabel={formatRelativeDate(latestMatch.played_at)}
+                  side1={{
+                    label: matchSideLabel(latestMatch.sides[0].players.map((p) => p.display_name)),
+                    clubName: latestMatch.sides[0].club?.name ?? "Unknown club",
+                    score: latestMatch.sides[0].score,
+                    result: latestMatch.sides[0].result,
+                  }}
+                  side2={{
+                    label: matchSideLabel(latestMatch.sides[1].players.map((p) => p.display_name)),
+                    clubName: latestMatch.sides[1].club?.name ?? "Unknown club",
+                    score: latestMatch.sides[1].score,
+                    result: latestMatch.sides[1].result,
+                  }}
+                  onPress={() => router.push(`/match/${latestMatch.id}`)}
+                />
               </View>
             ) : null}
 
-            {mostActive.length > 0 ? (
-              <Section
-                title={t("home.mostActive")}
-                seeAllLabel={t("home.seeAll")}
-                onSeeAll={() => router.push("/leaderboards")}
-                isEmpty={false}
-                emptyProps={{ title: "" }}
-              >
-                {mostActive.map((row, index) => (
-                  <RankingRow
-                    key={row.playerId}
-                    rank={index + 1}
-                    name={row.playerName}
-                    avatarUrl={row.avatarUrl}
-                    color={row.color}
-                    value={row.valueLabel}
-                    detail={row.detail}
-                    onPress={() => router.push(`/player/${row.playerId}`)}
-                  />
-                ))}
-              </Section>
-            ) : null}
+            <Section
+              title={t("home.trendingPlayers")}
+              seeAllLabel={t("home.seeAll")}
+              onSeeAll={() => router.push("/leaderboards")}
+              isEmpty={trendingPlayers.length === 0}
+              emptyProps={{ icon: "📈", title: t("home.notEnoughTrendData") }}
+            >
+              {trendingPlayers.map((row, index) => (
+                <RankingRow
+                  key={row.player.id}
+                  rank={index + 1}
+                  name={row.player.display_name}
+                  avatarUrl={row.player.avatar_url}
+                  color={row.player.custom_color}
+                  value={`${Math.round(row.recentWinRate * 100)}%`}
+                  detail={row.trend === "improving" ? t("home.rising") : t("home.falling")}
+                  movement={Math.round(row.delta * 100)}
+                  onPress={() => router.push(`/player/${row.player.id}`)}
+                />
+              ))}
+            </Section>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t("home.insightOfTheDay")}</Text>
+              <Card compact style={styles.insightCard}>
+                <Text style={styles.insightIcon}>💡</Text>
+                <Text style={styles.insightText}>{insightOfTheDay?.text ?? t("home.noInsightYet")}</Text>
+              </Card>
+            </View>
 
             <Section
-              title={t("home.rankings")}
+              title={t("home.topPlayers")}
               seeAllLabel={t("home.seeAll")}
               onSeeAll={() => router.push("/leaderboards")}
               isEmpty={winRateLeaders.length === 0}
@@ -273,6 +308,14 @@ export default function HomeScreen() {
                 />
               ))}
             </Section>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t("home.activity")}</Text>
+              <Card compact style={styles.activityCard}>
+                <Text style={styles.activityCaption}>{t("home.matchesPerWeek")}</Text>
+                <BarChart rows={weeklyActivity.map((w) => ({ label: w.weekLabel, value: w.count, valueLabel: String(w.count) }))} />
+              </Card>
+            </View>
 
             <Section
               title={t("home.recentMatches")}
@@ -435,19 +478,26 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.sm,
   },
-  highlightRow: {
+  insightCard: {
     flexDirection: "row",
+    alignItems: "flex-start",
     gap: spacing.sm,
   },
-  highlightCard: {
+  insightIcon: {
+    fontSize: 18,
+    lineHeight: 20,
+  },
+  insightText: {
+    ...typography.body,
     flex: 1,
-    gap: spacing.xs,
+    flexShrink: 1,
   },
-  highlightLabel: {
-    ...typography.eyebrow,
+  activityCard: {
+    gap: spacing.sm,
   },
-  highlightName: {
-    ...typography.bodyStrong,
+  activityCaption: {
+    ...typography.small,
+    color: colors.textSecondary,
   },
   section: {
     gap: spacing.sm,

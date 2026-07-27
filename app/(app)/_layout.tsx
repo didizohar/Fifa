@@ -27,6 +27,7 @@ export default function AppLayout() {
       <Stack.Screen name="draw/teams" options={{ headerShown: true, title: t("draw.createTeams"), ...themedHeaderOptions }} />
       <Stack.Screen name="draw/clubs" options={{ headerShown: true, title: t("draw.drawClubs"), ...themedHeaderOptions }} />
       <Stack.Screen name="draw/matchup" options={{ headerShown: true, title: t("draw.fullMatchup"), ...themedHeaderOptions }} />
+      <Stack.Screen name="league-management" options={{ headerShown: true, title: t("league.title"), ...themedHeaderOptions }} />
     </Stack>
   );
 }

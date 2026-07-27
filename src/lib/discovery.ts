@@ -97,12 +97,12 @@ export function generateDiscoveryItems(playerId: string, roster: MatchSidePlayer
 }
 
 /** A seed for the given calendar day (local time) -- stable within a day, different the next. */
-function dailySeed(now: Date): number {
+export function dailySeed(now: Date): number {
   return now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
 }
 
 /** Deterministic shuffle (LCG-based) -- not cryptographic, just enough that the same-score tiebreak order changes day to day instead of always favoring whichever generator ran first. */
-function seededShuffle<T>(items: T[], seed: number): T[] {
+export function seededShuffle<T>(items: T[], seed: number): T[] {
   let state = seed;
   const next = () => {
     state = (state * 1103515245 + 12345) & 0x7fffffff;
