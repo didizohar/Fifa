@@ -1,21 +1,16 @@
 import type { MatchSidePlayer, MatchSummary } from "../matches";
 import { computeClubPerformance, computeGoalStats, computeHeadToHead, computeLastNStats, computeMatchTypeSplit, computePlayerStats, computeWinRateRank, findSides } from "../stats";
-import { createTimelineBuckets, earliestPlayedDate, filterMatchesByRange, normalizeMatchDate } from "./dateRange";
-import type {
-  AnalyticsRange,
-  ClubUsageStat,
-  OpponentPerformance,
-  PerformanceTimelineBucket,
-  PlayerAnalyticsSummary,
-  RecentFormResult,
-  TimelinePoint,
-} from "./types";
+import { createTimelineBuckets, earliestPlayedDate, filterMatchesByRange, groupByBucket, normalizeMatchDate, toTimelinePoint, type TimelineBucket } from "./dateRange";
+import type { AnalyticsRange, ClubUsageStat, OpponentPerformance, PerformanceTimelineBucket, PlayerAnalyticsSummary, RecentFormResult, TimelinePoint } from "./types";
 
 /** Sentinel for calculatePlayerRankTimeline when the player hasn't qualified for the win-rate leaderboard yet (see stats.ts's WIN_RATE_MIN_PLAYED) -- distinguishable from any real 1-indexed rank. */
 export const NOT_RANKED = -1;
 
-function toTimelinePoint(bucket: PerformanceTimelineBucket, value: number): TimelinePoint {
-  return { bucketStart: bucket.bucketStart, label: bucket.label, value, matchesInBucket: bucket.matches };
+/** Shared by calculatePlayerPerformanceTimeline and calculatePlayerRankTimeline -- both need the same "this player's in-range matches, bucketed over the same span" starting point. */
+function ownMatchesAndBuckets(playerId: string, matches: MatchSummary[], range: AnalyticsRange, now: Date): { ownMatches: MatchSummary[]; buckets: TimelineBucket[] } {
+  const ownMatches = filterMatchesByRange(matches, range, now).filter((m) => findSides(playerId, m) !== null);
+  const buckets = createTimelineBuckets(range, now, { earliestDate: earliestPlayedDate(ownMatches) });
+  return { ownMatches, buckets };
 }
 
 /**
@@ -25,15 +20,11 @@ function toTimelinePoint(bucket: PerformanceTimelineBucket, value: number): Time
  * match history itself.
  */
 export function calculatePlayerPerformanceTimeline(playerId: string, matches: MatchSummary[], range: AnalyticsRange, now: Date = new Date()): PerformanceTimelineBucket[] {
-  const ownMatches = filterMatchesByRange(matches, range, now).filter((m) => findSides(playerId, m) !== null);
-  const buckets = createTimelineBuckets(range, now, { earliestDate: earliestPlayedDate(ownMatches) });
+  const { ownMatches, buckets } = ownMatchesAndBuckets(playerId, matches, range, now);
+  const grouped = groupByBucket(ownMatches, buckets, (m) => normalizeMatchDate(m.played_at));
 
-  return buckets.map((bucket) => {
-    const inBucket = ownMatches.filter((m) => {
-      const played = normalizeMatchDate(m.played_at)!;
-      return played.getTime() >= bucket.start.getTime() && played.getTime() < bucket.end.getTime();
-    });
-
+  return buckets.map((bucket, i) => {
+    const inBucket = grouped[i]!;
     let wins = 0;
     let losses = 0;
     let draws = 0;
@@ -74,24 +65,30 @@ export function calculatePlayerGoalDifferenceTimeline(playerId: string, matches:
  * up to that point -- not just matches inside `range`, since a career rank
  * shouldn't reset because a chart is zoomed into the last 30 days. Buckets
  * are still scoped to `range` so this timeline lines up with the others.
+ *
+ * Builds the cumulative "history so far" with a single sorted pass (a
+ * pointer that only ever advances) instead of re-filtering the entire
+ * match history once per bucket.
  */
 export function calculatePlayerRankTimeline(playerId: string, roster: MatchSidePlayer[], matches: MatchSummary[], range: AnalyticsRange, now: Date = new Date()): TimelinePoint[] {
-  const ownMatches = filterMatchesByRange(matches, range, now).filter((m) => findSides(playerId, m) !== null);
-  const buckets = createTimelineBuckets(range, now, { earliestDate: earliestPlayedDate(ownMatches) });
+  const { ownMatches, buckets } = ownMatchesAndBuckets(playerId, matches, range, now);
+  const grouped = groupByBucket(ownMatches, buckets, (m) => normalizeMatchDate(m.played_at));
 
-  return buckets.map((bucket) => {
-    const matchesInBucket = ownMatches.filter((m) => {
-      const played = normalizeMatchDate(m.played_at)!;
-      return played.getTime() >= bucket.start.getTime() && played.getTime() < bucket.end.getTime();
-    }).length;
+  const sortedByDate = matches
+    .map((m) => ({ match: m, date: normalizeMatchDate(m.played_at) }))
+    .filter((r): r is { match: MatchSummary; date: Date } => r.date !== null)
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
 
-    const upToHere = matches.filter((m) => {
-      const played = normalizeMatchDate(m.played_at);
-      return played !== null && played.getTime() < bucket.end.getTime();
-    });
-    const rank = computeWinRateRank(playerId, roster, upToHere);
+  const cumulative: MatchSummary[] = [];
+  let cursor = 0;
 
-    return { bucketStart: bucket.bucketStart, label: bucket.label, value: rank ? rank.position : NOT_RANKED, matchesInBucket };
+  return buckets.map((bucket, i) => {
+    while (cursor < sortedByDate.length && sortedByDate[cursor]!.date.getTime() < bucket.end.getTime()) {
+      cumulative.push(sortedByDate[cursor]!.match);
+      cursor++;
+    }
+    const rank = computeWinRateRank(playerId, roster, cumulative);
+    return { bucketStart: bucket.bucketStart, label: bucket.label, value: rank ? rank.position : NOT_RANKED, matchesInBucket: grouped[i]!.length };
   });
 }
 
@@ -140,14 +137,16 @@ export function calculatePlayerClubUsage(playerId: string, matches: MatchSummary
 /** Everything the player analytics screen needs for one player, over one range, in one call. */
 export function calculatePlayerAnalytics(playerId: string, roster: MatchSidePlayer[], matches: MatchSummary[], range: AnalyticsRange, now: Date = new Date()): PlayerAnalyticsSummary {
   const inRange = filterMatchesByRange(matches, range, now);
-  const ownInRange = inRange.filter((m) => findSides(playerId, m) !== null);
+  const overall = computePlayerStats(playerId, inRange);
   const split = computeMatchTypeSplit(playerId, inRange);
 
   return {
     playerId,
     range,
-    matchesConsidered: ownInRange.length,
-    overall: computePlayerStats(playerId, inRange),
+    // computePlayerStats already scans inRange for this player's matches --
+    // reuse its count instead of a second full-array filter pass just for the total.
+    matchesConsidered: overall.played,
+    overall,
     singles: split.singles,
     doubles: split.doubles,
     goals: computeGoalStats(playerId, inRange),

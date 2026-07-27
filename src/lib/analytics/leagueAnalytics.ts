@@ -1,6 +1,6 @@
 import type { MatchSidePlayer, MatchSummary } from "../matches";
 import { computePlayerStats } from "../stats";
-import { createTimelineBuckets, earliestPlayedDate, filterMatchesByRange, normalizeMatchDate } from "./dateRange";
+import { createTimelineBuckets, earliestPlayedDate, filterMatchesByRange, groupByBucket, normalizeMatchDate, toTimelinePoint } from "./dateRange";
 import { calculatePlayerWinRateTimeline } from "./playerAnalytics";
 import type {
   AnalyticsRange,
@@ -32,26 +32,18 @@ interface LeagueTimelineBucket {
 function buildLeagueTimelineBuckets(matches: MatchSummary[], range: AnalyticsRange, now: Date): LeagueTimelineBucket[] {
   const inRange = filterMatchesByRange(matches, range, now);
   const buckets = createTimelineBuckets(range, now, { earliestDate: earliestPlayedDate(inRange) });
+  const grouped = groupByBucket(inRange, buckets, (m) => normalizeMatchDate(m.played_at));
 
-  return buckets.map((bucket) => {
-    const inBucket = inRange.filter((m) => {
-      const played = normalizeMatchDate(m.played_at)!;
-      return played.getTime() >= bucket.start.getTime() && played.getTime() < bucket.end.getTime();
-    });
-
+  return buckets.map((bucket, i) => {
     let totalGoals = 0;
     let totalAbsGoalDiff = 0;
-    for (const match of inBucket) {
+    for (const match of grouped[i]!) {
       totalGoals += match.sides[0].score + match.sides[1].score;
       totalAbsGoalDiff += Math.abs(match.sides[0].score - match.sides[1].score);
     }
 
-    return { bucketStart: bucket.bucketStart, label: bucket.label, matches: inBucket.length, totalGoals, totalAbsGoalDiff };
+    return { bucketStart: bucket.bucketStart, label: bucket.label, matches: grouped[i]!.length, totalGoals, totalAbsGoalDiff };
   });
-}
-
-function toTimelinePoint(bucket: LeagueTimelineBucket, value: number): TimelinePoint {
-  return { bucketStart: bucket.bucketStart, label: bucket.label, value, matchesInBucket: bucket.matches };
 }
 
 export function calculateMatchesTimeline(matches: MatchSummary[], range: AnalyticsRange, now: Date = new Date()): TimelinePoint[] {
@@ -166,15 +158,11 @@ export function calculateMonthlyActivity(matches: MatchSummary[], range: Analyti
 export function calculateTopScorersTimeline(matches: MatchSummary[], range: AnalyticsRange, now: Date = new Date()): TopScorerTimelinePoint[] {
   const inRange = filterMatchesByRange(matches, range, now);
   const buckets = createTimelineBuckets(range, now, { earliestDate: earliestPlayedDate(inRange) });
+  const grouped = groupByBucket(inRange, buckets, (m) => normalizeMatchDate(m.played_at));
 
-  return buckets.map((bucket) => {
-    const inBucket = inRange.filter((m) => {
-      const played = normalizeMatchDate(m.played_at)!;
-      return played.getTime() >= bucket.start.getTime() && played.getTime() < bucket.end.getTime();
-    });
-
+  return buckets.map((bucket, i) => {
     const goalsByPlayer = new Map<string, { name: string; goals: number }>();
-    for (const match of inBucket) {
+    for (const match of grouped[i]!) {
       for (const side of match.sides) {
         for (const player of side.players) {
           const entry = goalsByPlayer.get(player.id) ?? { name: player.display_name, goals: 0 };

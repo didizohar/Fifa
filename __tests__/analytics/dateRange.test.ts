@@ -3,6 +3,7 @@ import {
   earliestPlayedDate,
   filterMatchesByRange,
   getAnalyticsRangeStart,
+  groupByBucket,
   normalizeMatchDate,
   resolveTimelineGranularity,
 } from "../../src/lib/analytics/dateRange";
@@ -149,5 +150,40 @@ describe("createTimelineBuckets", () => {
     const now = new Date(2026, 6, 27);
     const farPast = new Date(1000, 0, 1);
     expect(() => createTimelineBuckets("all", now, { earliestDate: farPast })).not.toThrow();
+  });
+
+  it("bucketStart reflects each bucket's own LOCAL calendar day, not a UTC-shifted one -- regression test for a bug where toISOString() rolled midnight back a day in zones ahead of UTC", () => {
+    const now = new Date(2026, 6, 27, 12);
+    for (const bucket of createTimelineBuckets("7d", now)) {
+      const expected = `${bucket.start.getFullYear()}-${String(bucket.start.getMonth() + 1).padStart(2, "0")}-${String(bucket.start.getDate()).padStart(2, "0")}`;
+      expect(bucket.bucketStart).toBe(expected);
+    }
+  });
+});
+
+describe("groupByBucket", () => {
+  const now = new Date(2026, 6, 27, 12);
+  const buckets = createTimelineBuckets("7d", now);
+
+  it("assigns each item to exactly the bucket containing its date", () => {
+    const items = [{ at: now }, { at: new Date(now.getTime() - 86_400_000) }];
+    const groups = groupByBucket(items, buckets, (i) => i.at);
+    expect(groups).toHaveLength(buckets.length);
+    expect(groups[groups.length - 1]).toEqual([items[0]]);
+    expect(groups[groups.length - 2]).toEqual([items[1]]);
+  });
+
+  it("omits items with a null date or a date outside every bucket, without throwing", () => {
+    const items = [{ at: null as Date | null }, { at: new Date(now.getTime() + 30 * 86_400_000) }];
+    expect(() => groupByBucket(items, buckets, (i) => i.at)).not.toThrow();
+    const groups = groupByBucket(items, buckets, (i) => i.at);
+    expect(groups.flat()).toEqual([]);
+  });
+
+  it("matches the naive per-bucket-filter result exactly (correctness check for the binary-search grouping)", () => {
+    const dates = Array.from({ length: 50 }, (_, i) => new Date(now.getTime() - i * 43_200_000)); // every 12h back
+    const grouped = groupByBucket(dates, buckets, (d) => d);
+    const naive = buckets.map((b) => dates.filter((d) => d.getTime() >= b.start.getTime() && d.getTime() < b.end.getTime()));
+    expect(grouped).toEqual(naive);
   });
 });

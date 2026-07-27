@@ -1,5 +1,5 @@
 import type { MatchSummary } from "../matches";
-import type { AnalyticsRange, TimelineGranularity } from "./types";
+import type { AnalyticsRange, TimelineGranularity, TimelinePoint } from "./types";
 
 const MONTH_LABEL = new Intl.DateTimeFormat(undefined, { month: "short", year: "numeric" });
 const DAY_LABEL = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
@@ -79,6 +79,20 @@ function labelFor(date: Date, granularity: TimelineGranularity): string {
   return granularity === "month" ? MONTH_LABEL.format(date) : DAY_LABEL.format(date);
 }
 
+/**
+ * yyyy-mm-dd for `date`'s LOCAL calendar day. Deliberately not
+ * `date.toISOString().slice(0, 10)` -- that converts to UTC first, which
+ * rolls a local midnight back a day in any zone ahead of UTC (e.g. local
+ * midnight Jul 20 in UTC+3 is Jul 19T21:00 UTC), silently mismatching the
+ * locale-formatted `label` for the same bucket.
+ */
+function toLocalDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 /** Earliest parseable played_at among the given matches, or undefined for an empty/all-invalid list. */
 export function earliestPlayedDate(matches: MatchSummary[]): Date | undefined {
   let earliest: Date | undefined;
@@ -140,9 +154,54 @@ export function createTimelineBuckets(range: AnalyticsRange, now: Date = new Dat
   let guard = 0;
   while (cursor.getTime() <= lastBucketStart.getTime() && guard < 10_000) {
     const end = nextBucketStart(cursor, granularity);
-    buckets.push({ start: new Date(cursor), end, bucketStart: cursor.toISOString().slice(0, 10), label: labelFor(cursor, granularity) });
+    buckets.push({ start: new Date(cursor), end, bucketStart: toLocalDateString(cursor), label: labelFor(cursor, granularity) });
     cursor = end;
     guard++;
   }
   return buckets;
+}
+
+/**
+ * Assigns each item to the bucket containing its date, in one pass over
+ * items with a binary search per item (buckets are sorted and
+ * non-overlapping) -- O(n log b) instead of the O(n * b) every caller used
+ * to pay by filtering the full item list once per bucket. Items whose date
+ * is null (unparseable) or outside every bucket (e.g. a future-dated match
+ * past the last bucket) are simply omitted, same as the filters they replace.
+ */
+export function groupByBucket<T>(items: readonly T[], buckets: readonly TimelineBucket[], getDate: (item: T) => Date | null): T[][] {
+  const groups: T[][] = buckets.map(() => []);
+
+  for (const item of items) {
+    const date = getDate(item);
+    if (!date) continue;
+    const time = date.getTime();
+
+    let lo = 0;
+    let hi = buckets.length - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const bucket = buckets[mid]!;
+      if (time < bucket.start.getTime()) hi = mid - 1;
+      else if (time >= bucket.end.getTime()) lo = mid + 1;
+      else {
+        groups[mid]!.push(item);
+        break;
+      }
+    }
+  }
+
+  return groups;
+}
+
+/** Anything shaped like a bucket with a match count -- both PerformanceTimelineBucket and leagueAnalytics.ts's internal bucket type satisfy this. */
+export interface BucketedCount {
+  bucketStart: string;
+  label: string;
+  matches: number;
+}
+
+/** Shared by every calculate*Timeline function so each metric doesn't redefine the same {bucketStart, label, value, matchesInBucket} mapping. */
+export function toTimelinePoint(bucket: BucketedCount, value: number): TimelinePoint {
+  return { bucketStart: bucket.bucketStart, label: bucket.label, value, matchesInBucket: bucket.matches };
 }
