@@ -22,7 +22,9 @@ export function SegmentedControl<T extends string>({ options, value, onChange }:
             accessibilityRole="button"
             accessibilityState={{ selected: active, disabled: opt.disabled }}
           >
-            <Text style={[styles.label, active && styles.labelActive]}>{opt.label}</Text>
+            <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
+              {opt.label}
+            </Text>
           </Pressable>
         );
       })}

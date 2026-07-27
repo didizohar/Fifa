@@ -121,16 +121,29 @@ export function calculateOpponentPerformance(playerId: string, roster: MatchSide
     .sort((a, b) => b.played - a.played);
 }
 
-/** playerId's club breakdown (stats.ts's computeClubPerformance) with each club's share of the player's considered matches added. */
+/** playerId's club breakdown (stats.ts's computeClubPerformance) with each club's share of the player's considered matches, and goals for/against, added. */
 export function calculatePlayerClubUsage(playerId: string, matches: MatchSummary[]): ClubUsageStat[] {
   const rows = computeClubPerformance(playerId, matches);
   const totalPlayed = rows.reduce((sum, r) => sum + r.played, 0);
+
+  const goalsByClub = new Map<string, { goalsFor: number; goalsAgainst: number }>();
+  for (const match of matches) {
+    const sides = findSides(playerId, match);
+    if (!sides?.own.club) continue;
+    const entry = goalsByClub.get(sides.own.club.id) ?? { goalsFor: 0, goalsAgainst: 0 };
+    entry.goalsFor += sides.own.score;
+    entry.goalsAgainst += sides.opponent.score;
+    goalsByClub.set(sides.own.club.id, entry);
+  }
+
   return rows.map((r) => ({
     clubId: r.clubId,
     clubName: r.clubName,
     matchesPlayed: r.played,
     winRate: r.winRate,
     share: totalPlayed === 0 ? 0 : r.played / totalPlayed,
+    goalsFor: goalsByClub.get(r.clubId)?.goalsFor ?? 0,
+    goalsAgainst: goalsByClub.get(r.clubId)?.goalsAgainst ?? 0,
   }));
 }
 
@@ -139,6 +152,11 @@ export function calculatePlayerAnalytics(playerId: string, roster: MatchSidePlay
   const inRange = filterMatchesByRange(matches, range, now);
   const overall = computePlayerStats(playerId, inRange);
   const split = computeMatchTypeSplit(playerId, inRange);
+
+  // Computed once and reused for every derived *Timeline below (same values
+  // calculatePlayerWinRateTimeline/GoalsTimeline/MatchesTimeline/GoalDifferenceTimeline
+  // each produce standalone) -- avoids bucketing this player's whole history four times over.
+  const performanceTimeline = calculatePlayerPerformanceTimeline(playerId, matches, range, now);
 
   return {
     playerId,
@@ -151,11 +169,12 @@ export function calculatePlayerAnalytics(playerId: string, roster: MatchSidePlay
     doubles: split.doubles,
     goals: computeGoalStats(playerId, inRange),
     recentForm: calculatePlayerRecentForm(playerId, matches),
-    winRateTimeline: calculatePlayerWinRateTimeline(playerId, matches, range, now),
-    goalsTimeline: calculatePlayerGoalsTimeline(playerId, matches, range, now),
-    matchesTimeline: calculatePlayerMatchesTimeline(playerId, matches, range, now),
-    goalDifferenceTimeline: calculatePlayerGoalDifferenceTimeline(playerId, matches, range, now),
+    winRateTimeline: performanceTimeline.map((b) => toTimelinePoint(b, b.matches === 0 ? 0 : b.wins / b.matches)),
+    goalsTimeline: performanceTimeline.map((b) => toTimelinePoint(b, b.goalsFor)),
+    matchesTimeline: performanceTimeline.map((b) => toTimelinePoint(b, b.matches)),
+    goalDifferenceTimeline: performanceTimeline.map((b) => toTimelinePoint(b, b.goalsFor - b.goalsAgainst)),
     rankTimeline: calculatePlayerRankTimeline(playerId, roster, matches, range, now),
+    performanceTimeline,
     opponents: calculateOpponentPerformance(playerId, roster, inRange),
     clubUsage: calculatePlayerClubUsage(playerId, inRange),
   };

@@ -47,6 +47,8 @@ export interface ClubUsageStat {
   winRate: number | null;
   /** Share of the considered matches (0-1) that used this club. */
   share: number;
+  goalsFor: number;
+  goalsAgainst: number;
 }
 
 export interface RecentFormResult {
@@ -127,6 +129,8 @@ export interface PlayerAnalyticsSummary {
   matchesTimeline: TimelinePoint[];
   goalDifferenceTimeline: TimelinePoint[];
   rankTimeline: TimelinePoint[];
+  /** The raw per-bucket win/loss/draw + goals breakdown every *Timeline above is derived from -- exposed directly for a combined performance view. */
+  performanceTimeline: PerformanceTimelineBucket[];
   opponents: OpponentPerformance[];
   clubUsage: ClubUsageStat[];
 }

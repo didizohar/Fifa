@@ -2,31 +2,48 @@ import { useMemo, useRef, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { AnalyticsRangeSelector } from "../../../../src/components/AnalyticsRangeSelector";
 import { Avatar } from "../../../../src/components/Avatar";
 import { Badge, rankBadgeTone } from "../../../../src/components/Badge";
 import { BarChart } from "../../../../src/components/BarChart";
 import { Button } from "../../../../src/components/Button";
 import { Card } from "../../../../src/components/Card";
 import { CareerSummaryCard } from "../../../../src/components/CareerSummaryCard";
+import { ClubUsageList } from "../../../../src/components/ClubUsageList";
+import { ErrorBoundary } from "../../../../src/components/ErrorBoundary";
 import { ErrorState } from "../../../../src/components/ErrorState";
 import { FormStrip } from "../../../../src/components/FormStrip";
+import { InfoBanner } from "../../../../src/components/InfoBanner";
+import { OpponentPerformanceList } from "../../../../src/components/OpponentPerformanceList";
+import { PerformanceTimelineChart } from "../../../../src/components/PerformanceTimelineChart";
 import { PlayerPicker } from "../../../../src/components/PlayerPicker";
+import { RecentFormCard } from "../../../../src/components/RecentFormCard";
 import { Screen } from "../../../../src/components/Screen";
 import { SegmentedControl } from "../../../../src/components/SegmentedControl";
-import { Skeleton } from "../../../../src/components/Skeleton";
+import { Skeleton, SkeletonList } from "../../../../src/components/Skeleton";
 import { Sparkline } from "../../../../src/components/Sparkline";
 import { StatTile } from "../../../../src/components/StatTile";
+import { TimelineChart } from "../../../../src/components/TimelineChart";
 import { useAuth } from "../../../../src/hooks/useAuth";
 import { useGroup } from "../../../../src/hooks/useGroup";
 import { useGroupMatchHistory, usePlayerMatchHistory } from "../../../../src/hooks/useMatches";
 import { useArchivePlayer, useUpdatePlayer } from "../../../../src/hooks/usePlayerMutations";
 import { usePlayer, usePlayers } from "../../../../src/hooks/usePlayers";
 import { computeAllAchievements } from "../../../../src/lib/achievements";
+import { calculatePlayerAnalytics, NOT_RANKED } from "../../../../src/lib/analytics/playerAnalytics";
+import type { AnalyticsRange, TimelinePoint } from "../../../../src/lib/analytics/types";
 import { confirmAction, notify } from "../../../../src/lib/confirm";
 import { formatRelativeDate, matchSideLabel } from "../../../../src/lib/format";
 import { generateFunFacts, type FunFact } from "../../../../src/lib/facts";
+import { useTranslation } from "../../../../src/lib/i18n";
 import { generateInsights, type Insight } from "../../../../src/lib/insights";
 import type { MatchSummary } from "../../../../src/lib/matches";
+import {
+  hasUnparseableOwnMatchDates,
+  resolvePlayerAnalyticsNotices,
+  summarizeTimelineTrend,
+  type PlayerAnalyticsNotice,
+} from "../../../../src/lib/playerAnalyticsView";
 import { toPickablePlayer, type PickablePlayer } from "../../../../src/lib/players";
 import { computeAllRecords, type RecordEntry } from "../../../../src/lib/records";
 import {
@@ -58,12 +75,21 @@ import { colors, spacing, typography } from "../../../../src/theme";
 const EMPTY_MATCHES: MatchSummary[] = [];
 const EMPTY_PLAYERS: PlayerProfile[] = [];
 
-type ProfileTab = "overview" | "charts" | "h2h";
-const TABS: { value: ProfileTab; label: string }[] = [
+type ProfileTab = "overview" | "charts" | "h2h" | "analytics";
+const BASE_TABS: { value: Exclude<ProfileTab, "analytics">; label: string }[] = [
   { value: "overview", label: "Overview" },
   { value: "charts", label: "Charts" },
   { value: "h2h", label: "Head-to-Head" },
 ];
+
+interface AnalyticsChartConfig {
+  key: string;
+  titleKey: string;
+  points: TimelinePoint[];
+  formatValue: (value: number) => string;
+  invert?: boolean;
+  isValueValid?: (point: TimelinePoint) => boolean;
+}
 
 function opponentLabel(playerId: string, match: MatchSummary): string {
   const sides = findSides(playerId, match);
@@ -79,6 +105,7 @@ export default function PlayerDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const { currentGroupId, currentRole } = useGroup();
   const { data: player, isLoading, isError, refetch } = usePlayer(id);
   const matchHistory = usePlayerMatchHistory(id);
@@ -93,7 +120,10 @@ export default function PlayerDetailScreen() {
   const [isSharing, setIsSharing] = useState(false);
   const [headToHeadOpponentId, setHeadToHeadOpponentId] = useState<string | null>(null);
   const [tab, setTab] = useState<ProfileTab>("overview");
+  const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>("30d");
   const careerCardRef = useRef<View>(null);
+
+  const tabs = useMemo(() => [...BASE_TABS, { value: "analytics" as const, label: t("playerAnalytics.tabLabel") }], [t]);
 
   const playerId = id ?? "";
   const matches = matchHistory.data ?? EMPTY_MATCHES;
@@ -161,6 +191,54 @@ export default function PlayerDetailScreen() {
   const specialConditions = useMemo(() => computeSpecialConditionsPerformance(playerId, matches), [playerId, matches]);
   const afterBreak = useMemo(() => computePerformanceAfterBreak(playerId, matches), [playerId, matches]);
   const monthlyTrend = useMemo(() => computePlayerMonthlyTrend(playerId, matches), [playerId, matches]);
+
+  // Stage 7 M2/M2.5 analytics engine -- every number in the Analytics tab comes from
+  // this single memoized call, never recalculated in the UI itself.
+  const playerAnalytics = useMemo(
+    () => calculatePlayerAnalytics(playerId, roster.data ?? EMPTY_PLAYERS, matches, analyticsRange),
+    [playerId, roster.data, matches, analyticsRange],
+  );
+
+  const analyticsNotices = useMemo<PlayerAnalyticsNotice[]>(
+    () =>
+      resolvePlayerAnalyticsNotices({
+        matchesConsidered: playerAnalytics.matchesConsidered,
+        isArchived: player ? !player.is_active : false,
+        hasUnparseableDates: hasUnparseableOwnMatchDates(playerId, matches),
+      }),
+    [playerAnalytics.matchesConsidered, player, playerId, matches],
+  );
+
+  const analyticsChartConfigs = useMemo<AnalyticsChartConfig[]>(
+    () => [
+      { key: "winRate", titleKey: "playerAnalytics.chartWinRateTimeline", points: playerAnalytics.winRateTimeline, formatValue: (v: number) => `${Math.round(v * 100)}%` },
+      { key: "goals", titleKey: "playerAnalytics.chartGoalsTimeline", points: playerAnalytics.goalsTimeline, formatValue: (v: number) => `${v}` },
+      { key: "matches", titleKey: "playerAnalytics.chartMatchesTimeline", points: playerAnalytics.matchesTimeline, formatValue: (v: number) => `${v}` },
+      {
+        key: "goalDiff",
+        titleKey: "playerAnalytics.chartGoalDifferenceTimeline",
+        points: playerAnalytics.goalDifferenceTimeline,
+        formatValue: (v: number) => (v > 0 ? `+${v}` : `${v}`),
+      },
+      {
+        key: "rank",
+        titleKey: "playerAnalytics.chartRankTimeline",
+        points: playerAnalytics.rankTimeline,
+        formatValue: (v: number) => `#${v}`,
+        invert: true,
+        isValueValid: (p: TimelinePoint) => p.matchesInBucket > 0 && p.value !== NOT_RANKED,
+      },
+    ],
+    [playerAnalytics],
+  );
+
+  const analyticsNoticeText: Record<PlayerAnalyticsNotice, string> = {
+    archivedPlayer: t("playerAnalytics.noticeArchived"),
+    noMatches: t("playerAnalytics.noticeNoMatches"),
+    oneMatchOnly: t("playerAnalytics.noticeOneMatch"),
+    insufficientSample: t("playerAnalytics.noticeInsufficientSample"),
+    legacyDataExcluded: t("playerAnalytics.noticeLegacyData"),
+  };
 
   if (isLoading) {
     return (
@@ -270,7 +348,7 @@ export default function PlayerDetailScreen() {
         </View>
 
         <View style={styles.tabRow}>
-          <SegmentedControl options={TABS} value={tab} onChange={setTab} />
+          <SegmentedControl options={tabs} value={tab} onChange={setTab} />
         </View>
 
         {tab === "overview" ? (
@@ -649,6 +727,117 @@ export default function PlayerDetailScreen() {
           </View>
         ) : null}
 
+        {tab === "analytics" ? (
+          <ErrorBoundary>
+            <View style={styles.tabContent}>
+              <Card>
+                <Text style={styles.sectionTitle}>{t("playerAnalytics.sectionOverview")}</Text>
+                <View style={styles.analyticsRangeRow}>
+                  <AnalyticsRangeSelector value={analyticsRange} onChange={setAnalyticsRange} />
+                </View>
+
+                {matchHistory.isLoading ? (
+                  <SkeletonList count={3} height={56} />
+                ) : matchHistory.isError ? (
+                  <InfoBanner tone="warning" message={t("playerAnalytics.loadFailed")} />
+                ) : (
+                  <>
+                    {analyticsNotices.length > 0 ? (
+                      <View style={styles.noticeStack}>
+                        {analyticsNotices.map((notice) => (
+                          <InfoBanner key={notice} tone={notice === "archivedPlayer" ? "warning" : "info"} message={analyticsNoticeText[notice]} />
+                        ))}
+                      </View>
+                    ) : null}
+
+                    <View style={styles.analyticsTileGrid}>
+                      <StatTile label={t("playerAnalytics.statMatches")} value={playerAnalytics.overall.played} style={styles.analyticsTile} />
+                      <StatTile
+                        label={t("playerAnalytics.statWinRate")}
+                        value={playerAnalytics.overall.winRate !== null ? `${Math.round(playerAnalytics.overall.winRate * 100)}%` : "–"}
+                        style={styles.analyticsTile}
+                      />
+                      <StatTile label={t("playerAnalytics.statGoals")} value={playerAnalytics.goals.goalsScored} style={styles.analyticsTile} />
+                      <StatTile
+                        label={t("playerAnalytics.statGoalsPerMatch")}
+                        value={playerAnalytics.goals.goalsPerMatch !== null ? playerAnalytics.goals.goalsPerMatch.toFixed(2) : "–"}
+                        style={styles.analyticsTile}
+                      />
+                      <StatTile
+                        label={t("playerAnalytics.statGoalDifference")}
+                        value={(() => {
+                          const diff = playerAnalytics.goals.goalsScored - playerAnalytics.goals.goalsConceded;
+                          return diff > 0 ? `+${diff}` : `${diff}`;
+                        })()}
+                        style={styles.analyticsTile}
+                      />
+                      <StatTile
+                        label={t("playerAnalytics.statCurrentStreak")}
+                        value={streaks.currentStreak.count > 0 ? `${streaks.currentStreak.count} ${streaks.currentStreak.result}` : t("playerAnalytics.streakNone")}
+                        style={styles.analyticsTile}
+                      />
+                    </View>
+
+                    <RecentFormCard form={playerAnalytics.recentForm.form} />
+                  </>
+                )}
+              </Card>
+
+              {!matchHistory.isLoading && !matchHistory.isError ? (
+                <>
+                  <Card>
+                    <Text style={styles.sectionTitle}>{t("playerAnalytics.sectionPerformance")}</Text>
+                    <View style={styles.chartGroup}>
+                      <Text style={styles.subLabel}>{t("playerAnalytics.chartPerformanceTimeline")}</Text>
+                      <PerformanceTimelineChart
+                        buckets={playerAnalytics.performanceTimeline}
+                        emptyMessage={t("playerAnalytics.chartNoData")}
+                        noDataLabel={t("playerAnalytics.chartNoDataPoint")}
+                      />
+                    </View>
+                    {analyticsChartConfigs
+                      .filter((cfg) => cfg.key === "matches" || cfg.key === "goals")
+                      .map((cfg) => (
+                        <AnalyticsTimelineSection key={cfg.key} config={cfg} t={t} />
+                      ))}
+                  </Card>
+
+                  <Card>
+                    <Text style={styles.sectionTitle}>{t("playerAnalytics.sectionTrends")}</Text>
+                    {analyticsChartConfigs
+                      .filter((cfg) => cfg.key === "winRate" || cfg.key === "goalDiff" || cfg.key === "rank")
+                      .map((cfg) => (
+                        <AnalyticsTimelineSection key={cfg.key} config={cfg} t={t} />
+                      ))}
+                  </Card>
+
+                  <Card>
+                    <Text style={styles.sectionTitle}>{t("playerAnalytics.sectionOpponents")}</Text>
+                    <OpponentPerformanceList
+                      opponents={playerAnalytics.opponents}
+                      emptyMessage={t("playerAnalytics.opponentsEmpty")}
+                      onSelectOpponent={(opponentId) => {
+                        setHeadToHeadOpponentId(opponentId);
+                        setTab("h2h");
+                      }}
+                    />
+                  </Card>
+
+                  <Card>
+                    <Text style={styles.sectionTitle}>{t("playerAnalytics.sectionClubs")}</Text>
+                    <ClubUsageList
+                      clubs={playerAnalytics.clubUsage}
+                      emptyMessage={t("playerAnalytics.clubsEmpty")}
+                      playedLabel={t("playerAnalytics.clubsPlayedLabel")}
+                      goalsLabel={t("playerAnalytics.clubsGoalsLabel")}
+                    />
+                  </Card>
+                </>
+              ) : null}
+            </View>
+          </ErrorBoundary>
+        ) : null}
+
         <View style={styles.actions}>
           <Button label="Share career card" variant="secondary" onPress={handleShareCareerCard} loading={isSharing} />
           {canManage ? (
@@ -689,6 +878,42 @@ function RecordStat({ label, value, color }: { label: string; value: number | st
     <View style={styles.recordStat}>
       <Text style={[styles.recordValue, color ? { color } : null]}>{value}</Text>
       <Text style={styles.recordLabel}>{label}</Text>
+    </View>
+  );
+}
+
+/** One titled TimelineChart, with its accessibility summary sentence built from the chart's own trend once (memoized per config/points). */
+function AnalyticsTimelineSection({ config, t }: { config: AnalyticsChartConfig; t: (key: string, params?: Record<string, string | number>) => string }) {
+  const trend = useMemo(() => {
+    const valid = config.isValueValid ? config.points.filter(config.isValueValid) : config.points;
+    return summarizeTimelineTrend(valid);
+  }, [config.points, config.isValueValid]);
+
+  const title = t(config.titleKey);
+  const summary = trend
+    ? t("playerAnalytics.chartSummaryA11y", {
+        metric: title,
+        firstValue: config.formatValue(trend.first.value),
+        firstLabel: trend.first.label,
+        lastValue: config.formatValue(trend.last.value),
+        lastLabel: trend.last.label,
+        min: config.formatValue(trend.min),
+        max: config.formatValue(trend.max),
+      })
+    : null;
+
+  return (
+    <View style={styles.chartGroup}>
+      <Text style={styles.subLabel}>{title}</Text>
+      <TimelineChart
+        points={config.points}
+        formatValue={config.formatValue}
+        emptyMessage={t("playerAnalytics.chartNoData")}
+        noDataLabel={config.key === "rank" ? t("playerAnalytics.rankNotQualified") : t("playerAnalytics.chartNoDataPoint")}
+        accessibilitySummary={summary}
+        invert={config.invert}
+        isValueValid={config.isValueValid}
+      />
     </View>
   );
 }
@@ -880,5 +1105,24 @@ const styles = StyleSheet.create({
     ...typography.caption,
     textAlign: "center",
     marginTop: spacing.xs,
+  },
+  analyticsRangeRow: {
+    marginBottom: spacing.md,
+  },
+  noticeStack: {
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  analyticsTileGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  analyticsTile: {
+    flexBasis: "31%",
+  },
+  chartGroup: {
+    marginBottom: spacing.lg,
   },
 });

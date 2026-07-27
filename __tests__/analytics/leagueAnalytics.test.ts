@@ -128,6 +128,16 @@ describe("calculateClubPopularity", () => {
     const matches = [makeMatch(win(["a"], 1), loss(["b"], 0))];
     expect(calculateClubPopularity(matches, "all")).toEqual([]);
   });
+
+  it("sums goals for/against per club across every side that used it, league-wide", () => {
+    const matches = [
+      makeMatch({ playerIds: ["a"], score: 2, result: "win", clubId: "barca", clubName: "Barcelona" }, { playerIds: ["b"], score: 1, result: "loss", clubId: "real", clubName: "Real Madrid" }),
+      makeMatch({ playerIds: ["c"], score: 0, result: "loss", clubId: "barca", clubName: "Barcelona" }, { playerIds: ["d"], score: 3, result: "win", clubId: "real", clubName: "Real Madrid" }),
+    ];
+    const rows = calculateClubPopularity(matches, "all");
+    expect(rows.find((r) => r.clubId === "barca")).toMatchObject({ goalsFor: 2, goalsAgainst: 4 });
+    expect(rows.find((r) => r.clubId === "real")).toMatchObject({ goalsFor: 4, goalsAgainst: 2 });
+  });
 });
 
 describe("calculateWeekdayActivity / calculateHourlyActivity", () => {

@@ -153,3 +153,67 @@ describe("Stage 6.1 draw translation coverage", () => {
     expect(typeof heValue === "string" && heValue.trim().length > 0).toBe(true);
   });
 });
+
+/** Explicit, named coverage for Stage 7 M3's player analytics tab (range selector, summary cards, timeline charts, recent form, opponents, clubs, and every empty/notice state). */
+describe("Stage 7 M3 player analytics translation coverage", () => {
+  const stage7M3Keys = [
+    "playerAnalytics.tabLabel",
+    "playerAnalytics.range7d",
+    "playerAnalytics.range30d",
+    "playerAnalytics.range90d",
+    "playerAnalytics.range1y",
+    "playerAnalytics.rangeAll",
+    "playerAnalytics.sectionOverview",
+    "playerAnalytics.sectionPerformance",
+    "playerAnalytics.sectionTrends",
+    "playerAnalytics.sectionOpponents",
+    "playerAnalytics.sectionClubs",
+    "playerAnalytics.statMatches",
+    "playerAnalytics.statWinRate",
+    "playerAnalytics.statGoals",
+    "playerAnalytics.statGoalsPerMatch",
+    "playerAnalytics.statGoalDifference",
+    "playerAnalytics.statCurrentStreak",
+    "playerAnalytics.streakNone",
+    "playerAnalytics.chartWinRateTimeline",
+    "playerAnalytics.chartGoalsTimeline",
+    "playerAnalytics.chartMatchesTimeline",
+    "playerAnalytics.chartGoalDifferenceTimeline",
+    "playerAnalytics.chartRankTimeline",
+    "playerAnalytics.chartPerformanceTimeline",
+    "playerAnalytics.chartNoData",
+    "playerAnalytics.chartNoDataPoint",
+    "playerAnalytics.chartSummaryA11y",
+    "playerAnalytics.rankNotQualified",
+    "playerAnalytics.recentFormEmpty",
+    "playerAnalytics.recentFormSummaryA11y",
+    "playerAnalytics.wins",
+    "playerAnalytics.draws",
+    "playerAnalytics.losses",
+    "playerAnalytics.formScore",
+    "playerAnalytics.winRateShort",
+    "playerAnalytics.sortMostPlayed",
+    "playerAnalytics.sortBestWinRate",
+    "playerAnalytics.sortWorstMatchup",
+    "playerAnalytics.sortGoalDifference",
+    "playerAnalytics.opponentsEmpty",
+    "playerAnalytics.clubsEmpty",
+    "playerAnalytics.clubsPlayedLabel",
+    "playerAnalytics.clubsGoalsLabel",
+    "playerAnalytics.noticeArchived",
+    "playerAnalytics.noticeNoMatches",
+    "playerAnalytics.noticeOneMatch",
+    "playerAnalytics.noticeInsufficientSample",
+    "playerAnalytics.noticeLegacyData",
+    "playerAnalytics.loadFailed",
+  ];
+
+  const readPath = (dict: unknown, path: string) => path.split(".").reduce<unknown>((acc, part) => (acc as Record<string, unknown>)?.[part], dict);
+
+  it.each(stage7M3Keys)("%s exists as a non-empty string in English and Hebrew", (path) => {
+    const enValue = readPath(en, path);
+    const heValue = readPath(he, path);
+    expect(typeof enValue === "string" && enValue.trim().length > 0).toBe(true);
+    expect(typeof heValue === "string" && heValue.trim().length > 0).toBe(true);
+  });
+});

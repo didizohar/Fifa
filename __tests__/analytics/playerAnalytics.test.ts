@@ -227,6 +227,17 @@ describe("calculatePlayerClubUsage", () => {
   it("returns an empty list for a player with no matches", () => {
     expect(calculatePlayerClubUsage("a", [])).toEqual([]);
   });
+
+  it("sums goals for/against per club from the player's own side only", () => {
+    const matches = [
+      makeMatch({ playerIds: ["a"], score: 3, result: "win", clubId: "barca", clubName: "Barcelona" }, loss(["b"], 1)),
+      makeMatch({ playerIds: ["a"], score: 2, result: "win", clubId: "barca", clubName: "Barcelona" }, loss(["b"], 0)),
+      makeMatch({ playerIds: ["a"], score: 0, result: "loss", clubId: "real", clubName: "Real Madrid" }, win(["b"], 1)),
+    ];
+    const usage = calculatePlayerClubUsage("a", matches);
+    expect(usage.find((u) => u.clubId === "barca")).toMatchObject({ goalsFor: 5, goalsAgainst: 1 });
+    expect(usage.find((u) => u.clubId === "real")).toMatchObject({ goalsFor: 0, goalsAgainst: 1 });
+  });
 });
 
 describe("calculatePlayerAnalytics", () => {
@@ -258,5 +269,20 @@ describe("calculatePlayerAnalytics", () => {
     const summary = calculatePlayerAnalytics("a", roster(["a", "b"]), [old], "7d", now);
     expect(summary.recentForm.stats.played).toBe(1);
     expect(summary.overall.played).toBe(0); // outside the 7d window
+  });
+
+  it("exposes performanceTimeline consistent with the derived winRate/goals/matches/goalDifference timelines", () => {
+    const matches = [
+      makeMatch(win(["a"], 3), loss(["b"], 1), { playedAt: now.toISOString() }),
+      makeMatch(loss(["a"], 0), win(["b"], 2), { playedAt: now.toISOString() }),
+    ];
+    const summary = calculatePlayerAnalytics("a", roster(["a", "b"]), matches, "7d", now);
+    const lastBucket = summary.performanceTimeline.at(-1)!;
+    expect(lastBucket).toMatchObject({ matches: 2, wins: 1, losses: 1, draws: 0, goalsFor: 3, goalsAgainst: 3 });
+
+    expect(summary.winRateTimeline.at(-1)!.value).toBeCloseTo(lastBucket.wins / lastBucket.matches);
+    expect(summary.goalsTimeline.at(-1)!.value).toBe(lastBucket.goalsFor);
+    expect(summary.matchesTimeline.at(-1)!.value).toBe(lastBucket.matches);
+    expect(summary.goalDifferenceTimeline.at(-1)!.value).toBe(lastBucket.goalsFor - lastBucket.goalsAgainst);
   });
 });

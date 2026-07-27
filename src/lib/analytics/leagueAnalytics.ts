@@ -84,16 +84,19 @@ export function calculatePlayerParticipation(roster: MatchSidePlayer[], matches:
  */
 export function calculateClubPopularity(matches: MatchSummary[], range: AnalyticsRange, now: Date = new Date()): ClubUsageStat[] {
   const inRange = filterMatchesByRange(matches, range, now);
-  const byClub = new Map<string, { name: string; matchesPlayed: number; wins: number }>();
+  const byClub = new Map<string, { name: string; matchesPlayed: number; wins: number; goalsFor: number; goalsAgainst: number }>();
   let totalAppearances = 0;
 
   for (const match of inRange) {
     for (const side of match.sides) {
       if (!side.club) continue;
       totalAppearances++;
-      const entry = byClub.get(side.club.id) ?? { name: side.club.name, matchesPlayed: 0, wins: 0 };
+      const opponentSide = match.sides.find((s) => s !== side)!;
+      const entry = byClub.get(side.club.id) ?? { name: side.club.name, matchesPlayed: 0, wins: 0, goalsFor: 0, goalsAgainst: 0 };
       entry.matchesPlayed++;
       if (side.result === "win") entry.wins++;
+      entry.goalsFor += side.score;
+      entry.goalsAgainst += opponentSide.score;
       byClub.set(side.club.id, entry);
     }
   }
@@ -105,6 +108,8 @@ export function calculateClubPopularity(matches: MatchSummary[], range: Analytic
       matchesPlayed: e.matchesPlayed,
       winRate: e.matchesPlayed === 0 ? null : e.wins / e.matchesPlayed,
       share: totalAppearances === 0 ? 0 : e.matchesPlayed / totalAppearances,
+      goalsFor: e.goalsFor,
+      goalsAgainst: e.goalsAgainst,
     }))
     .sort((a, b) => b.matchesPlayed - a.matchesPlayed);
 }
