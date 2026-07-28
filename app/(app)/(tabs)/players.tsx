@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "expo-router";
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, StyleSheet, Switch, Text, View } from "react-native";
 import { Avatar } from "../../../src/components/Avatar";
+import { Badge } from "../../../src/components/Badge";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
 import { ExportButton } from "../../../src/components/ExportButton";
@@ -25,7 +26,8 @@ const EMPTY_MATCHES: MatchSummary[] = [];
 export default function PlayersScreen() {
   const router = useRouter();
   const { currentGroupId } = useGroup();
-  const { data: players, isLoading, isError, refetch, isRefetching } = usePlayers(currentGroupId);
+  const [includeArchived, setIncludeArchived] = useState(false);
+  const { data: players, isLoading, isError, refetch, isRefetching } = usePlayers(currentGroupId, includeArchived);
   const matchHistory = useGroupMatchHistory(currentGroupId);
   const matches = matchHistory.data ?? EMPTY_MATCHES;
   const statsById = useMemo(
@@ -54,6 +56,11 @@ export default function PlayersScreen() {
             <Text style={styles.addButtonLabel}>+ Add</Text>
           </Pressable>
         </View>
+      </View>
+
+      <View style={styles.archivedToggleRow}>
+        <Text style={styles.archivedToggleLabel}>Include archived players</Text>
+        <Switch value={includeArchived} onValueChange={setIncludeArchived} trackColor={{ false: colors.border, true: colors.accentMuted }} thumbColor={colors.textPrimary} />
       </View>
 
       {isLoading ? (
@@ -98,7 +105,10 @@ function PlayerRow({ player, stats, onPress }: { player: PlayerProfile; stats: P
     >
       <Avatar uri={player.avatar_url} name={player.display_name} color={player.custom_color} size={44} />
       <View style={styles.rowInfo}>
-        <Text style={styles.rowName} numberOfLines={1}>{player.display_name}</Text>
+        <View style={styles.rowNameRow}>
+          <Text style={styles.rowName} numberOfLines={1}>{player.display_name}</Text>
+          {!player.is_active ? <Badge label="Archived" tone="warning" /> : null}
+        </View>
         {player.nickname ? <Text style={styles.rowNickname}>"{player.nickname}"</Text> : null}
       </View>
       <View style={styles.statGroup}>
@@ -140,6 +150,16 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontWeight: "700",
   },
+  archivedToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+  },
+  archivedToggleLabel: {
+    ...typography.caption,
+  },
   listPadding: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xxl,
@@ -161,8 +181,14 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  rowNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
   rowName: {
     ...typography.bodyStrong,
+    flexShrink: 1,
   },
   rowNickname: {
     ...typography.small,
