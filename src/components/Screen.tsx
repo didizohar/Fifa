@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { KeyboardAvoidingView, Platform, StyleSheet, View, ViewStyle } from "react-native";
+import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, TouchableWithoutFeedback, View, ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, spacing } from "../theme";
 
@@ -17,9 +17,15 @@ export function Screen({ children, style, padded = true }: ScreenProps) {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
       >
-        <View style={styles.webCenter}>
-          <View style={[styles.container, styles.webMaxWidth, padded && styles.padded, style]}>{children}</View>
-        </View>
+        {/* TouchableWithoutFeedback only fires when a touch isn't claimed by a
+            child responder first, so this never steals taps from buttons,
+            inputs, or scroll gestures -- it only dismisses the keyboard when
+            the user taps genuinely empty space. */}
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <View style={styles.webCenter}>
+            <View style={[styles.container, styles.webMaxWidth, padded && styles.padded, style]}>{children}</View>
+          </View>
+        </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
