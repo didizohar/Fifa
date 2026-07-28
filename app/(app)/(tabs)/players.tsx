@@ -13,6 +13,7 @@ import { useGroup } from "../../../src/hooks/useGroup";
 import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
 import { playerStatsToCsv } from "../../../src/lib/csv";
+import { useTranslation } from "../../../src/lib/i18n";
 import { computeAllPlayerStats, type PlayerStats } from "../../../src/lib/stats";
 import type { MatchSummary } from "../../../src/lib/matches";
 import type { PlayerProfile } from "../../../src/lib/types/database";
@@ -25,6 +26,7 @@ const EMPTY_MATCHES: MatchSummary[] = [];
 
 export default function PlayersScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { currentGroupId } = useGroup();
   const [includeArchived, setIncludeArchived] = useState(false);
   const { data: players, isLoading, isError, refetch, isRefetching } = usePlayers(currentGroupId, includeArchived);
@@ -38,11 +40,11 @@ export default function PlayersScreen() {
   return (
     <Screen padded={false}>
       <View style={styles.header}>
-        <Text style={styles.title}>Players</Text>
+        <Text style={styles.title}>{t("players.title")}</Text>
         <View style={styles.headerActions}>
           {players && players.length > 0 ? (
             <ExportButton
-              label="Export"
+              label={t("players.export")}
               filename="fc-rival-player-stats.csv"
               getCsv={() => playerStatsToCsv(players, matches)}
             />
@@ -51,15 +53,15 @@ export default function PlayersScreen() {
             onPress={() => router.push("/player/new")}
             style={styles.addButton}
             accessibilityRole="button"
-            accessibilityLabel="Add player"
+            accessibilityLabel={t("common.addPlayer")}
           >
-            <Text style={styles.addButtonLabel}>+ Add</Text>
+            <Text style={styles.addButtonLabel}>{t("players.addButtonLabel")}</Text>
           </Pressable>
         </View>
       </View>
 
       <View style={styles.archivedToggleRow}>
-        <Text style={styles.archivedToggleLabel}>Include archived players</Text>
+        <Text style={styles.archivedToggleLabel}>{t("draw.includeArchived")}</Text>
         <Switch value={includeArchived} onValueChange={setIncludeArchived} trackColor={{ false: colors.border, true: colors.accentMuted }} thumbColor={colors.textPrimary} />
       </View>
 
@@ -68,7 +70,7 @@ export default function PlayersScreen() {
           <SkeletonList count={6} height={64} />
         </View>
       ) : isError ? (
-        <ErrorState message="Couldn't load your player roster. Check your connection and try again." onRetry={refetch} />
+        <ErrorState message={t("players.loadError")} onRetry={refetch} />
       ) : (
         <FlatList
           data={players}
@@ -82,9 +84,9 @@ export default function PlayersScreen() {
           ListEmptyComponent={
             <EmptyState
               icon="🧑‍🤝‍🧑"
-              title="No players yet"
-              message="Add your first player to start recording matches."
-              actionLabel="Add player"
+              title={t("players.emptyTitle")}
+              message={t("players.emptyMessage")}
+              actionLabel={t("common.addPlayer")}
               onAction={() => router.push("/player/new")}
             />
           }
@@ -95,29 +97,30 @@ export default function PlayersScreen() {
 }
 
 function PlayerRow({ player, stats, onPress }: { player: PlayerProfile; stats: PlayerStats | null; onPress: () => void }) {
+  const { t } = useTranslation();
   const winRateLabel = stats && stats.winRate !== null ? `${Math.round(stats.winRate * 100)}%` : "–";
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       accessibilityRole="button"
-      accessibilityLabel={`${player.display_name}, ${winRateLabel} win rate, ${stats?.played ?? 0} matches played`}
+      accessibilityLabel={t("players.rowA11yLabel", { name: player.display_name, winRate: winRateLabel, played: stats?.played ?? 0 })}
     >
       <Avatar uri={player.avatar_url} name={player.display_name} color={player.custom_color} size={44} />
       <View style={styles.rowInfo}>
         <View style={styles.rowNameRow}>
           <Text style={styles.rowName} numberOfLines={1}>{player.display_name}</Text>
-          {!player.is_active ? <Badge label="Archived" tone="warning" /> : null}
+          {!player.is_active ? <Badge label={t("players.archivedBadge")} tone="warning" /> : null}
         </View>
         {player.nickname ? <Text style={styles.rowNickname}>"{player.nickname}"</Text> : null}
       </View>
       <View style={styles.statGroup}>
         <Text style={styles.statValue}>{winRateLabel}</Text>
-        <Text style={styles.statLabel}>Win rate</Text>
+        <Text style={styles.statLabel}>{t("players.winRate")}</Text>
       </View>
       <View style={styles.statGroup}>
         <Text style={styles.statValue}>{stats?.played ?? 0}</Text>
-        <Text style={styles.statLabel}>Played</Text>
+        <Text style={styles.statLabel}>{t("players.played")}</Text>
       </View>
     </Pressable>
   );

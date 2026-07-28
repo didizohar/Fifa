@@ -338,6 +338,18 @@ const en = {
     pairALabel: "Pair A",
     pairBLabel: "Pair B",
   },
+  players: {
+    title: "Players",
+    export: "Export",
+    addButtonLabel: "+ Add",
+    loadError: "Couldn't load your player roster. Check your connection and try again.",
+    emptyTitle: "No players yet",
+    emptyMessage: "Add your first player to start recording matches.",
+    rowA11yLabel: "{name}, {winRate} win rate, {played} matches played",
+    archivedBadge: "Archived",
+    winRate: "Win rate",
+    played: "Played",
+  },
 } as const;
 
 export default en;

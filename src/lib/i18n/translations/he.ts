@@ -335,6 +335,18 @@ const he = {
     pairALabel: "זוג א",
     pairBLabel: "זוג ב",
   },
+  players: {
+    title: "שחקנים",
+    export: "ייצוא",
+    addButtonLabel: "+ הוספה",
+    loadError: "לא ניתן היה לטעון את סד השחקנים. בדקו את החיבור ונסו שוב.",
+    emptyTitle: "אין עדיין שחקנים",
+    emptyMessage: "הוסיפו את השחקן הראשון כדי להתחיל לתעד משחקים.",
+    rowA11yLabel: "{name}, אחוז ניצחונות {winRate}, {played} משחקים ששוחקו",
+    archivedBadge: "בארכיון",
+    winRate: "אחוז ניצחונות",
+    played: "משחקים",
+  },
 } as const satisfies TranslationKeys;
 
 export default he;
