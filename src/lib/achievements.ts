@@ -88,7 +88,23 @@ export function computeBestPartnershipAchievement(playerId: string, matches: Mat
     .filter((m) => m.match_type === "doubles" && (findSides(playerId, m)?.own.players.some((p) => p.id === best.teammateId) ?? false))
     .slice()
     .sort((a, b) => new Date(a.played_at).getTime() - new Date(b.played_at).getTime());
-  const unlockedAt = shared[BEST_PARTNERSHIP_MIN_PLAYED - 1]?.played_at ?? shared[shared.length - 1]!.played_at;
+
+  // Find the TRUE first match where both thresholds were met -- assuming
+  // it happened exactly at the minimum match count (shared[MIN_PLAYED - 1])
+  // is wrong whenever the win rate crossed 70% later than that (e.g. a
+  // partnership at 60% through 10 matches that goes on a run to 73% by
+  // match 11 unlocks at 10, three matches early). `shared` already contains
+  // only this specific partnership's matches, so computePlayerStats over a
+  // growing prefix gives that partnership's own record at each point.
+  let unlockedAt = shared[shared.length - 1]!.played_at;
+  for (let i = BEST_PARTNERSHIP_MIN_PLAYED - 1; i < shared.length; i++) {
+    const prefix = shared.slice(0, i + 1);
+    const prefixStats = computePlayerStats(playerId, prefix);
+    if (prefixStats.played >= BEST_PARTNERSHIP_MIN_PLAYED && (prefixStats.winRate ?? 0) >= BEST_PARTNERSHIP_MIN_WIN_RATE) {
+      unlockedAt = prefix[prefix.length - 1]!.played_at;
+      break;
+    }
+  }
 
   return {
     id: `best-partnership-${best.teammateId}`,

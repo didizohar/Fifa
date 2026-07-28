@@ -88,6 +88,23 @@ describe("computeBestPartnershipAchievement", () => {
     expect(achievement).toMatchObject({ partnerId: "mate", partnerName: "mate" });
     expect(achievement?.description).toContain("80%");
   });
+
+  it("unlocks at the TRUE first match the 70% threshold was crossed, not just the 10th match, when the win rate rises later", () => {
+    // 6-4 through the first 10 matches (60%) -- doesn't qualify yet.
+    // Then 5 more straight wins: 70% is first crossed on the 14th match
+    // (10/14 ≈ 71.4%), not the 10th, even though the FINAL record (11-4,
+    // 73.3%) does qualify.
+    const firstTen = [
+      ...Array.from({ length: 6 }, (_, n) => makeMatch({ playerIds: ["p1", "mate"], score: 1, result: "win" }, { playerIds: ["x", "y"], score: 0, result: "loss" }, { matchType: "doubles", playedAt: day(n) })),
+      ...Array.from({ length: 4 }, (_, n) => makeMatch({ playerIds: ["p1", "mate"], score: 0, result: "loss" }, { playerIds: ["x", "y"], score: 1, result: "win" }, { matchType: "doubles", playedAt: day(6 + n) })),
+    ];
+    const nextFive = Array.from({ length: 5 }, (_, n) =>
+      makeMatch({ playerIds: ["p1", "mate"], score: 1, result: "win" }, { playerIds: ["x", "y"], score: 0, result: "loss" }, { matchType: "doubles", playedAt: day(10 + n) }),
+    );
+
+    const achievement = computeBestPartnershipAchievement("p1", [...firstTen, ...nextFive]);
+    expect(achievement?.unlockedAt).toBe(day(13)); // the 14th match (index 13), not day(9) (the 10th)
+  });
 });
 
 describe("computeAllAchievements", () => {

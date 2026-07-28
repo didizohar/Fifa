@@ -104,6 +104,19 @@ describe("computeMostMatchesInOneDayRecord", () => {
     ];
     expect(computeMostMatchesInOneDayRecord(matches)).toMatchObject({ valueLabel: "2 matches" });
   });
+
+  it("breaks an exact tie between two days deterministically (earliest day wins), regardless of input array order", () => {
+    const earlierDay = new Date(2026, 2, 5, 9).toISOString();
+    const laterDay = new Date(2026, 2, 20, 9).toISOString();
+    const matches = [
+      makeMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }, laterDay),
+      makeMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }, earlierDay),
+    ];
+    const forward = computeMostMatchesInOneDayRecord(matches);
+    const reversed = computeMostMatchesInOneDayRecord([...matches].reverse());
+    expect(forward).toEqual(reversed);
+    expect(forward?.setAt).toBe(earlierDay);
+  });
 });
 
 describe("computeLongestWinStreakRecord / computeLongestLossStreakRecord", () => {

@@ -115,14 +115,12 @@ export function computeMostMatchesInOneDayRecord(matches: MatchSummary[]): Recor
     list.push(match);
     byDate.set(dateKey, list);
   }
-  let bestDate: string | null = null;
-  let bestList: MatchSummary[] = [];
-  for (const [date, list] of byDate) {
-    if (list.length > bestList.length) {
-      bestDate = date;
-      bestList = list;
-    }
-  }
+  // Sorted (not just scanned) so an exact tie between two days always
+  // resolves to the earlier date, regardless of Map iteration/insertion
+  // order -- matches this file's other deterministic tie-breaks.
+  const [bestDate, bestList] = [...byDate.entries()].sort(
+    (a, b) => b[1].length - a[1].length || new Date(a[0]).getTime() - new Date(b[0]).getTime(),
+  )[0] ?? [null, []];
   if (!bestDate) return null;
   const earliest = bestList.reduce((min, m) => (m.played_at < min ? m.played_at : min), bestList[0]!.played_at);
   return {
@@ -198,12 +196,16 @@ export function computeLongestLossStreakRecord(roster: MatchSidePlayer[], matche
   };
 }
 
+/** Most recent played_at among this player's matches -- the fallback is unreachable in practice (a leaderboard-topping player always has matches) but keeps this total. */
+function mostRecentPlayedAt(playerId: string, matches: MatchSummary[]): string {
+  const own = matches.filter((m) => findSides(playerId, m) !== null);
+  return own.reduce((max, m) => (m.played_at > max ? m.played_at : max), own[0]?.played_at ?? new Date(0).toISOString());
+}
+
 /** The player with the most career clean sheets. */
 export function computeMostCleanSheetsRecord(roster: MatchSidePlayer[], matches: MatchSummary[]): RecordEntry | null {
   const top = computeCleanSheetsLeaderboard(roster, matches)[0];
   if (!top) return null;
-  const holderMatches = matches.filter((m) => findSides(top.playerId, m) !== null);
-  const mostRecent = holderMatches.reduce((max, m) => (m.played_at > max ? m.played_at : max), holderMatches[0]?.played_at ?? new Date(0).toISOString());
   return {
     id: "most-clean-sheets",
     label: "Most Clean Sheets",
@@ -211,7 +213,7 @@ export function computeMostCleanSheetsRecord(roster: MatchSidePlayer[], matches:
     holderIds: [top.playerId],
     valueLabel: top.valueLabel,
     matchId: null,
-    setAt: mostRecent,
+    setAt: mostRecentPlayedAt(top.playerId, matches),
   };
 }
 
@@ -219,8 +221,6 @@ export function computeMostCleanSheetsRecord(roster: MatchSidePlayer[], matches:
 export function computeHighestWinRateRecord(roster: MatchSidePlayer[], matches: MatchSummary[]): RecordEntry | null {
   const top = computeWinRateLeaderboard(roster, matches)[0];
   if (!top) return null;
-  const holderMatches = matches.filter((m) => findSides(top.playerId, m) !== null);
-  const mostRecent = holderMatches.reduce((max, m) => (m.played_at > max ? m.played_at : max), holderMatches[0]?.played_at ?? new Date(0).toISOString());
   return {
     id: "highest-win-rate",
     label: "Highest Win Rate",
@@ -228,7 +228,7 @@ export function computeHighestWinRateRecord(roster: MatchSidePlayer[], matches: 
     holderIds: [top.playerId],
     valueLabel: top.valueLabel,
     matchId: null,
-    setAt: mostRecent,
+    setAt: mostRecentPlayedAt(top.playerId, matches),
   };
 }
 
