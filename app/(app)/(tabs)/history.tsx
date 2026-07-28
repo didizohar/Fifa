@@ -17,25 +17,12 @@ import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
 import { matchesToCsv } from "../../../src/lib/csv";
 import { matchSideLabel, formatDayLabel, formatRelativeDate } from "../../../src/lib/format";
+import { useTranslation } from "../../../src/lib/i18n";
 import { DEFAULT_MATCH_FILTERS, distinctClubs, filterMatches, hasActiveFilters, type DateRangeFilter, type MatchFilters } from "../../../src/lib/matchFilters";
 import type { MatchSummary } from "../../../src/lib/matches";
 import { toPickablePlayer } from "../../../src/lib/players";
 import type { MatchType, SideResult } from "../../../src/lib/types/database";
 import { colors, radius, spacing, typography } from "../../../src/theme";
-
-const DATE_RANGE_OPTIONS: { value: DateRangeFilter; label: string }[] = [
-  { value: "all", label: "All time" },
-  { value: "7", label: "7 days" },
-  { value: "30", label: "30 days" },
-  { value: "90", label: "90 days" },
-  { value: "month", label: "This month" },
-];
-
-const MATCH_TYPE_OPTIONS: { value: "all" | MatchType; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "singles", label: "Singles" },
-  { value: "doubles", label: "Doubles" },
-];
 
 type HistoryListItem =
   | { type: "header"; label: string }
@@ -62,6 +49,7 @@ function groupMatchesByDay(matches: MatchSummary[]): HistoryListItem[] {
 
 export default function HistoryScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { currentGroupId } = useGroup();
   const { data: matches, isLoading, isError, refetch, isRefetching } = useGroupMatchHistory(currentGroupId);
   const players = usePlayers(currentGroupId);
@@ -78,14 +66,34 @@ export default function HistoryScreen() {
   const pickablePlayers = useMemo(() => (players.data ?? []).map(toPickablePlayer), [players.data]);
   const opponentChoices = useMemo(() => pickablePlayers.filter((p) => p.id !== filters.playerId), [pickablePlayers, filters.playerId]);
 
+  const dateRangeOptions: { value: DateRangeFilter; label: string }[] = useMemo(
+    () => [
+      { value: "all", label: t("history.dateRangeAll") },
+      { value: "7", label: t("history.dateRange7") },
+      { value: "30", label: t("history.dateRange30") },
+      { value: "90", label: t("history.dateRange90") },
+      { value: "month", label: t("history.dateRangeMonth") },
+    ],
+    [t],
+  );
+
+  const matchTypeOptions: { value: "all" | MatchType; label: string }[] = useMemo(
+    () => [
+      { value: "all", label: t("history.matchTypeAll") },
+      { value: "singles", label: t("history.matchTypeSingles") },
+      { value: "doubles", label: t("history.matchTypeDoubles") },
+    ],
+    [t],
+  );
+
   const resultOptions: { value: "all" | SideResult; label: string; disabled?: boolean }[] = useMemo(
     () => [
-      { value: "all", label: "All" },
-      { value: "win", label: "Win", disabled: !filters.playerId },
-      { value: "loss", label: "Loss", disabled: !filters.playerId },
-      { value: "draw", label: "Draw" },
+      { value: "all", label: t("history.resultAll") },
+      { value: "win", label: t("history.resultWin"), disabled: !filters.playerId },
+      { value: "loss", label: t("history.resultLoss"), disabled: !filters.playerId },
+      { value: "draw", label: t("history.resultDraw") },
     ],
-    [filters.playerId],
+    [filters.playerId, t],
   );
 
   const clearFilters = () => setFilters(DEFAULT_MATCH_FILTERS);
@@ -93,17 +101,17 @@ export default function HistoryScreen() {
   return (
     <Screen padded={false}>
       <View style={styles.header}>
-        <Text style={styles.title}>Match history</Text>
+        <Text style={styles.title}>{t("history.title")}</Text>
         <View style={styles.headerActions}>
-          <ExportButton filename={`fc-rival-matches-${Date.now()}.csv`} getCsv={() => matchesToCsv(filtered)} />
+          <ExportButton label={t("history.export")} filename={`fc-rival-matches-${Date.now()}.csv`} getCsv={() => matchesToCsv(filtered)} />
           <Pressable
             onPress={() => setShowFilters((s) => !s)}
             style={[styles.filterButton, filtersActive && styles.filterButtonActive]}
             accessibilityRole="button"
-            accessibilityLabel="Toggle filters"
+            accessibilityLabel={t("history.filtersToggleA11y")}
           >
             <Ionicons name="filter" size={16} color={filtersActive ? colors.accent : colors.textSecondary} />
-            <Text style={[styles.filterButtonLabel, filtersActive && styles.filterButtonLabelActive]}>Filters</Text>
+            <Text style={[styles.filterButtonLabel, filtersActive && styles.filterButtonLabelActive]}>{t("history.filtersLabel")}</Text>
             {filtersActive ? <View style={styles.filterDot} /> : null}
           </Pressable>
         </View>
@@ -113,15 +121,16 @@ export default function HistoryScreen() {
         <TextInput
           value={filters.search}
           onChangeText={(text) => setFilters((f) => ({ ...f, search: text }))}
-          placeholder="Search player or club"
+          placeholder={t("history.searchPlaceholder")}
           placeholderTextColor={colors.textMuted}
           style={styles.search}
+          returnKeyType="search"
         />
       </View>
 
       {showFilters ? (
         <ScrollView style={styles.filterPanel} contentContainerStyle={styles.filterPanelContent} showsVerticalScrollIndicator={false}>
-          <FilterSection label="Player">
+          <FilterSection label={t("history.filterPlayer")}>
             <PlayerPicker
               players={pickablePlayers}
               selectedIds={filters.playerId ? [filters.playerId] : []}
@@ -133,7 +142,7 @@ export default function HistoryScreen() {
           </FilterSection>
 
           {filters.playerId ? (
-            <FilterSection label="Opponent">
+            <FilterSection label={t("history.filterOpponent")}>
               <PlayerPicker
                 players={opponentChoices}
                 selectedIds={filters.opponentId ? [filters.opponentId] : []}
@@ -144,9 +153,9 @@ export default function HistoryScreen() {
           ) : null}
 
           {clubs.length > 0 ? (
-            <FilterSection label="Club">
+            <FilterSection label={t("history.filterClub")}>
               <View style={styles.chipWrap}>
-                <ClubChip label="All" active={filters.clubId === null} onPress={() => setFilters((f) => ({ ...f, clubId: null }))} />
+                <ClubChip label={t("history.allClubs")} active={filters.clubId === null} onPress={() => setFilters((f) => ({ ...f, clubId: null }))} />
                 {clubs.map((club) => (
                   <ClubChip
                     key={club.id}
@@ -159,18 +168,18 @@ export default function HistoryScreen() {
             </FilterSection>
           ) : null}
 
-          <FilterSection label="Match type">
-            <SegmentedControl options={MATCH_TYPE_OPTIONS} value={filters.matchType} onChange={(v) => setFilters((f) => ({ ...f, matchType: v }))} />
+          <FilterSection label={t("history.filterMatchType")}>
+            <SegmentedControl options={matchTypeOptions} value={filters.matchType} onChange={(v) => setFilters((f) => ({ ...f, matchType: v }))} />
           </FilterSection>
 
-          <FilterSection label="Result">
+          <FilterSection label={t("history.filterResult")}>
             <SegmentedControl options={resultOptions} value={filters.result} onChange={(v) => setFilters((f) => ({ ...f, result: v }))} />
-            {!filters.playerId ? <Text style={styles.hint}>Select a player to filter by win or loss.</Text> : null}
+            {!filters.playerId ? <Text style={styles.hint}>{t("history.resultHint")}</Text> : null}
           </FilterSection>
 
-          <FilterSection label="Date range">
+          <FilterSection label={t("history.filterDateRange")}>
             <View style={styles.chipWrap}>
-              {DATE_RANGE_OPTIONS.map((opt) => (
+              {dateRangeOptions.map((opt) => (
                 <ClubChip
                   key={opt.value}
                   label={opt.label}
@@ -181,7 +190,7 @@ export default function HistoryScreen() {
             </View>
           </FilterSection>
 
-          {filtersActive ? <Button label="Clear filters" variant="secondary" onPress={clearFilters} /> : null}
+          {filtersActive ? <Button label={t("history.clearFilters")} variant="secondary" onPress={clearFilters} /> : null}
         </ScrollView>
       ) : null}
 
@@ -190,7 +199,7 @@ export default function HistoryScreen() {
           <SkeletonList count={6} height={92} />
         </View>
       ) : isError ? (
-        <ErrorState message="Couldn't load your match history. Check your connection and try again." onRetry={refetch} />
+        <ErrorState message={t("history.loadError")} onRetry={refetch} />
       ) : (
         <FlatList
           data={listItems}
@@ -209,17 +218,17 @@ export default function HistoryScreen() {
             filtersActive ? (
               <EmptyState
                 icon="🔍"
-                title="No matches match these filters"
-                message="Try widening the date range or clearing a filter."
-                actionLabel="Clear filters"
+                title={t("history.filteredEmptyTitle")}
+                message={t("history.filteredEmptyMessage")}
+                actionLabel={t("history.clearFilters")}
                 onAction={clearFilters}
               />
             ) : (
               <EmptyState
                 icon="📋"
-                title="No matches recorded"
-                message="Once you record a match, it'll show up here."
-                actionLabel="Record match"
+                title={t("history.emptyTitle")}
+                message={t("history.emptyMessage")}
+                actionLabel={t("common.recordMatch")}
                 onAction={() => router.push("/record-match")}
               />
             )
@@ -250,6 +259,7 @@ function ClubChip({ label, active, onPress }: { label: string; active: boolean; 
 }
 
 function HistoryRow({ match, onPress, isLast }: { match: MatchSummary; onPress: () => void; isLast: boolean }) {
+  const { t } = useTranslation();
   const [s1, s2] = match.sides;
   return (
     <View style={styles.timelineRow}>
@@ -264,13 +274,13 @@ function HistoryRow({ match, onPress, isLast }: { match: MatchSummary; onPress: 
           playedAtLabel={formatRelativeDate(match.played_at)}
           side1={{
             label: matchSideLabel(s1.players.map((p) => p.display_name)),
-            clubName: s1.club?.name ?? "Unknown club",
+            clubName: s1.club?.name ?? t("history.unknownClub"),
             score: s1.score,
             result: s1.result,
           }}
           side2={{
             label: matchSideLabel(s2.players.map((p) => p.display_name)),
-            clubName: s2.club?.name ?? "Unknown club",
+            clubName: s2.club?.name ?? t("history.unknownClub"),
             score: s2.score,
             result: s2.result,
           }}
