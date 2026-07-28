@@ -22,6 +22,7 @@ import { leaderboardToCsv } from "../../../src/lib/csv";
 import { useTranslation } from "../../../src/lib/i18n";
 import type { MatchSummary } from "../../../src/lib/matches";
 import { computeMonthlyReport } from "../../../src/lib/monthlyReport";
+import { formatMonthlyReport } from "../../../src/lib/monthlyReportFormat";
 import type { PlayerProfile } from "../../../src/lib/types/database";
 import {
   computeBestDoublesPairs,
@@ -73,8 +74,6 @@ const MATCH_TYPE_FILTER_DEFS: { id: MatchTypeFilter; labelKey: string }[] = [
   { id: "doubles", labelKey: "leaderboards.filterDoubles" },
 ];
 
-const MONTH_LABEL = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
-
 // Stable references for the "query hasn't resolved yet" fallback -- `data ?? []`
 // would otherwise allocate a fresh empty array every render while loading,
 // which cascades into rows recomputing every render too. Same pattern as
@@ -84,7 +83,7 @@ const EMPTY_MATCHES: MatchSummary[] = [];
 
 export default function LeaderboardsScreen() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const { user } = useAuth();
   const { currentGroup } = useGroup();
   const groupId = currentGroup?.id ?? null;
@@ -195,6 +194,10 @@ export default function LeaderboardsScreen() {
     () => (category === "monthly" ? computeMonthlyReport(roster, matches, monthTarget.getFullYear(), monthTarget.getMonth()) : null),
     [category, roster, matches, monthTarget],
   );
+  const formattedMonthlyReport = useMemo(
+    () => (monthlyReport ? formatMonthlyReport(monthlyReport, t, locale) : null),
+    [monthlyReport, t, locale],
+  );
 
   const displayRows = useMemo(() => (descending ? rows : [...rows].reverse()), [rows, descending]);
   const displayPairs = useMemo(() => (descending ? doublesPairs : [...doublesPairs].reverse()), [doublesPairs, descending]);
@@ -294,7 +297,7 @@ export default function LeaderboardsScreen() {
           >
             <Chevron direction="back" size={20} color={colors.textPrimary} />
           </Pressable>
-          <Text style={styles.monthLabel}>{MONTH_LABEL.format(monthTarget)}</Text>
+          <Text style={styles.monthLabel}>{formattedMonthlyReport?.monthLabel}</Text>
           <Pressable
             onPress={() => {
               if (isFutureMonth) return;
@@ -311,12 +314,12 @@ export default function LeaderboardsScreen() {
       ) : null}
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        {monthlyReport && !isLoading && !isError ? (
+        {formattedMonthlyReport && !isLoading && !isError ? (
           <Card style={styles.monthlyReportCard}>
-            <Text style={styles.monthlyReportStory}>{monthlyReport.story}</Text>
-            {monthlyReport.awards.length > 0 ? (
+            <Text style={styles.monthlyReportStory}>{formattedMonthlyReport.story}</Text>
+            {formattedMonthlyReport.awards.length > 0 ? (
               <View style={styles.monthlyAwardsList}>
-                {monthlyReport.awards.map((award) => (
+                {formattedMonthlyReport.awards.map((award) => (
                   <View key={award.id} style={styles.monthlyAwardRow}>
                     <Text style={styles.monthlyAwardLabel}>{award.label}</Text>
                     <Text style={styles.monthlyAwardValue} numberOfLines={1}>

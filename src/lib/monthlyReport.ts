@@ -2,23 +2,30 @@ import type { MatchSidePlayer, MatchSummary } from "./matches";
 import { computeAllRecords, type RecordEntry } from "./records";
 import { computeBestDoublesPairs, computeConsistency, computeGoalsScoredLeaderboard, computeMonthlyLeaderboard, computeMostMatchesLeaderboard, computePlayerStats } from "./stats";
 
-export interface MonthlyAward {
-  id: string;
-  label: string;
+export type MonthlyAwardId = "player-of-month" | "top-scorer" | "most-active" | "best-partnership" | "most-consistent" | "most-improved";
+
+/**
+ * Language-independent award fact: which stat won it and who holds it, plus
+ * the single raw number a UI formatter needs to build a localized value
+ * label (e.g. wins, goals, a 0-1 win rate, or a goal-margin std-dev). `null`
+ * only for best-partnership, when the pair hasn't recorded a result yet.
+ */
+export interface MonthlyAwardFact {
+  id: MonthlyAwardId;
   holderName: string;
-  valueLabel: string;
+  metric: number | null;
 }
 
-export interface MonthlyReport {
+export interface MonthlyReportData {
   year: number;
   month: number;
   matchesPlayed: number;
-  awards: MonthlyAward[];
-  recordsBroken: RecordEntry[];
-  story: string;
+  awards: MonthlyAwardFact[];
+  recordsBrokenCount: number;
+  playerOfMonthName: string | null;
+  topScorerName: string | null;
+  topScorerGoals: number | null;
 }
-
-const MONTH_LABEL = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
 
 /** Minimum matches within a single calendar month to qualify for a monthly award -- deliberately lower than MIN_SAMPLE_SIZE, since a month naturally has far fewer matches than a lifetime sample. */
 const MONTHLY_MIN_SAMPLE = 2;
@@ -31,38 +38,36 @@ function matchesInMonth(matches: MatchSummary[], year: number, month: number): M
 }
 
 /**
- * A monthly recap: award-style highlights plus a short narrative summary,
- * all derived from the same match data leaderboards already use. Records
- * are "broken this month" using the same setAt-based approximation as the
+ * A monthly recap's raw facts: award-style highlights plus the ingredients
+ * for a narrative summary, all derived from the same match data
+ * leaderboards already use. Every value here is language-independent --
+ * turning it into display text (including pluralization and the month
+ * name) is `formatMonthlyReport`'s job, not this function's. Records are
+ * "broken this month" using the same setAt-based approximation as the
  * discovery engine, not a precise before/after snapshot diff.
  */
-export function computeMonthlyReport(roster: MatchSidePlayer[], allMatches: MatchSummary[], year: number, month: number): MonthlyReport {
+export function computeMonthlyReport(roster: MatchSidePlayer[], allMatches: MatchSummary[], year: number, month: number): MonthlyReportData {
   const monthMatches = matchesInMonth(allMatches, year, month);
-  const awards: MonthlyAward[] = [];
+  const awards: MonthlyAwardFact[] = [];
 
   const playerOfMonth = computeMonthlyLeaderboard(roster, allMatches, year, month)[0];
   if (playerOfMonth) {
-    awards.push({ id: "player-of-month", label: "Player of the Month", holderName: playerOfMonth.playerName, valueLabel: playerOfMonth.valueLabel });
+    awards.push({ id: "player-of-month", holderName: playerOfMonth.playerName, metric: playerOfMonth.value });
   }
 
   const topScorer = computeGoalsScoredLeaderboard(roster, monthMatches)[0];
   if (topScorer) {
-    awards.push({ id: "top-scorer", label: "Top Scorer", holderName: topScorer.playerName, valueLabel: `${topScorer.valueLabel} goals` });
+    awards.push({ id: "top-scorer", holderName: topScorer.playerName, metric: topScorer.value });
   }
 
   const mostActive = computeMostMatchesLeaderboard(roster, monthMatches)[0];
   if (mostActive) {
-    awards.push({ id: "most-active", label: "Most Active", holderName: mostActive.playerName, valueLabel: `${mostActive.valueLabel} matches` });
+    awards.push({ id: "most-active", holderName: mostActive.playerName, metric: mostActive.value });
   }
 
   const bestPair = computeBestDoublesPairs(monthMatches, MONTHLY_MIN_SAMPLE)[0];
   if (bestPair) {
-    awards.push({
-      id: "best-partnership",
-      label: "Best Partnership",
-      holderName: `${bestPair.playerNames[0]} & ${bestPair.playerNames[1]}`,
-      valueLabel: bestPair.winRate !== null ? `${Math.round(bestPair.winRate * 100)}% win rate` : "-",
-    });
+    awards.push({ id: "best-partnership", holderName: `${bestPair.playerNames[0]} & ${bestPair.playerNames[1]}`, metric: bestPair.winRate });
   }
 
   let mostConsistent: { player: MatchSidePlayer; stdDev: number } | null = null;
@@ -74,7 +79,7 @@ export function computeMonthlyReport(roster: MatchSidePlayer[], allMatches: Matc
     }
   }
   if (mostConsistent) {
-    awards.push({ id: "most-consistent", label: "Most Consistent", holderName: mostConsistent.player.display_name, valueLabel: `±${mostConsistent.stdDev.toFixed(1)} goal swing` });
+    awards.push({ id: "most-consistent", holderName: mostConsistent.player.display_name, metric: mostConsistent.stdDev });
   }
 
   const priorMonthDate = new Date(year, month - 1, 1);
@@ -88,23 +93,22 @@ export function computeMonthlyReport(roster: MatchSidePlayer[], allMatches: Matc
     if (delta > 0 && (!mostImproved || delta > mostImproved.delta)) mostImproved = { player, delta };
   }
   if (mostImproved) {
-    awards.push({
-      id: "most-improved",
-      label: "Most Improved",
-      holderName: mostImproved.player.display_name,
-      valueLabel: `+${Math.round(mostImproved.delta * 100)} pts win rate`,
-    });
+    awards.push({ id: "most-improved", holderName: mostImproved.player.display_name, metric: mostImproved.delta });
   }
 
-  const recordsBroken = computeAllRecords(roster, allMatches).filter((r) => {
+  const recordsBrokenCount = computeAllRecords(roster, allMatches).filter((r: RecordEntry) => {
     const d = new Date(r.setAt);
     return d.getFullYear() === year && d.getMonth() === month;
-  });
+  }).length;
 
-  const storyParts = [`In ${MONTH_LABEL.format(new Date(year, month, 1))}, the group played ${monthMatches.length} match${monthMatches.length === 1 ? "" : "es"}.`];
-  if (playerOfMonth) storyParts.push(`${playerOfMonth.playerName} was Player of the Month.`);
-  if (topScorer) storyParts.push(`${topScorer.playerName} led the scoring charts with ${topScorer.valueLabel} goals.`);
-  if (recordsBroken.length > 0) storyParts.push(`${recordsBroken.length} group record${recordsBroken.length === 1 ? " was" : "s were"} broken.`);
-
-  return { year, month, matchesPlayed: monthMatches.length, awards, recordsBroken, story: storyParts.join(" ") };
+  return {
+    year,
+    month,
+    matchesPlayed: monthMatches.length,
+    awards,
+    recordsBrokenCount,
+    playerOfMonthName: playerOfMonth?.playerName ?? null,
+    topScorerName: topScorer?.playerName ?? null,
+    topScorerGoals: topScorer?.value ?? null,
+  };
 }

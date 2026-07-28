@@ -33,14 +33,17 @@ function roster(ids: string[]): MatchSidePlayer[] {
 }
 
 describe("computeMonthlyReport", () => {
-  it("reports zero matches and no awards for an empty month", () => {
+  it("reports zero matches and no awards for an empty month, with every calculation as raw numbers -- no display text", () => {
     const report = computeMonthlyReport(roster(["p1"]), [], 2026, 2);
     expect(report.matchesPlayed).toBe(0);
     expect(report.awards).toEqual([]);
-    expect(report.story).toContain("0 matches");
+    expect(report.playerOfMonthName).toBeNull();
+    expect(report.topScorerName).toBeNull();
+    expect(report.topScorerGoals).toBeNull();
+    expect(report.recordsBrokenCount).toBe(0);
   });
 
-  it("computes Player of the Month, Top Scorer, and Most Active from matches in the given month only", () => {
+  it("computes Player of the Month, Top Scorer, and Most Active from matches in the given month only, as numeric metrics", () => {
     const matches = [
       makeMatch({ playerIds: ["p1"], score: 4, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }, new Date(2026, 2, 5).toISOString()),
       makeMatch({ playerIds: ["p1"], score: 3, result: "win" }, { playerIds: ["p2"], score: 1, result: "loss" }, new Date(2026, 2, 10).toISOString()),
@@ -49,9 +52,12 @@ describe("computeMonthlyReport", () => {
     ];
     const report = computeMonthlyReport(roster(["p1", "p2"]), matches, 2026, 2);
     expect(report.matchesPlayed).toBe(2);
+    expect(report.playerOfMonthName).toBe("p1");
+    expect(report.topScorerName).toBe("p1");
+    expect(report.topScorerGoals).toBe(7);
     expect(report.awards.find((a) => a.id === "player-of-month")?.holderName).toBe("p1");
-    expect(report.awards.find((a) => a.id === "top-scorer")).toMatchObject({ holderName: "p1", valueLabel: "7 goals" });
-    expect(report.awards.find((a) => a.id === "most-active")).toMatchObject({ holderName: "p1", valueLabel: "2 matches" });
+    expect(report.awards.find((a) => a.id === "top-scorer")).toMatchObject({ holderName: "p1", metric: 7 });
+    expect(report.awards.find((a) => a.id === "most-active")).toMatchObject({ holderName: "p1", metric: 2 });
   });
 
   it("computes Best Partnership from doubles matches within the month", () => {
@@ -61,7 +67,7 @@ describe("computeMonthlyReport", () => {
     ];
     const report = computeMonthlyReport(roster(["p1", "mate", "x", "y"]), matches, 2026, 2);
     // computeBestDoublesPairs sorts pair members by id, so "mate" sorts before "p1".
-    expect(report.awards.find((a) => a.id === "best-partnership")).toMatchObject({ holderName: "mate & p1" });
+    expect(report.awards.find((a) => a.id === "best-partnership")).toMatchObject({ holderName: "mate & p1", metric: 1 });
   });
 
   it("computes Most Improved by comparing win rate against the prior month, only when both months have enough matches", () => {
@@ -74,13 +80,12 @@ describe("computeMonthlyReport", () => {
       makeMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }, new Date(2026, 2, 2).toISOString()),
     ];
     const report = computeMonthlyReport(roster(["p1", "x"]), [...priorMonth, ...thisMonth], 2026, 2);
-    expect(report.awards.find((a) => a.id === "most-improved")).toMatchObject({ holderName: "p1", valueLabel: "+100 pts win rate" });
+    expect(report.awards.find((a) => a.id === "most-improved")).toMatchObject({ holderName: "p1", metric: 1 });
   });
 
-  it("includes records whose setAt falls in the target month", () => {
+  it("counts records whose setAt falls in the target month", () => {
     const matches = [makeMatch({ playerIds: ["p1"], score: 9, result: "win" }, { playerIds: ["x"], score: 0, result: "loss" }, new Date(2026, 2, 5).toISOString())];
     const report = computeMonthlyReport(roster(["p1", "x"]), matches, 2026, 2);
-    expect(report.recordsBroken.some((r) => r.id === "most-goals-in-match")).toBe(true);
-    expect(report.story).toContain("record");
+    expect(report.recordsBrokenCount).toBeGreaterThan(0);
   });
 });
