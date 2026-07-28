@@ -2,23 +2,22 @@ import { useRouter } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 import { Button } from "../../src/components/Button";
 import { Screen } from "../../src/components/Screen";
+import { useTranslation } from "../../src/lib/i18n";
 import { colors, spacing, typography } from "../../src/theme";
 
 export default function OnboardingScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
 
   return (
     <Screen>
       <View style={styles.container}>
         <Text style={styles.logo}>⚽️</Text>
-        <Text style={styles.title}>Welcome to FC Rival</Text>
-        <Text style={styles.subtitle}>
-          Track matches, ratings, and bragging rights with your group. Create a new group or join one with an
-          invite code to get started.
-        </Text>
+        <Text style={styles.title}>{t("group.onboardingTitle")}</Text>
+        <Text style={styles.subtitle}>{t("group.onboardingSubtitle")}</Text>
         <View style={styles.actions}>
-          <Button label="Create a group" onPress={() => router.push("/group/create")} />
-          <Button label="Join with invite code" variant="secondary" onPress={() => router.push("/group/join")} />
+          <Button label={t("group.createGroupAction")} onPress={() => router.push("/group/create")} />
+          <Button label={t("group.joinGroupAction")} variant="secondary" onPress={() => router.push("/group/join")} />
         </View>
       </View>
     </Screen>

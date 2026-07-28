@@ -7,12 +7,14 @@ import { TextField } from "../../src/components/TextField";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useGroup } from "../../src/hooks/useGroup";
 import { joinGroupByInviteCode } from "../../src/lib/groups";
+import { useTranslation } from "../../src/lib/i18n";
 import { spacing, typography } from "../../src/theme";
 
 export default function JoinGroupScreen() {
   const { session } = useAuth();
   const { setCurrentGroupId, refetch } = useGroup();
   const router = useRouter();
+  const { t } = useTranslation();
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -20,8 +22,9 @@ export default function JoinGroupScreen() {
   if (!session) return <Redirect href="/(auth)/login" />;
 
   const handleJoin = async () => {
+    if (isSubmitting) return;
     if (inviteCode.trim().length < 4) {
-      setError("Enter the invite code your group owner shared with you.");
+      setError(t("group.inviteCodeTooShort"));
       return;
     }
     setError(null);
@@ -32,7 +35,7 @@ export default function JoinGroupScreen() {
       setCurrentGroupId(groupId);
       router.replace("/(app)/(tabs)");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to join group. Check the code and try again.");
+      setError(e instanceof Error && e.message ? e.message : t("group.joinError"));
     } finally {
       setIsSubmitting(false);
     }
@@ -41,20 +44,22 @@ export default function JoinGroupScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.title}>Join a group</Text>
-        <Text style={styles.subtitle}>Enter the invite code shared by your group's owner.</Text>
+        <Text style={styles.title}>{t("group.joinTitle")}</Text>
+        <Text style={styles.subtitle}>{t("group.joinSubtitle")}</Text>
       </View>
       <View style={styles.form}>
         <TextField
-          label="Invite code"
-          placeholder="e.g. 7K3PXQ"
+          label={t("group.inviteCodeLabel")}
+          placeholder={t("group.inviteCodePlaceholder")}
           value={inviteCode}
           onChangeText={(text) => setInviteCode(text.toUpperCase())}
           autoCapitalize="characters"
           autoFocus
+          returnKeyType="go"
+          onSubmitEditing={handleJoin}
           error={error}
         />
-        <Button label="Join group" onPress={handleJoin} loading={isSubmitting} />
+        <Button label={t("group.joinButton")} onPress={handleJoin} loading={isSubmitting} disabled={isSubmitting} />
       </View>
     </Screen>
   );

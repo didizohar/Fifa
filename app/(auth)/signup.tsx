@@ -5,9 +5,11 @@ import { Button } from "../../src/components/Button";
 import { Screen } from "../../src/components/Screen";
 import { TextField } from "../../src/components/TextField";
 import { signUpWithEmail } from "../../src/lib/auth";
+import { useTranslation } from "../../src/lib/i18n";
 import { colors, spacing, typography } from "../../src/theme";
 
 export default function SignupScreen() {
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -15,8 +17,9 @@ export default function SignupScreen() {
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
 
   const handleSignup = async () => {
+    if (isSubmitting) return;
     if (!email.trim() || password.length < 6) {
-      setError("Enter a valid email and a password of at least 6 characters.");
+      setError(t("auth.passwordTooShort"));
       return;
     }
     setError(null);
@@ -29,7 +32,7 @@ export default function SignupScreen() {
       }
       // If a session came back, AuthProvider's listener redirects automatically.
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to sign up.");
+      setError(e instanceof Error && e.message ? e.message : t("auth.signupFailed"));
     } finally {
       setIsSubmitting(false);
     }
@@ -40,12 +43,12 @@ export default function SignupScreen() {
       <Screen>
         <View style={styles.confirmContainer}>
           <Text style={styles.logo}>📬</Text>
-          <Text style={styles.title}>Check your email</Text>
-          <Text style={styles.subtitle}>
-            We sent a confirmation link to {email.trim()}. Tap it, then come back and sign in.
-          </Text>
+          <Text style={styles.title}>{t("auth.checkEmailTitle")}</Text>
+          <Text style={styles.subtitle}>{t("auth.checkEmailMessage", { email: email.trim() })}</Text>
           <Link href="/(auth)/login" style={styles.link}>
-            <Text style={styles.linkText}><Text style={styles.linkAccent}>Back to sign in</Text></Text>
+            <Text style={styles.linkText}>
+              <Text style={styles.linkAccent}>{t("auth.backToSignIn")}</Text>
+            </Text>
           </Link>
         </View>
       </Screen>
@@ -56,32 +59,38 @@ export default function SignupScreen() {
     <Screen>
       <View style={styles.header}>
         <Text style={styles.logo}>⚽️</Text>
-        <Text style={styles.title}>Create your account</Text>
-        <Text style={styles.subtitle}>Join or start a group afterward</Text>
+        <Text style={styles.title}>{t("auth.signupTitle")}</Text>
+        <Text style={styles.subtitle}>{t("auth.signupSubtitle")}</Text>
       </View>
       <View style={styles.form}>
         <TextField
-          label="Email"
-          placeholder="you@example.com"
+          label={t("auth.emailLabel")}
+          placeholder={t("auth.emailPlaceholder")}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
           autoComplete="email"
           keyboardType="email-address"
+          returnKeyType="next"
         />
         <TextField
-          label="Password"
-          placeholder="At least 6 characters"
+          label={t("auth.passwordLabel")}
+          placeholder={t("auth.passwordPlaceholderNew")}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
           autoComplete="password-new"
+          returnKeyType="go"
+          onSubmitEditing={handleSignup}
           error={error}
         />
-        <Button label="Sign up" onPress={handleSignup} loading={isSubmitting} />
+        <Button label={t("auth.signUp")} onPress={handleSignup} loading={isSubmitting} disabled={isSubmitting} />
       </View>
       <Link href="/(auth)/login" style={styles.link}>
-        <Text style={styles.linkText}>Already have an account? <Text style={styles.linkAccent}>Sign in</Text></Text>
+        <Text style={styles.linkText}>
+          {t("auth.haveAccountPrompt")}
+          <Text style={styles.linkAccent}>{t("auth.signIn")}</Text>
+        </Text>
       </Link>
     </Screen>
   );
