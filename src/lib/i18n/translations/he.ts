@@ -231,6 +231,7 @@ const he = {
     missingFields: "יש להזין אימייל וסיסמה.",
     invalidEmail: "יש להזין כתובת אימייל תקינה.",
     passwordTooShort: "יש להזין אימייל תקין וסיסמה בת 6 תווים לפחות.",
+    newPasswordTooShort: "הסיסמה חייבת להכיל לפחות 6 תווים.",
     passwordMismatch: "הסיסמאות אינן תואמות.",
     signIn: "התחברות",
     signUp: "הרשמה",

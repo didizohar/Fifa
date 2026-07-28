@@ -234,6 +234,7 @@ const en = {
     missingFields: "Enter your email and password.",
     invalidEmail: "Enter a valid email address.",
     passwordTooShort: "Enter a valid email and a password of at least 6 characters.",
+    newPasswordTooShort: "Password must be at least 6 characters.",
     passwordMismatch: "Passwords don't match.",
     signIn: "Sign in",
     signUp: "Sign up",

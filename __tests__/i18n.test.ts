@@ -409,6 +409,7 @@ describe("Product Completion Pass translation coverage", () => {
     "auth.missingFields",
     "auth.invalidEmail",
     "auth.passwordTooShort",
+    "auth.newPasswordTooShort",
     "auth.passwordMismatch",
     "auth.signIn",
     "auth.signUp",

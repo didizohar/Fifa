@@ -15,7 +15,7 @@ import { colors } from "../src/theme";
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function RootNavigator() {
-  const { session, isLoading: isAuthLoading } = useAuth();
+  const { session, isLoading: isAuthLoading, isPasswordRecovery } = useAuth();
   const { groups, isLoading: isGroupsLoading } = useGroup();
 
   const isResolved = !isAuthLoading && (!session || !isGroupsLoading);
@@ -30,13 +30,19 @@ function RootNavigator() {
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-      <Stack.Protected guard={!session}>
+      <Stack.Protected guard={!session && !isPasswordRecovery}>
         <Stack.Screen name="(auth)" />
       </Stack.Protected>
-      <Stack.Protected guard={!!session && !hasGroup}>
+      {/* Takes priority over the guards below: a password-recovery session is
+          real (`session` is non-null), but the user must set a new password
+          before landing in onboarding or the app. */}
+      <Stack.Protected guard={isPasswordRecovery}>
+        <Stack.Screen name="reset-password" options={{ presentation: "modal" }} />
+      </Stack.Protected>
+      <Stack.Protected guard={!!session && !hasGroup && !isPasswordRecovery}>
         <Stack.Screen name="(onboarding)" />
       </Stack.Protected>
-      <Stack.Protected guard={!!session && hasGroup}>
+      <Stack.Protected guard={!!session && hasGroup && !isPasswordRecovery}>
         <Stack.Screen name="(app)" />
       </Stack.Protected>
       <Stack.Screen name="group/create" options={{ presentation: "modal" }} />
