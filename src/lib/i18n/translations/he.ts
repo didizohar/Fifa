@@ -92,6 +92,12 @@ const he = {
     languageRestartMessage: "שינוי השפה משנה גם את כיוון הטקסט. יש להפעיל מחדש את האפליקציה כדי להחיל את השינוי.",
     languageRestartNow: "הפעל מחדש עכשיו",
     languageRestartLater: "לא ניתן היה להפעיל מחדש אוטומטית -- יש לסגור את האפליקציה לגמרי ולפתוח אותה מחדש כדי להשלים את החלפת השפה.",
+    roleOwner: "בעלים",
+    roleAdmin: "מנהל",
+    roleMember: "חבר",
+    shareInviteMessage: 'הצטרפו לקבוצת ה-FC Rival שלי "{groupName}" עם קוד ההזמנה: {code}',
+    shareInviteA11y: "שיתוף קוד ההזמנה {code}",
+    shareInvite: "שיתוף הזמנה",
   },
   draw: {
     title: "הגרלה",

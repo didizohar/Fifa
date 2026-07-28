@@ -10,12 +10,19 @@ import { useGroup } from "../../../src/hooks/useGroup";
 import { signOut } from "../../../src/lib/auth";
 import { confirmAction } from "../../../src/lib/confirm";
 import { type Locale, useTranslation } from "../../../src/lib/i18n";
+import type { GroupRole } from "../../../src/lib/types/database";
 import { colors, radius, spacing, typography } from "../../../src/theme";
 
 const LANGUAGE_OPTIONS: { value: Locale; labelKey: "settings.languageEnglish" | "settings.languageHebrew" }[] = [
   { value: "en", labelKey: "settings.languageEnglish" },
   { value: "he", labelKey: "settings.languageHebrew" },
 ];
+
+const ROLE_LABEL_KEYS: Record<GroupRole, "settings.roleOwner" | "settings.roleAdmin" | "settings.roleMember"> = {
+  owner: "settings.roleOwner",
+  admin: "settings.roleAdmin",
+  member: "settings.roleMember",
+};
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -37,8 +44,10 @@ export default function SettingsScreen() {
 
   const handleShareInvite = () => {
     if (!currentGroup) return;
-    Share.share({ message: `Join my FC Rival group "${currentGroup.name}" with invite code: ${currentGroup.invite_code}` });
+    Share.share({ message: t("settings.shareInviteMessage", { groupName: currentGroup.name, code: currentGroup.invite_code }) });
   };
+
+  const roleLabel = currentRole ? t(ROLE_LABEL_KEYS[currentRole]) : null;
 
   return (
     <Screen>
@@ -54,15 +63,15 @@ export default function SettingsScreen() {
           <Card style={styles.card}>
             <Text style={styles.cardLabel}>{t("settings.currentGroup")}</Text>
             <Text style={styles.cardValue}>{currentGroup.name}</Text>
-            {currentRole ? <Badge label={currentRole.charAt(0).toUpperCase() + currentRole.slice(1)} tone="accent" style={styles.roleTag} /> : null}
+            {roleLabel ? <Badge label={roleLabel} tone="accent" style={styles.roleTag} /> : null}
             <Pressable
               onPress={handleShareInvite}
               style={styles.inviteRow}
               accessibilityRole="button"
-              accessibilityLabel={`Share invite code ${currentGroup.invite_code}`}
+              accessibilityLabel={t("settings.shareInviteA11y", { code: currentGroup.invite_code })}
             >
               <Text style={styles.inviteCode}>{currentGroup.invite_code}</Text>
-              <Text style={styles.inviteShare}>Share invite</Text>
+              <Text style={styles.inviteShare}>{t("settings.shareInvite")}</Text>
             </Pressable>
           </Card>
         ) : null}

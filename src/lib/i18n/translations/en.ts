@@ -95,6 +95,12 @@ const en = {
     languageRestartMessage: "Changing the language also changes the text direction. The app needs to restart to apply this.",
     languageRestartNow: "Restart now",
     languageRestartLater: "Couldn't restart automatically -- please close the app fully and reopen it to finish switching languages.",
+    roleOwner: "Owner",
+    roleAdmin: "Admin",
+    roleMember: "Member",
+    shareInviteMessage: 'Join my FC Rival group "{groupName}" with invite code: {code}',
+    shareInviteA11y: "Share invite code {code}",
+    shareInvite: "Share invite",
   },
   draw: {
     title: "Draw",
