@@ -574,6 +574,8 @@ const styles = StyleSheet.create({
     ...typography.small,
     fontWeight: "700",
     flexShrink: 1,
-    textAlign: "right",
+    // "auto" (not a hardcoded "right") aligns to the text's own detected
+    // script direction, so this reads correctly in both English and Hebrew.
+    textAlign: "auto",
   },
 });

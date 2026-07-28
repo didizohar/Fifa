@@ -11,7 +11,7 @@ import { useGroup } from "../../../../src/hooks/useGroup";
 import { useUpdatePlayer } from "../../../../src/hooks/usePlayerMutations";
 import { usePlayer } from "../../../../src/hooks/usePlayers";
 import { useTranslation } from "../../../../src/lib/i18n";
-import { colors, radius, spacing } from "../../../../src/theme";
+import { colors, radius, spacing, typography } from "../../../../src/theme";
 
 const COLOR_SWATCHES = ["#3EE07A", "#60A5FA", "#F5C451", "#F87171", "#C084FC", "#F97316", "#22D3EE"];
 
@@ -86,6 +86,7 @@ export default function EditPlayerScreen() {
                 key={swatch}
                 onPress={() => setColor(swatch)}
                 style={[styles.swatch, { backgroundColor: swatch }, color === swatch && styles.swatchSelected]}
+                hitSlop={4}
                 accessibilityRole="button"
                 accessibilityLabel={`Color ${swatch}`}
                 accessibilityState={{ selected: color === swatch }}
@@ -120,9 +121,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   colorLabel: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: colors.textSecondary,
+    ...typography.caption,
   },
   swatchRow: {
     flexDirection: "row",
