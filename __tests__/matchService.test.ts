@@ -6,16 +6,11 @@ jest.mock("../src/lib/supabase", () => ({
 }));
 
 import { supabase } from "../src/lib/supabase";
-import { EditMatchError, processMatchAndElo, processMatchEdit } from "../src/lib/matchService";
+import { EditMatchError, processMatch, processMatchEdit } from "../src/lib/matchService";
 import type { EditMatchPayload, RecordMatchPayload } from "../src/lib/types/database";
 
 const mockFrom = supabase.from as jest.Mock;
 const mockRpc = supabase.rpc as jest.Mock;
-
-const PROFILES = [
-  { id: "p1", singles_elo: 1000, doubles_elo: 1000 },
-  { id: "p2", singles_elo: 1000, doubles_elo: 1000 },
-];
 
 const PAYLOAD: RecordMatchPayload = {
   groupId: "group-1",
@@ -32,47 +27,58 @@ const PAYLOAD: RecordMatchPayload = {
 beforeEach(() => {
   mockFrom.mockReset();
   mockRpc.mockReset();
-  mockFrom.mockReturnValue({
-    select: () => ({
-      in: () => Promise.resolve({ data: PROFILES, error: null }),
-    }),
-  });
 });
 
-describe("processMatchAndElo", () => {
-  it("returns the match id on the first successful RPC call", async () => {
+describe("processMatch", () => {
+  it("returns the match id from a successful record_match call", async () => {
     mockRpc.mockResolvedValueOnce({ data: "match-1", error: null });
 
-    const matchId = await processMatchAndElo(PAYLOAD);
+    const matchId = await processMatch(PAYLOAD);
 
     expect(matchId).toBe("match-1");
     expect(mockRpc).toHaveBeenCalledTimes(1);
   });
 
-  it("retries with freshly re-read ratings after an Elo concurrency conflict", async () => {
-    mockRpc
-      .mockResolvedValueOnce({ data: null, error: { code: "40001", message: "stale rating" } })
-      .mockResolvedValueOnce({ data: "match-2", error: null });
+  it("calls record_match (not the legacy record_match_and_apply_elo) with the exact expected args -- no Elo fields", async () => {
+    mockRpc.mockResolvedValueOnce({ data: "match-1", error: null });
 
-    const matchId = await processMatchAndElo(PAYLOAD);
+    await processMatch(PAYLOAD);
 
-    expect(matchId).toBe("match-2");
-    expect(mockRpc).toHaveBeenCalledTimes(2);
-    expect(mockFrom).toHaveBeenCalledTimes(2); // ratings re-read before the retry
+    expect(mockRpc).toHaveBeenCalledWith("record_match", {
+      p_group_id: "group-1",
+      p_season_id: null,
+      p_game_version_id: "gv-1",
+      p_match_type: "singles",
+      p_is_overtime: false,
+      p_is_penalties: false,
+      p_screenshot_url: null,
+      p_notes: null,
+      p_s1_club_version_id: "cv-1",
+      p_s1_score: 2,
+      p_s1_penalty: null,
+      p_s1_result: "win",
+      p_s1_players: ["p1"],
+      p_s2_club_version_id: "cv-2",
+      p_s2_score: 1,
+      p_s2_penalty: null,
+      p_s2_result: "loss",
+      p_s2_players: ["p2"],
+    });
   });
 
-  it("does not retry and surfaces non-concurrency RPC errors immediately", async () => {
+  it("never reads player ratings -- there is no Elo computation in this path", async () => {
+    mockRpc.mockResolvedValueOnce({ data: "match-1", error: null });
+
+    await processMatch(PAYLOAD);
+
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("surfaces RPC errors without retrying (no Elo concurrency conflicts to retry for)", async () => {
     mockRpc.mockResolvedValueOnce({ data: null, error: { code: "23505", message: "duplicate" } });
 
-    await expect(processMatchAndElo(PAYLOAD)).rejects.toThrow(/duplicate/);
+    await expect(processMatch(PAYLOAD)).rejects.toThrow(/duplicate/);
     expect(mockRpc).toHaveBeenCalledTimes(1);
-  });
-
-  it("gives up after exhausting retries on repeated concurrency conflicts", async () => {
-    mockRpc.mockResolvedValue({ data: null, error: { code: "40001", message: "stale rating" } });
-
-    await expect(processMatchAndElo(PAYLOAD)).rejects.toThrow(/concurrency/i);
-    expect(mockRpc).toHaveBeenCalledTimes(3);
   });
 });
 

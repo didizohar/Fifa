@@ -110,8 +110,10 @@ describe("formatDateForInput / formatTimeForInput / parseMatchDateTime", () => {
 
   it.each([
     ["2026-13-01", "10:00"], // invalid month
-    ["2026-02-30", "10:00"], // invalid day (Feb never has 30)
+    ["2026-02-30", "10:00"], // invalid day (Feb never has 30 days)
+    ["2026-02-31", "10:00"], // invalid day (Feb never has 31 days either)
     ["2026-06-01", "25:00"], // invalid hour
+    ["2026-06-01", "27:90"], // invalid hour AND minute together
     ["2026-06-01", "10:60"], // invalid minute
     ["not-a-date", "10:00"],
     ["2026-06-01", "not-a-time"],

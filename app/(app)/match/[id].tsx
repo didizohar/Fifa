@@ -50,8 +50,9 @@ export default function MatchDetailScreen() {
 
   const [side1, side2] = match.sides;
   const canEdit = canEditMatch(currentRole, user?.id, match.created_by);
-  // updated_at is only ever bumped by update_match (see the record_match_and_apply_elo
-  // migration -- it never touches this column), so this is exact, not a heuristic.
+  // updated_at is only ever bumped by update_match -- neither record_match
+  // nor the legacy record_match_and_apply_elo touch this column on insert --
+  // so this comparison is exact, not a heuristic.
   const wasEdited = !!match.updated_at && !!match.created_at && match.updated_at !== match.created_at;
 
   return (

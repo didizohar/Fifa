@@ -551,13 +551,31 @@ export default function RecordMatchScreen() {
           <Card style={styles.optionsCard}>
             <View style={styles.dateTimeRow}>
               <View style={styles.dateTimeField}>
-                <TextField label={t("editMatch.dateLabel")} placeholder="yyyy-mm-dd" value={dateInput} onChangeText={setDateInput} />
+                <TextField
+                  label={t("editMatch.dateLabel")}
+                  placeholder="2026-03-15"
+                  value={dateInput}
+                  onChangeText={setDateInput}
+                  keyboardType="numbers-and-punctuation"
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  maxLength={10}
+                />
               </View>
               <View style={styles.dateTimeField}>
-                <TextField label={t("editMatch.timeLabel")} placeholder="HH:mm" value={timeInput} onChangeText={setTimeInput} />
+                <TextField
+                  label={t("editMatch.timeLabel")}
+                  placeholder="18:30"
+                  value={timeInput}
+                  onChangeText={setTimeInput}
+                  keyboardType="numbers-and-punctuation"
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  maxLength={5}
+                />
               </View>
             </View>
-            {dateTimeError ? <Text style={styles.hint}>{dateTimeError}</Text> : null}
+            {dateTimeError ? <Text style={styles.dateTimeErrorText}>{dateTimeError}</Text> : null}
             <TextField
               label={t("editMatch.notesLabel")}
               placeholder={t("editMatch.notesPlaceholder")}
@@ -739,6 +757,11 @@ const styles = StyleSheet.create({
   },
   dateTimeField: {
     flex: 1,
+  },
+  dateTimeErrorText: {
+    ...typography.caption,
+    color: colors.danger,
+    marginTop: -spacing.xs,
   },
   errorBox: {
     backgroundColor: colors.dangerSubtle,

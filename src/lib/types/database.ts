@@ -1,6 +1,16 @@
 export type MatchType = "singles" | "doubles";
 export type SideResult = "win" | "loss" | "draw";
 export type GroupRole = "owner" | "admin" | "member";
+
+/**
+ * Legacy: identifies which of PlayerProfile's two Elo columns a match type
+ * writes to. Elo is no longer an active product feature (rankings are
+ * entirely Win-Rate-based, see src/lib/stats.ts) -- record_match no longer
+ * computes or applies a rating, so nothing in the app currently produces a
+ * value of this type. Kept only because the legacy singles_elo/doubles_elo
+ * columns and the historical record_match_and_apply_elo RPC (unmodified,
+ * still callable) still exist and are typed against it.
+ */
 export type EloField = "singles_elo" | "doubles_elo";
 
 export interface Group {
@@ -47,7 +57,14 @@ export interface PlayerProfile {
   avatar_url: string | null;
   custom_color: string;
   is_active: boolean;
+  /**
+   * Legacy: no longer written by record_match (see EloField's docstring).
+   * Retained on the type/column because dropping it is a separate, higher-
+   * risk migration than simply not writing to it -- not because anything
+   * still reads it for ranking. Rankings are Win-Rate-based (stats.ts).
+   */
   singles_elo: number;
+  /** Legacy -- see singles_elo. */
   doubles_elo: number;
   preferred_club_id: string | null;
   /** Optional manual 1-5 rating used only to balance draw teams/clubs -- never Elo, never shown as a performance score. */
@@ -78,8 +95,8 @@ export interface RecordMatchPayload {
   sides: [MatchSideInput, MatchSideInput];
 }
 
-// Minimal typed view of `record_match_and_apply_elo`'s RPC params, matching
-// supabase/migrations/20260715120200_match_elo_rpc.sql
+// Minimal typed view of `record_match`'s RPC params, matching
+// supabase/migrations/20260728110000_remove_elo_from_match_recording.sql
 export interface RecordMatchRpcArgs {
   p_group_id: string;
   p_season_id: string | null;
@@ -89,21 +106,16 @@ export interface RecordMatchRpcArgs {
   p_is_penalties: boolean;
   p_screenshot_url: string | null;
   p_notes: string | null;
-  p_elo_field: EloField;
   p_s1_club_version_id: string;
   p_s1_score: number;
   p_s1_penalty: number | null;
   p_s1_result: SideResult;
   p_s1_players: string[];
-  p_s1_ratings_before: number[];
-  p_s1_rating_after: number;
   p_s2_club_version_id: string;
   p_s2_score: number;
   p_s2_penalty: number | null;
   p_s2_result: SideResult;
   p_s2_players: string[];
-  p_s2_ratings_before: number[];
-  p_s2_rating_after: number;
 }
 
 export interface EditMatchPayload {

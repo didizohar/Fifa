@@ -29,8 +29,10 @@ export interface CreatePlayerInput {
 }
 
 // Fields a client is allowed to write. Deliberately excludes singles_elo /
-// doubles_elo -- those are only ever changed via record_match_and_apply_elo
-// (see trg_protect_elo_columns in supabase/migrations/20260715120300_rls_policies.sql).
+// doubles_elo -- those are legacy columns no longer written by any current
+// RPC, but still protected by trg_protect_elo_columns (see
+// supabase/migrations/20260715120300_rls_policies.sql) as a belt-and-braces
+// guard against a client ever trying to write them directly.
 // Never spread a full fetched PlayerProfile into an update call.
 export interface UpdatePlayerInput {
   display_name?: string;
@@ -45,11 +47,17 @@ export interface UpdatePlayerInput {
 
 const DUPLICATE_NAME_CODE = "23505";
 
+/**
+ * Alphabetical by display name -- a neutral roster order for list/picker
+ * screens. Not a ranking: Leaderboards/Home compute their own Win-Rate
+ * ranking from match history (computeWinRateLeaderboard/computeWinRateRank
+ * in stats.ts), independent of the order this query returns.
+ */
 export async function fetchPlayers(groupId: string, includeArchived = false): Promise<PlayerProfile[]> {
   let query = supabase.from("player_profiles").select("*").eq("group_id", groupId);
   if (!includeArchived) query = query.eq("is_active", true).is("deleted_at", null);
 
-  const { data, error } = await query.order("singles_elo", { ascending: false });
+  const { data, error } = await query.order("display_name", { ascending: true });
   if (error) throw new Error(`Failed to load players: ${error.message}`);
   return data ?? [];
 }
