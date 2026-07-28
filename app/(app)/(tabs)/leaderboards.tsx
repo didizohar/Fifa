@@ -19,6 +19,7 @@ import { useGroup } from "../../../src/hooks/useGroup";
 import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
 import { leaderboardToCsv } from "../../../src/lib/csv";
+import { useTranslation } from "../../../src/lib/i18n";
 import type { MatchSummary } from "../../../src/lib/matches";
 import { computeMonthlyReport } from "../../../src/lib/monthlyReport";
 import type { PlayerProfile } from "../../../src/lib/types/database";
@@ -53,23 +54,23 @@ type Category =
 
 type MatchTypeFilter = "overall" | "singles" | "doubles";
 
-const CATEGORIES: { id: Category; label: string; emptyMessage: string }[] = [
-  { id: "winRate", label: "Win Rate", emptyMessage: `Players need at least ${WIN_RATE_MIN_PLAYED} matches played before a win rate is meaningful.` },
-  { id: "mostMatches", label: "Most Matches", emptyMessage: "Record a match to see who's most active." },
-  { id: "winStreak", label: "Win Streak", emptyMessage: "No active win streaks yet -- win a couple in a row to show up here." },
-  { id: "lossStreak", label: "Loss Streak", emptyMessage: "Nobody's on a losing streak yet." },
-  { id: "goalsScored", label: "Goals Scored", emptyMessage: "Record a match to start tallying goals." },
-  { id: "goalsConceded", label: "Goals Conceded", emptyMessage: "Needs a few matches played to rank defenses fairly." },
-  { id: "goalDifference", label: "Goal Diff", emptyMessage: "Record a match to see goal difference." },
-  { id: "cleanSheets", label: "Clean Sheets", emptyMessage: "No clean sheets recorded yet." },
-  { id: "doublesPairs", label: "Doubles Pairs", emptyMessage: "Play a few doubles matches together to see this leaderboard." },
-  { id: "monthly", label: "Monthly", emptyMessage: "No matches played in this month yet." },
+const CATEGORY_DEFS: { id: Category; labelKey: string; emptyMessageKey: string }[] = [
+  { id: "winRate", labelKey: "leaderboards.categoryWinRate", emptyMessageKey: "leaderboards.emptyWinRate" },
+  { id: "mostMatches", labelKey: "leaderboards.categoryMostMatches", emptyMessageKey: "leaderboards.emptyMostMatches" },
+  { id: "winStreak", labelKey: "leaderboards.categoryWinStreak", emptyMessageKey: "leaderboards.emptyWinStreak" },
+  { id: "lossStreak", labelKey: "leaderboards.categoryLossStreak", emptyMessageKey: "leaderboards.emptyLossStreak" },
+  { id: "goalsScored", labelKey: "leaderboards.categoryGoalsScored", emptyMessageKey: "leaderboards.emptyGoalsScored" },
+  { id: "goalsConceded", labelKey: "leaderboards.categoryGoalsConceded", emptyMessageKey: "leaderboards.emptyGoalsConceded" },
+  { id: "goalDifference", labelKey: "leaderboards.categoryGoalDifference", emptyMessageKey: "leaderboards.emptyGoalDifference" },
+  { id: "cleanSheets", labelKey: "leaderboards.categoryCleanSheets", emptyMessageKey: "leaderboards.emptyCleanSheets" },
+  { id: "doublesPairs", labelKey: "leaderboards.categoryDoublesPairs", emptyMessageKey: "leaderboards.emptyDoublesPairs" },
+  { id: "monthly", labelKey: "leaderboards.categoryMonthly", emptyMessageKey: "leaderboards.emptyMonthly" },
 ];
 
-const MATCH_TYPE_FILTERS: { id: MatchTypeFilter; label: string }[] = [
-  { id: "overall", label: "Overall" },
-  { id: "singles", label: "Singles" },
-  { id: "doubles", label: "Doubles" },
+const MATCH_TYPE_FILTER_DEFS: { id: MatchTypeFilter; labelKey: string }[] = [
+  { id: "overall", labelKey: "leaderboards.filterOverall" },
+  { id: "singles", labelKey: "leaderboards.filterSingles" },
+  { id: "doubles", labelKey: "leaderboards.filterDoubles" },
 ];
 
 const MONTH_LABEL = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
@@ -83,9 +84,16 @@ const EMPTY_MATCHES: MatchSummary[] = [];
 
 export default function LeaderboardsScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { currentGroup } = useGroup();
   const groupId = currentGroup?.id ?? null;
+
+  const categories = useMemo(
+    () => CATEGORY_DEFS.map((c) => ({ id: c.id, label: t(c.labelKey), emptyMessage: t(c.emptyMessageKey, { count: WIN_RATE_MIN_PLAYED }) })),
+    [t],
+  );
+  const matchTypeFilters = useMemo(() => MATCH_TYPE_FILTER_DEFS.map((f) => ({ id: f.id, label: t(f.labelKey) })), [t]);
 
   const players = usePlayers(groupId);
   const matchHistory = useGroupMatchHistory(groupId);
@@ -205,7 +213,7 @@ export default function LeaderboardsScreen() {
 
   const isFutureMonth = monthOffset <= 0;
   const showMatchTypeFilter = category !== "doublesPairs";
-  const activeCategory = CATEGORIES.find((c) => c.id === category)!;
+  const activeCategory = categories.find((c) => c.id === category)!;
 
   const getLeaderboardCsv = () => {
     if (category === "doublesPairs") {
@@ -226,7 +234,7 @@ export default function LeaderboardsScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.title}>Leaderboards</Text>
+        <Text style={styles.title}>{t("leaderboards.title")}</Text>
         <View style={styles.headerActions}>
           <ExportButton filename={`fc-rival-leaderboard-${category}.csv`} getCsv={getLeaderboardCsv} />
           <Pressable
@@ -236,16 +244,16 @@ export default function LeaderboardsScreen() {
             }}
             style={styles.sortButton}
             accessibilityRole="button"
-            accessibilityLabel={descending ? "Sort ascending" : "Sort descending"}
+            accessibilityLabel={descending ? t("leaderboards.sortAscending") : t("leaderboards.sortDescending")}
           >
             <Ionicons name={descending ? "arrow-down" : "arrow-up"} size={16} color={colors.accent} />
-            <Text style={styles.sortLabel}>{descending ? "Best first" : "Worst first"}</Text>
+            <Text style={styles.sortLabel}>{descending ? t("leaderboards.bestFirst") : t("leaderboards.worstFirst")}</Text>
           </Pressable>
         </View>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-        {CATEGORIES.map((c) => (
+        {categories.map((c) => (
           <Pressable
             key={c.id}
             onPress={() => {
@@ -264,7 +272,7 @@ export default function LeaderboardsScreen() {
       {showMatchTypeFilter ? (
         <View style={styles.subToggleRow}>
           <SegmentedControl
-            options={MATCH_TYPE_FILTERS.map((f) => ({ value: f.id, label: f.label }))}
+            options={matchTypeFilters.map((f) => ({ value: f.id, label: f.label }))}
             value={matchTypeFilter}
             onChange={(v) => {
               animateReorder();
@@ -282,7 +290,7 @@ export default function LeaderboardsScreen() {
               setMonthOffset((m) => m + 1);
             }}
             accessibilityRole="button"
-            accessibilityLabel="Previous month"
+            accessibilityLabel={t("leaderboards.previousMonth")}
           >
             <Chevron direction="back" size={20} color={colors.textPrimary} />
           </Pressable>
@@ -295,7 +303,7 @@ export default function LeaderboardsScreen() {
             }}
             disabled={isFutureMonth}
             accessibilityRole="button"
-            accessibilityLabel="Next month"
+            accessibilityLabel={t("leaderboards.nextMonth")}
           >
             <Chevron direction="forward" size={20} color={isFutureMonth ? colors.textMuted : colors.textPrimary} />
           </Pressable>
@@ -324,14 +332,14 @@ export default function LeaderboardsScreen() {
         {isLoading ? (
           <SkeletonList count={5} />
         ) : isError ? (
-          <ErrorState message="Couldn't load the leaderboards. Check your connection and try again." onRetry={handleRefresh} />
+          <ErrorState message={t("leaderboards.loadError")} onRetry={handleRefresh} />
         ) : category === "doublesPairs" ? (
           displayPairs.length === 0 ? (
             <EmptyState
               icon="🤝"
-              title="No doubles pairs yet"
+              title={t("leaderboards.noDoublesPairsTitle")}
               message={activeCategory.emptyMessage}
-              actionLabel="Record a match"
+              actionLabel={t("home.recordAMatch")}
               onAction={() => router.push("/record-match")}
             />
           ) : (
@@ -361,9 +369,9 @@ export default function LeaderboardsScreen() {
         ) : displayRows.length === 0 ? (
           <EmptyState
             icon="🏆"
-            title="Not enough data yet"
+            title={t("leaderboards.notEnoughDataTitle")}
             message={activeCategory.emptyMessage}
-            actionLabel="Record a match"
+            actionLabel={t("home.recordAMatch")}
             onAction={() => router.push("/record-match")}
           />
         ) : (
@@ -391,8 +399,8 @@ export default function LeaderboardsScreen() {
             ) : null}
             {category === "winRate" && notYetQualified.length > 0 ? (
               <View style={styles.notQualifiedSection}>
-                <Text style={styles.notQualifiedTitle}>Not Yet Qualified</Text>
-                <Text style={styles.notQualifiedSubtitle}>Needs {WIN_RATE_MIN_PLAYED} matches played to appear on the win-rate ranking.</Text>
+                <Text style={styles.notQualifiedTitle}>{t("leaderboards.notYetQualifiedTitle")}</Text>
+                <Text style={styles.notQualifiedSubtitle}>{t("leaderboards.notYetQualifiedSubtitle", { count: WIN_RATE_MIN_PLAYED })}</Text>
                 <View style={styles.list}>
                   {notYetQualified.map((row) => (
                     <Card key={row.playerId} compact style={styles.notQualifiedRow}>
@@ -401,7 +409,7 @@ export default function LeaderboardsScreen() {
                         {row.playerName}
                       </Text>
                       <Text style={styles.notQualifiedDetail}>
-                        {row.played}/{WIN_RATE_MIN_PLAYED} played · {row.matchesRemaining} to go
+                        {t("leaderboards.playedToGo", { played: row.played, total: WIN_RATE_MIN_PLAYED, remaining: row.matchesRemaining })}
                       </Text>
                     </Card>
                   ))}
