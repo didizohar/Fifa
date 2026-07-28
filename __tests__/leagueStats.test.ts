@@ -1,4 +1,4 @@
-import { computeLeagueSummary, computeMatchesPerWeek } from "../src/lib/leagueStats";
+import { computeLeagueOverview, computeLeagueSummary, computeMatchesPerWeek } from "../src/lib/leagueStats";
 import type { MatchSidePlayer, MatchSummary } from "../src/lib/matches";
 
 interface SideSpec {
@@ -88,5 +88,21 @@ describe("computeMatchesPerWeek", () => {
     const wayBack = makeMatch({ playerIds: ["a"], score: 1, result: "win" }, { playerIds: ["b"], score: 0, result: "loss" }, new Date(2020, 0, 1).toISOString());
     const rows = computeMatchesPerWeek([wayBack], now, 4);
     expect(rows.every((r) => r.count === 0)).toBe(true);
+  });
+});
+
+describe("computeLeagueOverview", () => {
+  it("splits the roster into active and archived counts", () => {
+    const roster = [{ is_active: true }, { is_active: true }, { is_active: false }];
+    expect(computeLeagueOverview(roster, 12)).toEqual({ activePlayers: 2, archivedPlayers: 1, matchesPlayed: 12 });
+  });
+
+  it("reports all-zero for an empty group with no matches", () => {
+    expect(computeLeagueOverview([], 0)).toEqual({ activePlayers: 0, archivedPlayers: 0, matchesPlayed: 0 });
+  });
+
+  it("reports zero archived players when the roster was fetched active-only", () => {
+    const activeOnlyRoster = [{ is_active: true }, { is_active: true }];
+    expect(computeLeagueOverview(activeOnlyRoster, 5).archivedPlayers).toBe(0);
   });
 });

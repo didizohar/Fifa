@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Switch, Text, View } from "react-native";
 import { Avatar } from "../../../src/components/Avatar";
 import { Badge } from "../../../src/components/Badge";
@@ -28,7 +28,10 @@ export default function PlayersScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { currentGroupId } = useGroup();
-  const [includeArchived, setIncludeArchived] = useState(false);
+  const { includeArchived: includeArchivedParam } = useLocalSearchParams<{ includeArchived?: string }>();
+  // Lets League Management's "View archived players" link land here with the
+  // toggle already on -- read once on mount, same as any other deep-link prefill.
+  const [includeArchived, setIncludeArchived] = useState(includeArchivedParam === "1");
   const { data: players, isLoading, isError, refetch, isRefetching } = usePlayers(currentGroupId, includeArchived);
   const matchHistory = useGroupMatchHistory(currentGroupId);
   const matches = matchHistory.data ?? EMPTY_MATCHES;

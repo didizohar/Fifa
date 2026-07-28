@@ -8,6 +8,23 @@ export interface LeagueSummary {
   currentLeader: { playerId: string; playerName: string } | null;
 }
 
+export interface LeagueOverview {
+  activePlayers: number;
+  archivedPlayers: number;
+  matchesPlayed: number;
+}
+
+/**
+ * Active vs. archived player counts plus total matches played, for the
+ * League Management overview. `roster` must include archived players
+ * (fetch with `includeArchived: true`) for the archived count to be
+ * meaningful -- an active-only roster would always report zero archived.
+ */
+export function computeLeagueOverview(roster: { is_active: boolean }[], matchesPlayed: number): LeagueOverview {
+  const activePlayers = roster.filter((p) => p.is_active).length;
+  return { activePlayers, archivedPlayers: roster.length - activePlayers, matchesPlayed };
+}
+
 /** Group-wide totals for the dashboard's League Summary cards. */
 export function computeLeagueSummary(roster: MatchSidePlayer[], matches: MatchSummary[]): LeagueSummary {
   const totalGoals = matches.reduce((sum, m) => sum + m.sides[0].score + m.sides[1].score, 0);
