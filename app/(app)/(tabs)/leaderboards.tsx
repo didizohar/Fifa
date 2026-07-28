@@ -188,8 +188,12 @@ export default function LeaderboardsScreen() {
     [category, roster, matches, monthTarget],
   );
 
-  const displayRows = descending ? rows : [...rows].reverse();
-  const displayPairs = descending ? doublesPairs : [...doublesPairs].reverse();
+  const displayRows = useMemo(() => (descending ? rows : [...rows].reverse()), [rows, descending]);
+  const displayPairs = useMemo(() => (descending ? doublesPairs : [...doublesPairs].reverse()), [doublesPairs, descending]);
+  const podiumEntries = useMemo(
+    () => displayRows.slice(0, 3).map((row) => ({ playerId: row.playerId, name: row.playerName, avatarUrl: row.avatarUrl, color: row.color, valueLabel: row.valueLabel })),
+    [displayRows],
+  );
 
   const isLoading = players.isLoading || matchHistory.isLoading;
   const isError = players.isError || matchHistory.isError;
@@ -365,17 +369,7 @@ export default function LeaderboardsScreen() {
         ) : (
           <>
             <FadeIn>
-              <Podium
-                entries={displayRows.slice(0, 3).map((row) => ({
-                  playerId: row.playerId,
-                  name: row.playerName,
-                  avatarUrl: row.avatarUrl,
-                  color: row.color,
-                  valueLabel: row.valueLabel,
-                }))}
-                highlightedPlayerId={myPlayerId}
-                onPressEntry={(playerId) => router.push(`/player/${playerId}`)}
-              />
+              <Podium entries={podiumEntries} highlightedPlayerId={myPlayerId} onPressEntry={(playerId) => router.push(`/player/${playerId}`)} />
             </FadeIn>
             {displayRows.length > 3 ? (
               <View style={styles.list}>

@@ -5,6 +5,7 @@ import { Avatar } from "../../../src/components/Avatar";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
 import { ExportButton } from "../../../src/components/ExportButton";
+import { ListSeparator } from "../../../src/components/ListSeparator";
 import { Screen } from "../../../src/components/Screen";
 import { SkeletonList } from "../../../src/components/Skeleton";
 import { useGroup } from "../../../src/hooks/useGroup";
@@ -67,7 +68,7 @@ export default function PlayersScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listPadding}
           refreshControl={<RefreshControl tintColor={colors.accent} refreshing={isRefetching} onRefresh={refetch} />}
-          ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
+          ItemSeparatorComponent={ListSeparator}
           renderItem={({ item }) => (
             <PlayerRow player={item} stats={statsById.get(item.id) ?? null} onPress={() => router.push(`/player/${item.id}`)} />
           )}

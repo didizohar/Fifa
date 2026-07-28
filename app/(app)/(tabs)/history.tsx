@@ -6,6 +6,7 @@ import { Button } from "../../../src/components/Button";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
 import { ExportButton } from "../../../src/components/ExportButton";
+import { ListSeparator } from "../../../src/components/ListSeparator";
 import { MatchRow } from "../../../src/components/MatchRow";
 import { PlayerPicker } from "../../../src/components/PlayerPicker";
 import { Screen } from "../../../src/components/Screen";
@@ -77,12 +78,15 @@ export default function HistoryScreen() {
   const pickablePlayers = useMemo(() => (players.data ?? []).map(toPickablePlayer), [players.data]);
   const opponentChoices = useMemo(() => pickablePlayers.filter((p) => p.id !== filters.playerId), [pickablePlayers, filters.playerId]);
 
-  const resultOptions: { value: "all" | SideResult; label: string; disabled?: boolean }[] = [
-    { value: "all", label: "All" },
-    { value: "win", label: "Win", disabled: !filters.playerId },
-    { value: "loss", label: "Loss", disabled: !filters.playerId },
-    { value: "draw", label: "Draw" },
-  ];
+  const resultOptions: { value: "all" | SideResult; label: string; disabled?: boolean }[] = useMemo(
+    () => [
+      { value: "all", label: "All" },
+      { value: "win", label: "Win", disabled: !filters.playerId },
+      { value: "loss", label: "Loss", disabled: !filters.playerId },
+      { value: "draw", label: "Draw" },
+    ],
+    [filters.playerId],
+  );
 
   const clearFilters = () => setFilters(DEFAULT_MATCH_FILTERS);
 
@@ -193,7 +197,7 @@ export default function HistoryScreen() {
           keyExtractor={(item) => (item.type === "header" ? `header-${item.label}` : item.match.id)}
           contentContainerStyle={styles.listPadding}
           refreshControl={<RefreshControl tintColor={colors.accent} refreshing={isRefetching} onRefresh={refetch} />}
-          ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
+          ItemSeparatorComponent={ListSeparator}
           renderItem={({ item }) =>
             item.type === "header" ? (
               <Text style={styles.dayHeader}>{item.label}</Text>
