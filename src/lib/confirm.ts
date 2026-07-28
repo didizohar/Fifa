@@ -10,6 +10,7 @@ export function confirmAction(
   message: string | undefined,
   confirmLabel: string,
   onConfirm: () => void,
+  cancelLabel = "Cancel",
 ): void {
   if (Platform.OS === "web") {
     const text = message ? `${title}\n\n${message}` : title;
@@ -18,7 +19,7 @@ export function confirmAction(
   }
 
   Alert.alert(title, message, [
-    { text: "Cancel", style: "cancel" },
+    { text: cancelLabel, style: "cancel" },
     { text: confirmLabel, style: "destructive", onPress: onConfirm },
   ]);
 }

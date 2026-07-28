@@ -1,0 +1,17 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { processMatchEdit } from "../lib/matchService";
+import { determineAffectedQueries } from "../lib/queryClient";
+import type { EditMatchPayload } from "../lib/types/database";
+
+export function useEditMatch(groupId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: EditMatchPayload) => processMatchEdit(payload),
+    onSuccess: (_matchId, payload) => {
+      if (!groupId) return;
+      for (const queryKey of determineAffectedQueries(groupId, payload.matchId)) {
+        queryClient.invalidateQueries({ queryKey: queryKey as unknown[] });
+      }
+    },
+  });
+}

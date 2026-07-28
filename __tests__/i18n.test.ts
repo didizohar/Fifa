@@ -490,3 +490,59 @@ describe("Product Completion Pass translation coverage", () => {
     expect(typeof heValue === "string" && heValue.trim().length > 0).toBe(true);
   });
 });
+
+/** Explicit, named coverage for the "Edit Match" feature's translation surface. */
+describe("Edit Match translation coverage", () => {
+  const editMatchKeys = [
+    "editMatch.entryAction",
+    "editMatch.saveChanges",
+    "editMatch.savedSuccessTitle",
+    "editMatch.confirmTitle",
+    "editMatch.confirmMessage",
+    "editMatch.statisticsWillUpdate",
+    "editMatch.unsavedTitle",
+    "editMatch.unsavedMessage",
+    "editMatch.leaveWithoutSaving",
+    "editMatch.continueEditing",
+    "editMatch.editedBadge",
+    "editMatch.matchNotFound",
+    "editMatch.permissionDenied",
+    "editMatch.winnersStayLinkedShort",
+    "editMatch.winnersStayLinkedMessage",
+    "editMatch.recalculateRotation",
+    "editMatch.rotationRecalculated",
+    "editMatch.invalidHistoricalPlayer",
+    "editMatch.unknownHistoricalClub",
+    "editMatch.networkError",
+    "editMatch.genericError",
+    "editMatch.dateLabel",
+    "editMatch.timeLabel",
+    "editMatch.notesLabel",
+    "editMatch.notesPlaceholder",
+    "editMatch.invalidDateTime",
+  ];
+
+  const readPath = (dict: unknown, path: string) => path.split(".").reduce<unknown>((acc, part) => (acc as Record<string, unknown>)?.[part], dict);
+
+  it.each(editMatchKeys)("%s exists as a non-empty string in English and Hebrew", (path) => {
+    const enValue = readPath(en, path);
+    const heValue = readPath(he, path);
+    expect(typeof enValue === "string" && enValue.trim().length > 0).toBe(true);
+    expect(typeof heValue === "string" && heValue.trim().length > 0).toBe(true);
+  });
+
+  it("matches the exact required English and Hebrew copy for the core prompts", () => {
+    expect(en.editMatch.entryAction).toBe("Edit Match");
+    expect(he.editMatch.entryAction).toBe("עריכת משחק");
+    expect(en.editMatch.saveChanges).toBe("Save Changes");
+    expect(en.editMatch.savedSuccessTitle).toBe("Match updated successfully");
+    expect(he.editMatch.savedSuccessTitle).toBe("המשחק עודכן בהצלחה");
+    expect(en.editMatch.confirmMessage).toBe("These changes will update statistics, rankings and records. Save changes?");
+    expect(he.editMatch.confirmMessage).toBe("השינויים יעדכנו את הסטטיסטיקות, הדירוגים והשיאים. לשמור?");
+    expect(en.editMatch.unsavedMessage).toBe("You have unsaved changes. Leave without saving?");
+    expect(he.editMatch.unsavedMessage).toBe("יש שינויים שלא נשמרו. לצאת בלי לשמור?");
+    expect(en.editMatch.editedBadge).toBe("Edited");
+    expect(he.editMatch.editedBadge).toBe("נערך");
+    expect(he.editMatch.winnersStayLinkedMessage).toBe('המשחק הזה משויך לסשן "המנצחים נשארים". שינוי התוצאה עשוי לשנות את הרוטציה הבאה.');
+  });
+});

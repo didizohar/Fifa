@@ -81,6 +81,18 @@ export function canAdvanceSession(session: WinnersStaySession, matchId: string):
   return session.status === "active" && session.lastRecordedMatchId !== matchId && session.currentPairB !== null;
 }
 
+/**
+ * True when `matchId` is the exact match that most recently advanced this
+ * session's rotation. Editing that match doesn't touch session state at
+ * all (nothing here re-runs advanceWinnersStaySession), so the queue and
+ * currentPairA/B are never at risk of double-advancing -- this is purely
+ * so the edit screen can warn the user that the *next* rotation may now be
+ * based on a stale result.
+ */
+export function isMatchLinkedToActiveWinnersStaySession(session: WinnersStaySession | null, matchId: string): boolean {
+  return !!session && session.status === "active" && session.lastRecordedMatchId === matchId;
+}
+
 export interface AdvanceSessionParams {
   session: WinnersStaySession;
   matchId: string;

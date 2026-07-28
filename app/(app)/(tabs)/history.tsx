@@ -12,6 +12,7 @@ import { PlayerPicker } from "../../../src/components/PlayerPicker";
 import { Screen } from "../../../src/components/Screen";
 import { SegmentedControl } from "../../../src/components/SegmentedControl";
 import { SkeletonList } from "../../../src/components/Skeleton";
+import { useAuth } from "../../../src/hooks/useAuth";
 import { useGroup } from "../../../src/hooks/useGroup";
 import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
@@ -22,6 +23,7 @@ import { DEFAULT_MATCH_FILTERS, distinctClubs, filterMatches, hasActiveFilters, 
 import type { MatchSummary } from "../../../src/lib/matches";
 import { toPickablePlayer } from "../../../src/lib/players";
 import type { MatchType, SideResult } from "../../../src/lib/types/database";
+import { canEditMatch } from "../../../src/lib/validation/editMatchForm";
 import { colors, radius, spacing, typography } from "../../../src/theme";
 
 type HistoryListItem =
@@ -50,7 +52,8 @@ function groupMatchesByDay(matches: MatchSummary[]): HistoryListItem[] {
 export default function HistoryScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { currentGroupId } = useGroup();
+  const { currentGroupId, currentRole } = useGroup();
+  const { user } = useAuth();
   const { data: matches, isLoading, isError, refetch, isRefetching } = useGroupMatchHistory(currentGroupId);
   const players = usePlayers(currentGroupId);
 
@@ -211,7 +214,13 @@ export default function HistoryScreen() {
             item.type === "header" ? (
               <Text style={styles.dayHeader}>{item.label}</Text>
             ) : (
-              <HistoryRow match={item.match} isLast={item.isLastInGroup} onPress={() => router.push(`/match/${item.match.id}`)} />
+              <HistoryRow
+                match={item.match}
+                isLast={item.isLastInGroup}
+                onPress={() => router.push(`/match/${item.match.id}`)}
+                canEdit={canEditMatch(currentRole, user?.id, item.match.created_by)}
+                onEdit={() => router.push({ pathname: "/record-match", params: { matchId: item.match.id } })}
+              />
             )
           }
           ListEmptyComponent={
@@ -258,7 +267,19 @@ function ClubChip({ label, active, onPress }: { label: string; active: boolean; 
   );
 }
 
-function HistoryRow({ match, onPress, isLast }: { match: MatchSummary; onPress: () => void; isLast: boolean }) {
+function HistoryRow({
+  match,
+  onPress,
+  isLast,
+  canEdit,
+  onEdit,
+}: {
+  match: MatchSummary;
+  onPress: () => void;
+  isLast: boolean;
+  canEdit: boolean;
+  onEdit: () => void;
+}) {
   const { t } = useTranslation();
   const [s1, s2] = match.sides;
   return (
@@ -286,6 +307,17 @@ function HistoryRow({ match, onPress, isLast }: { match: MatchSummary; onPress: 
           }}
           onPress={onPress}
         />
+        {canEdit ? (
+          <Pressable
+            onPress={onEdit}
+            style={styles.editButton}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t("editMatch.entryAction")}
+          >
+            <Ionicons name="create-outline" size={16} color={colors.textSecondary} />
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -422,6 +454,11 @@ const styles = StyleSheet.create({
   },
   timelineContent: {
     flex: 1,
+  },
+  editButton: {
+    alignSelf: "flex-end",
+    padding: spacing.xs,
+    marginTop: -spacing.xs,
   },
   dayHeader: {
     ...typography.eyebrow,

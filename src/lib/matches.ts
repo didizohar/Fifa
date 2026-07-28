@@ -14,6 +14,8 @@ export interface MatchSideSummary {
   score: number;
   penalty_score: number | null;
   result: SideResult;
+  /** Optional so existing test fixtures built before match editing don't all need updating -- real fetches always populate it. */
+  club_version_id?: string | null;
   club: { id: string; name: string } | null;
   players: MatchSidePlayer[];
 }
@@ -25,13 +27,21 @@ export interface MatchSummary {
   is_penalties: boolean;
   notes: string | null;
   played_at: string;
+  // Optional for the same reason as MatchSideSummary.club_version_id above --
+  // added for match editing (audit fields + permission checks), but real
+  // fetches (fetchMatchDetail et al.) always populate every one of these.
+  created_at?: string;
+  updated_at?: string;
+  created_by?: string | null;
+  game_version_id?: string | null;
+  season_id?: string | null;
   sides: [MatchSideSummary, MatchSideSummary];
 }
 
 const MATCH_SELECT = `
-  id, match_type, is_overtime, is_penalties, notes, played_at,
+  id, match_type, is_overtime, is_penalties, notes, played_at, created_at, updated_at, created_by, game_version_id, season_id,
   match_sides (
-    id, side_number, score, penalty_score, result,
+    id, side_number, score, penalty_score, result, club_version_id,
     club_version:club_versions ( club:clubs ( id, name ) ),
     match_players ( player:player_profiles ( id, display_name, avatar_url, custom_color ) )
   )
@@ -46,12 +56,18 @@ interface RawMatch {
   is_penalties: boolean;
   notes: string | null;
   played_at: string;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+  game_version_id: string | null;
+  season_id: string | null;
   match_sides: {
     id: string;
     side_number: number;
     score: number;
     penalty_score: number | null;
     result: SideResult;
+    club_version_id: string | null;
     club_version: { club: { id: string; name: string } | null } | null;
     match_players: { player: MatchSidePlayer | null }[];
   }[];
@@ -68,6 +84,7 @@ function normalizeMatch(raw: RawMatch): MatchSummary | null {
     score: s.score,
     penalty_score: s.penalty_score,
     result: s.result,
+    club_version_id: s.club_version_id,
     club: s.club_version?.club ?? null,
     players: s.match_players.map((mp) => mp.player).filter((p): p is MatchSidePlayer => p !== null),
   });
@@ -79,6 +96,11 @@ function normalizeMatch(raw: RawMatch): MatchSummary | null {
     is_penalties: raw.is_penalties,
     notes: raw.notes,
     played_at: raw.played_at,
+    created_at: raw.created_at,
+    updated_at: raw.updated_at,
+    created_by: raw.created_by,
+    game_version_id: raw.game_version_id,
+    season_id: raw.season_id,
     sides: [toSide(s1!), toSide(s2!)],
   };
 }
@@ -113,7 +135,13 @@ export async function fetchGroupMatchHistory(groupId: string): Promise<MatchSumm
 
 export async function fetchMatchDetail(matchId: string): Promise<MatchSummary> {
   const { data, error } = await supabase.from("matches").select(MATCH_SELECT).eq("id", matchId).single();
-  if (error) throw new Error(`Failed to load match: ${error.message}`);
+  if (error) {
+    // Preserves PostgREST's error code (e.g. "PGRST116" for zero rows from
+    // .single()) on the thrown Error so callers can distinguish "not found"
+    // from a genuine network failure -- the message itself is still never
+    // the raw Supabase text shown to a user.
+    throw Object.assign(new Error(`Failed to load match: ${error.message}`), { code: error.code });
+  }
   const normalized = normalizeMatch(data as unknown as RawMatch);
   if (!normalized) throw new Error("Match data is incomplete.");
   return normalized;

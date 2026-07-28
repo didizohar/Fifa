@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { Button } from "../../src/components/Button";
 import { Card } from "../../src/components/Card";
 import { ClubBadge } from "../../src/components/ClubBadge";
 import { EmptyState } from "../../src/components/EmptyState";
+import { ErrorState } from "../../src/components/ErrorState";
 import { FilterChip } from "../../src/components/FilterChip";
 import { InfoBanner } from "../../src/components/InfoBanner";
 import { PlayerPicker } from "../../src/components/PlayerPicker";
@@ -12,23 +13,51 @@ import { Screen } from "../../src/components/Screen";
 import { ScoreStepper } from "../../src/components/ScoreStepper";
 import { SegmentedControl } from "../../src/components/SegmentedControl";
 import { Skeleton } from "../../src/components/Skeleton";
+import { TextField } from "../../src/components/TextField";
+import { useAuth } from "../../src/hooks/useAuth";
 import { useClubVersions } from "../../src/hooks/useClubVersions";
+import { useEditMatch } from "../../src/hooks/useEditMatch";
 import { useGroup } from "../../src/hooks/useGroup";
+import { useMatch } from "../../src/hooks/useMatches";
 import { usePlayers } from "../../src/hooks/usePlayers";
 import { useRecordMatch } from "../../src/hooks/useRecordMatch";
+import { confirmAction, notify } from "../../src/lib/confirm";
 import { matchSideLabel } from "../../src/lib/format";
 import { useTranslation } from "../../src/lib/i18n";
 import { type MatchPrefillRouteParams, validateMatchPrefill } from "../../src/lib/matchPrefill";
-import { toPickablePlayer } from "../../src/lib/players";
+import { EditMatchError } from "../../src/lib/matchService";
+import { toPickablePlayer, type PickablePlayer } from "../../src/lib/players";
 import { filterValidClubVersions } from "../../src/lib/random/clubs";
 import { drawClubsForMatch, type ClubDrawStarMode } from "../../src/lib/random/matchClubDraw";
+import { isMatchLinkedToActiveWinnersStaySession } from "../../src/lib/rotation/session";
 import type { ClubVersion, MatchType } from "../../src/lib/types/database";
-import { validateMatchForm } from "../../src/lib/validation/matchForm";
+import {
+  buildEditableMatchForm,
+  canEditMatch,
+  compareMatchSnapshots,
+  parseMatchDateTime,
+  reconcileEditedMatchResult,
+  type EditableMatchDraft,
+} from "../../src/lib/validation/editMatchForm";
+import { validateMatchForm, type ComputedMatchResult } from "../../src/lib/validation/matchForm";
+import { useWinnersStaySession } from "../../src/hooks/useWinnersStaySession";
 import { colors, radius, spacing, typography } from "../../src/theme";
 
 const STAR_MODES: ClubDrawStarMode[] = ["sameStar", "similarStrength", "anyStrength"];
 
 const MIN_PLAYERS_TO_RECORD = 2;
+
+function mergePickablePlayers(roster: PickablePlayer[], matchPlayers: PickablePlayer[]): PickablePlayer[] {
+  const merged = [...roster];
+  const knownIds = new Set(roster.map((p) => p.id));
+  for (const player of matchPlayers) {
+    if (!knownIds.has(player.id)) {
+      merged.push(player);
+      knownIds.add(player.id);
+    }
+  }
+  return merged;
+}
 
 export default function RecordMatchScreen() {
   const router = useRouter();
@@ -42,10 +71,22 @@ export default function RecordMatchScreen() {
     side2Club: typeof rawParams.side2Club === "string" ? rawParams.side2Club : undefined,
   };
   const isFromWinnersStay = rawParams.source === "winnersStay";
-  const { currentGroup } = useGroup();
-  const { data: players, isLoading: playersLoading } = usePlayers(currentGroup?.id ?? null);
-  const { data: clubVersions, isLoading: clubsLoading } = useClubVersions(currentGroup?.default_game_version_id);
+  const matchId = typeof rawParams.matchId === "string" ? rawParams.matchId : undefined;
+  const isEditMode = !!matchId;
+  const navigation = useNavigation();
+
+  const { currentGroup, currentRole } = useGroup();
+  const { user } = useAuth();
+  // Editing needs the match's own game version (clubs must match what was
+  // actually available then), not the group's *current* default -- the two
+  // can differ if the group's default changed since this match was played.
+  const matchQuery = useMatch(matchId);
+  const editGameVersionId = isEditMode ? matchQuery.data?.game_version_id ?? undefined : currentGroup?.default_game_version_id;
+  const { data: players, isLoading: playersLoading } = usePlayers(currentGroup?.id ?? null, isEditMode);
+  const { data: clubVersions, isLoading: clubsLoading } = useClubVersions(editGameVersionId);
   const recordMatch = useRecordMatch(currentGroup?.id ?? null);
+  const editMatch = useEditMatch(currentGroup?.id ?? null);
+  const winnersStaySession = useWinnersStaySession(currentGroup?.id ?? null);
 
   const [matchType, setMatchType] = useState<MatchType>("singles");
   const [side1ClubId, setSide1ClubId] = useState<string | null>(null);
@@ -60,6 +101,16 @@ export default function RecordMatchScreen() {
   const [penaltyScore2, setPenaltyScore2] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
   const [showPrefillBanner, setShowPrefillBanner] = useState(false);
+
+  // Edit-mode-only fields -- Record Match itself doesn't collect these (a
+  // new match is always stamped "now"), so they only exist here.
+  const [notes, setNotes] = useState("");
+  const [dateInput, setDateInput] = useState("");
+  const [timeInput, setTimeInput] = useState("");
+  const [dateTimeError, setDateTimeError] = useState<string | null>(null);
+
+  const originalDraftRef = useRef<EditableMatchDraft | null>(null);
+  const skipUnsavedGuardRef = useRef(false);
 
   // Winners Stay's "Draw Clubs by Stars" -- only ever touches side1ClubId/side2ClubId,
   // never the players, pairings, score, or waiting queue.
@@ -116,12 +167,51 @@ export default function RecordMatchScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [players, clubVersions]);
 
+  // Loads the saved match's exact current values into the same state the
+  // create form uses, exactly once, so nothing is silently reset if the
+  // queries backing this effect refetch later.
+  const hasAppliedEditSeed = useRef(false);
+  useEffect(() => {
+    if (!isEditMode || hasAppliedEditSeed.current) return;
+    if (!matchQuery.data || !players || !clubVersions) return;
+    hasAppliedEditSeed.current = true;
+    const draft = buildEditableMatchForm(matchQuery.data);
+    originalDraftRef.current = draft;
+    setMatchType(draft.matchType);
+    setSide1ClubId(draft.side1.clubVersionId);
+    setSide2ClubId(draft.side2.clubVersionId);
+    setSide1PlayerIds(draft.side1.playerIds);
+    setSide2PlayerIds(draft.side2.playerIds);
+    setSide1Score(draft.side1.score);
+    setSide2Score(draft.side2.score);
+    setIsOvertime(draft.isOvertime);
+    setIsPenalties(draft.isPenalties);
+    setPenaltyScore1(draft.penaltyScore1 ?? 0);
+    setPenaltyScore2(draft.penaltyScore2 ?? 0);
+    setNotes(draft.notes);
+    setDateInput(draft.dateInput);
+    setTimeInput(draft.timeInput);
+  }, [isEditMode, matchQuery.data, players, clubVersions]);
+
   const requiredCount = matchType === "singles" ? 1 : 2;
   const scoresLevel = side1Score === side2Score;
 
-  const pickablePlayers = useMemo(() => (players ?? []).map(toPickablePlayer), [players]);
+  // In edit mode, an archived player who was already part of this match must
+  // stay pickable even though usePlayers(groupId, true) already includes
+  // archived players -- the extra merge only matters for the defensive edge
+  // case where a match's own player somehow isn't in that list at all, so a
+  // saved match never loses a chip it should still show.
+  const matchOwnPlayers = useMemo(
+    () => (matchQuery.data ? matchQuery.data.sides.flatMap((s) => s.players).map(toPickablePlayer) : []),
+    [matchQuery.data],
+  );
+  const pickablePlayers = useMemo(
+    () => mergePickablePlayers((players ?? []).map(toPickablePlayer), matchOwnPlayers),
+    [players, matchOwnPlayers],
+  );
 
-  const pairLabel = (playerIds: string[]): string => matchSideLabel(playerIds.map((id) => (players ?? []).find((p) => p.id === id)?.display_name ?? "?"));
+  const pairLabel = (playerIds: string[]): string =>
+    matchSideLabel(playerIds.map((id) => pickablePlayers.find((p) => p.id === id)?.displayName ?? "?"));
 
   const changeMatchType = (type: MatchType) => {
     setMatchType(type);
@@ -136,8 +226,81 @@ export default function RecordMatchScreen() {
     setSide2PlayerIds((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
   };
 
+  const currentDraft: EditableMatchDraft = {
+    matchType,
+    side1: { clubVersionId: side1ClubId, playerIds: side1PlayerIds, score: side1Score },
+    side2: { clubVersionId: side2ClubId, playerIds: side2PlayerIds, score: side2Score },
+    isOvertime,
+    isPenalties,
+    penaltyScore1: isPenalties ? penaltyScore1 : null,
+    penaltyScore2: isPenalties ? penaltyScore2 : null,
+    notes,
+    dateInput,
+    timeInput,
+  };
+  // Refreshed every render (not via an effect) so the beforeRemove listener
+  // below always reads the latest form state without needing to
+  // resubscribe on every keystroke.
+  const currentDraftRef = useRef(currentDraft);
+  currentDraftRef.current = currentDraft;
+
+  const isLinkedToWinnersStay = isEditMode && !!matchId && isMatchLinkedToActiveWinnersStaySession(winnersStaySession.session, matchId);
+
+  const handleRecalculateRotation = () => {
+    if (!winnersStaySession.session) return;
+    winnersStaySession.setSession({ ...winnersStaySession.session, pendingRotation: null });
+    notify(t("editMatch.rotationRecalculated"));
+  };
+
+  // Hardware/gesture back, the header's back button, and router.back() all
+  // funnel through this same "beforeRemove" navigation event -- guarding it
+  // once here covers every exit path, not just the button on this screen.
+  useEffect(() => {
+    if (!isEditMode) return undefined;
+    const unsubscribe = navigation.addListener("beforeRemove", (e) => {
+      if (skipUnsavedGuardRef.current) return;
+      const original = originalDraftRef.current;
+      if (!original || !compareMatchSnapshots(original, currentDraftRef.current).anyChanged) return;
+      e.preventDefault();
+      confirmAction(
+        t("editMatch.unsavedTitle"),
+        t("editMatch.unsavedMessage"),
+        t("editMatch.leaveWithoutSaving"),
+        () => navigation.dispatch(e.data.action),
+        t("editMatch.continueEditing"),
+      );
+    });
+    return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigation, isEditMode]);
+
+  const isSubmitting = isEditMode ? editMatch.isPending : recordMatch.isPending;
+
+  const saveEdit = async (computed: ComputedMatchResult) => {
+    if (!currentGroup || !matchId) return;
+    const payload = reconcileEditedMatchResult(matchId, currentGroup.id, currentDraft, computed);
+    if (!payload) {
+      setDateTimeError(t("editMatch.invalidDateTime"));
+      return;
+    }
+    try {
+      await editMatch.mutateAsync(payload);
+      skipUnsavedGuardRef.current = true;
+      notify(t("editMatch.savedSuccessTitle"));
+      router.replace(`/match/${matchId}`);
+    } catch (e) {
+      if (e instanceof EditMatchError) {
+        if (e.code === "not_found") setErrors([t("editMatch.matchNotFound")]);
+        else if (e.code === "permission_denied") setErrors([t("editMatch.permissionDenied")]);
+        else setErrors([t("editMatch.genericError")]);
+      } else {
+        setErrors([t("editMatch.networkError")]);
+      }
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!currentGroup) return;
+    if (!currentGroup || isSubmitting) return;
 
     const validation = validateMatchForm(
       {
@@ -148,17 +311,42 @@ export default function RecordMatchScreen() {
         penaltyScore1: isPenalties ? penaltyScore1 : null,
         penaltyScore2: isPenalties ? penaltyScore2 : null,
       },
-      (players ?? []).map((p) => p.id),
+      // pickablePlayers (not the raw roster) so a match's own already-selected
+      // player is never rejected as "not on this group's roster" -- see the
+      // mergePickablePlayers comment above. Identical to the roster in create
+      // mode, since there's no match to merge in yet.
+      pickablePlayers.map((p) => p.id),
     );
 
     if (!validation.ok) {
       setErrors(validation.errors);
+      setDateTimeError(null);
       return;
     }
+
+    if (isEditMode) {
+      if (!parseMatchDateTime(dateInput, timeInput)) {
+        setErrors([]);
+        setDateTimeError(t("editMatch.invalidDateTime"));
+        return;
+      }
+      setErrors([]);
+      setDateTimeError(null);
+
+      const original = originalDraftRef.current;
+      const changes = original ? compareMatchSnapshots(original, currentDraft) : null;
+      if (changes && (changes.participantsChanged || changes.scoreOrResultChanged)) {
+        confirmAction(t("editMatch.confirmTitle"), t("editMatch.confirmMessage"), t("editMatch.saveChanges"), () => saveEdit(validation), t("common.cancel"));
+      } else {
+        await saveEdit(validation);
+      }
+      return;
+    }
+
     setErrors([]);
 
     try {
-      const matchId = await recordMatch.mutateAsync({
+      const newMatchId = await recordMatch.mutateAsync({
         groupId: currentGroup.id,
         gameVersionId: currentGroup.default_game_version_id!,
         matchType,
@@ -182,7 +370,7 @@ export default function RecordMatchScreen() {
           },
         ],
       });
-      router.replace(`/match/${matchId}`);
+      router.replace(`/match/${newMatchId}`);
     } catch (e) {
       setErrors([e instanceof Error ? e.message : "Failed to record match."]);
     }
@@ -190,7 +378,41 @@ export default function RecordMatchScreen() {
 
   if (!currentGroup) return null;
 
-  if (!playersLoading && (players ?? []).length < MIN_PLAYERS_TO_RECORD) {
+  if (isEditMode) {
+    if (matchQuery.isLoading || (matchQuery.data && (playersLoading || clubsLoading))) {
+      return (
+        <Screen>
+          <View style={styles.content}>
+            <Skeleton height={100} borderRadius={radius.lg} />
+            <Skeleton height={220} borderRadius={radius.lg} />
+            <Skeleton height={220} borderRadius={radius.lg} />
+          </View>
+        </Screen>
+      );
+    }
+
+    if (matchQuery.isError || !matchQuery.data) {
+      const isNotFound = (matchQuery.error as { code?: string } | null)?.code === "PGRST116";
+      return (
+        <Screen>
+          <ErrorState
+            message={isNotFound ? t("editMatch.matchNotFound") : t("editMatch.networkError")}
+            onRetry={isNotFound ? undefined : () => matchQuery.refetch()}
+          />
+        </Screen>
+      );
+    }
+
+    if (!canEditMatch(currentRole, user?.id, matchQuery.data.created_by)) {
+      return (
+        <Screen>
+          <ErrorState message={t("editMatch.permissionDenied")} />
+        </Screen>
+      );
+    }
+  }
+
+  if (!isEditMode && !playersLoading && (players ?? []).length < MIN_PLAYERS_TO_RECORD) {
     return (
       <Screen>
         <EmptyState
@@ -206,11 +428,19 @@ export default function RecordMatchScreen() {
 
   return (
     <Screen>
+      {isEditMode ? <Stack.Screen options={{ title: t("editMatch.entryAction") }} /> : null}
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {showPrefillBanner ? (
           <View style={styles.prefillBanner}>
             <Text style={styles.prefillBannerText}>{t("draw.prefillBannerMessage")}</Text>
           </View>
+        ) : null}
+
+        {isLinkedToWinnersStay ? (
+          <Card style={styles.clubDrawCard}>
+            <InfoBanner tone="warning" message={t("editMatch.winnersStayLinkedMessage")} />
+            <Button label={t("editMatch.recalculateRotation")} variant="secondary" onPress={handleRecalculateRotation} />
+          </Card>
         ) : null}
 
         <SegmentedControl
@@ -317,6 +547,27 @@ export default function RecordMatchScreen() {
           ) : null}
         </Card>
 
+        {isEditMode ? (
+          <Card style={styles.optionsCard}>
+            <View style={styles.dateTimeRow}>
+              <View style={styles.dateTimeField}>
+                <TextField label={t("editMatch.dateLabel")} placeholder="yyyy-mm-dd" value={dateInput} onChangeText={setDateInput} />
+              </View>
+              <View style={styles.dateTimeField}>
+                <TextField label={t("editMatch.timeLabel")} placeholder="HH:mm" value={timeInput} onChangeText={setTimeInput} />
+              </View>
+            </View>
+            {dateTimeError ? <Text style={styles.hint}>{dateTimeError}</Text> : null}
+            <TextField
+              label={t("editMatch.notesLabel")}
+              placeholder={t("editMatch.notesPlaceholder")}
+              value={notes}
+              onChangeText={setNotes}
+              multiline
+            />
+          </Card>
+        ) : null}
+
         {errors.length > 0 ? (
           <View style={styles.errorBox}>
             {errors.map((message) => (
@@ -325,7 +576,7 @@ export default function RecordMatchScreen() {
           </View>
         ) : null}
 
-        <Button label="Save match" onPress={handleSubmit} loading={recordMatch.isPending} />
+        <Button label={isEditMode ? t("editMatch.saveChanges") : "Save match"} onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
 
         {isFromWinnersStay ? <Button label={t("rotation.backToHome")} variant="secondary" onPress={() => router.replace("/")} /> : null}
       </ScrollView>
@@ -481,6 +732,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
     paddingTop: spacing.sm,
+  },
+  dateTimeRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  dateTimeField: {
+    flex: 1,
   },
   errorBox: {
     backgroundColor: colors.dangerSubtle,

@@ -7,6 +7,7 @@ import {
   computeSessionSummary,
   drawRandomInitialPairs,
   endSession,
+  isMatchLinkedToActiveWinnersStaySession,
   moveQueueEntry,
   redrawSessionPartner,
   removeFromQueue,
@@ -119,6 +120,32 @@ describe("canAdvanceSession / advanceWinnersStaySession", () => {
   it("cannot advance a completed session", () => {
     const ended = endSession(freshSession(), new Date());
     expect(canAdvanceSession(ended, "match-1")).toBe(false);
+  });
+});
+
+describe("isMatchLinkedToActiveWinnersStaySession", () => {
+  it("is false when there is no session at all", () => {
+    expect(isMatchLinkedToActiveWinnersStaySession(null, "match-1")).toBe(false);
+  });
+
+  it("is false before any match has advanced the session", () => {
+    expect(isMatchLinkedToActiveWinnersStaySession(freshSession(), "match-1")).toBe(false);
+  });
+
+  it("is true for the exact match that most recently advanced an active session", () => {
+    const advanced = advanceWinnersStaySession({ session: freshSession(), matchId: "match-1", result: "sideA", playersById: playersById(ALL), activePlayerIds: ALL, now: new Date() });
+    expect(isMatchLinkedToActiveWinnersStaySession(advanced, "match-1")).toBe(true);
+  });
+
+  it("is false for a different match id than the one that advanced the session", () => {
+    const advanced = advanceWinnersStaySession({ session: freshSession(), matchId: "match-1", result: "sideA", playersById: playersById(ALL), activePlayerIds: ALL, now: new Date() });
+    expect(isMatchLinkedToActiveWinnersStaySession(advanced, "match-2")).toBe(false);
+  });
+
+  it("is false once the session has ended, even for the linking match id", () => {
+    const advanced = advanceWinnersStaySession({ session: freshSession(), matchId: "match-1", result: "sideA", playersById: playersById(ALL), activePlayerIds: ALL, now: new Date() });
+    const ended = endSession(advanced, new Date());
+    expect(isMatchLinkedToActiveWinnersStaySession(ended, "match-1")).toBe(false);
   });
 
   it("increments the staying pair's consecutive count and resets the rotated-out pair's on the next start", () => {

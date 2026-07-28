@@ -31,3 +31,26 @@ export const clubKeys = {
   versions: (gameVersionId: string) => ["clubVersions", gameVersionId] as const,
   gameVersions: ["gameVersions"] as const,
 };
+
+/**
+ * Every query key a match edit can affect, as prefixes rather than
+ * fully-specified keys -- react-query's invalidateQueries treats a given
+ * key as a prefix match by default, so `["matches", "records"]` catches
+ * every records query regardless of which specific player ids it was
+ * fetched with. This deliberately doesn't try to compute which players
+ * were added/removed from the match: any player who was ever on either
+ * side (before or after the edit) needs their per-player queries
+ * refreshed, and prefix-invalidating all of them is simpler and just as
+ * correct as tracking the diff.
+ */
+export function determineAffectedQueries(groupId: string, matchId: string): readonly (readonly unknown[])[] {
+  return [
+    playerKeys.list(groupId),
+    matchKeys.list(groupId),
+    matchKeys.groupHistory(groupId),
+    matchKeys.stats(groupId),
+    matchKeys.detail(matchId),
+    ["matches", "records"],
+    ["matches", "history"],
+  ];
+}

@@ -105,3 +105,38 @@ export interface RecordMatchRpcArgs {
   p_s2_ratings_before: number[];
   p_s2_rating_after: number;
 }
+
+export interface EditMatchPayload {
+  matchId: string;
+  groupId: string;
+  /** ISO 8601 -- becomes the match's played_at. */
+  playedAt: string;
+  matchType: MatchType;
+  isOvertime: boolean;
+  isPenalties: boolean;
+  notes?: string | null;
+  penaltyWinnerSide?: 1 | 2;
+  sides: [MatchSideInput, MatchSideInput];
+}
+
+// Minimal typed view of `update_match`'s RPC params, matching
+// supabase/migrations/20260728100000_update_match_rpc.sql
+export interface UpdateMatchRpcArgs {
+  p_match_id: string;
+  p_group_id: string;
+  p_played_at: string;
+  p_match_type: MatchType;
+  p_is_overtime: boolean;
+  p_is_penalties: boolean;
+  p_notes: string | null;
+  p_s1_club_version_id: string;
+  p_s1_score: number;
+  p_s1_penalty: number | null;
+  p_s1_result: SideResult;
+  p_s1_players: string[];
+  p_s2_club_version_id: string;
+  p_s2_score: number;
+  p_s2_penalty: number | null;
+  p_s2_result: SideResult;
+  p_s2_players: string[];
+}

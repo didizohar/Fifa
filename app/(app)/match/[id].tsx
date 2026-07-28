@@ -7,10 +7,13 @@ import { Card } from "../../../src/components/Card";
 import { ErrorState } from "../../../src/components/ErrorState";
 import { Screen } from "../../../src/components/Screen";
 import { Skeleton } from "../../../src/components/Skeleton";
+import { useAuth } from "../../../src/hooks/useAuth";
+import { useGroup } from "../../../src/hooks/useGroup";
 import { useMatch } from "../../../src/hooks/useMatches";
 import { formatDateTime } from "../../../src/lib/format";
 import { useTranslation } from "../../../src/lib/i18n";
 import type { MatchSideSummary } from "../../../src/lib/matches";
+import { canEditMatch } from "../../../src/lib/validation/editMatchForm";
 import { colors, radius, spacing, typography } from "../../../src/theme";
 
 const resultColor = { win: colors.win, loss: colors.loss, draw: colors.draw };
@@ -21,6 +24,8 @@ export default function MatchDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { t } = useTranslation();
+  const { user } = useAuth();
+  const { currentRole } = useGroup();
   const { data: match, isLoading, isError, refetch } = useMatch(id);
 
   if (isLoading) {
@@ -44,6 +49,10 @@ export default function MatchDetailScreen() {
   }
 
   const [side1, side2] = match.sides;
+  const canEdit = canEditMatch(currentRole, user?.id, match.created_by);
+  // updated_at is only ever bumped by update_match (see the record_match_and_apply_elo
+  // migration -- it never touches this column), so this is exact, not a heuristic.
+  const wasEdited = !!match.updated_at && !!match.created_at && match.updated_at !== match.created_at;
 
   return (
     <Screen>
@@ -52,6 +61,7 @@ export default function MatchDetailScreen() {
           <Badge label={match.match_type === "singles" ? "1 v 1" : "2 v 2"} tone="accent" />
           {match.is_overtime ? <Badge label="OT" tone="neutral" /> : null}
           {match.is_penalties ? <Badge label="PENS" tone="warning" /> : null}
+          {wasEdited ? <Badge label={t("editMatch.editedBadge")} tone="neutral" /> : null}
           <Text style={styles.date}>{formatDateTime(match.played_at)}</Text>
         </View>
 
@@ -70,6 +80,14 @@ export default function MatchDetailScreen() {
 
         <SideCard side={side1} onPlayerPress={(playerId) => router.push(`/player/${playerId}`)} />
         <SideCard side={side2} onPlayerPress={(playerId) => router.push(`/player/${playerId}`)} />
+
+        {canEdit ? (
+          <Button
+            label={t("editMatch.entryAction")}
+            variant="secondary"
+            onPress={() => router.push({ pathname: "/record-match", params: { matchId: match.id } })}
+          />
+        ) : null}
 
         {match.match_type === "doubles" ? (
           <Button label={t("rotation.title")} variant="secondary" onPress={() => router.push({ pathname: "/winners-stay", params: { matchId: match.id } })} />
