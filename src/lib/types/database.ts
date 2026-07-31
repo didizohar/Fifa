@@ -38,6 +38,15 @@ export interface Club {
   id: string;
   name: string;
   country: string | null;
+  /** e.g. "Premier League", "National Teams" -- freeform, not a fixed enum, so a new league only ever needs a data row, never a UI change. Null for older/incomplete rows. */
+  league: string | null;
+  primary_color: string | null;
+  secondary_color: string | null;
+  logo_url: string | null;
+  /** Null for a built-in club (shared, service-role-managed). Set to the owning group's id for a custom club. */
+  group_id: string | null;
+  notes: string | null;
+  deleted_at: string | null;
 }
 
 export interface ClubVersion {
@@ -46,6 +55,27 @@ export interface ClubVersion {
   game_version_id: string;
   star_rating: number;
   club: Club;
+}
+
+export interface CreateCustomClubInput {
+  groupId: string;
+  gameVersionId: string;
+  name: string;
+  league?: string | null;
+  country?: string | null;
+  starRating?: number;
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
+  notes?: string | null;
+}
+
+export interface UpdateCustomClubInput {
+  name?: string;
+  league?: string | null;
+  country?: string | null;
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
+  notes?: string | null;
 }
 
 export interface PlayerProfile {
@@ -151,4 +181,22 @@ export interface UpdateMatchRpcArgs {
   p_s2_penalty: number | null;
   p_s2_result: SideResult;
   p_s2_players: string[];
+}
+
+/**
+ * A group-scoped competition "league"/season -- distinct from Club.league
+ * (a built-in classification like "Premier League"). Backed by the
+ * `seasons` table, which has existed with full RLS since the initial
+ * schema; matches.season_id already references it. Exactly one row per
+ * group may have is_active = true at a time (enforced by start_new_season
+ * and a partial unique index).
+ */
+export interface Season {
+  id: string;
+  group_id: string;
+  name: string;
+  is_active: boolean;
+  start_date: string;
+  end_date: string | null;
+  created_at: string;
 }

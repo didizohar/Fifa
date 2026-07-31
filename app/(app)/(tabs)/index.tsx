@@ -1,7 +1,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import type { ComponentProps, ReactNode } from "react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { ActionButton } from "../../../src/components/ActionButton";
 import { AnimatedNumber } from "../../../src/components/AnimatedNumber";
@@ -13,21 +13,26 @@ import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
 import { FadeIn } from "../../../src/components/FadeIn";
 import { FormStrip } from "../../../src/components/FormStrip";
+import { LeagueTableCard, type LeagueTableCardPeriod } from "../../../src/components/LeagueTableCard";
 import { MatchRow } from "../../../src/components/MatchRow";
 import { RankingRow } from "../../../src/components/RankingRow";
 import { Screen } from "../../../src/components/Screen";
 import { SkeletonList } from "../../../src/components/Skeleton";
 import { StatTile } from "../../../src/components/StatTile";
 import { TrendBadge } from "../../../src/components/TrendBadge";
+import { WinRateBreakdown } from "../../../src/components/WinRateBreakdown";
 import { useAuth } from "../../../src/hooks/useAuth";
 import { useGroup } from "../../../src/hooks/useGroup";
+import { useLeagueTableCardPreference } from "../../../src/hooks/useLeagueTableCardPreference";
 import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
+import { useSeasons } from "../../../src/hooks/useSeasons";
 import { type DiscoveryItemType, selectHomeHighlights } from "../../../src/lib/discovery";
 import { useTranslation } from "../../../src/lib/i18n";
 import { selectInsightOfTheDay } from "../../../src/lib/leagueInsights";
 import { computeLeagueSummary, computeMatchesPerWeek } from "../../../src/lib/leagueStats";
 import { matchSideLabel, formatRelativeDate } from "../../../src/lib/format";
+import { describeMetricChange, metricChangeTone } from "../../../src/lib/metricPresentation";
 import { computeLastNStats, computePlayerStats, computeStreaks, computeWinRateLeaderboard, computeWinRateRank, WIN_RATE_MIN_PLAYED } from "../../../src/lib/stats";
 import { explainActivity, explainConsistency, explainDirection, explainMomentum, type TrendExplanation } from "../../../src/lib/trends/explanations";
 import { calculateLeagueTrendSummary } from "../../../src/lib/trends/leagueTrends";
@@ -60,6 +65,10 @@ export default function HomeScreen() {
 
   const players = usePlayers(groupId);
   const fullHistory = useGroupMatchHistory(groupId);
+  const seasonsQuery = useSeasons(groupId);
+  const activeSeason = (seasonsQuery.data ?? []).find((s) => s.is_active) ?? null;
+  const { expanded: leagueTableExpanded, setExpanded: setLeagueTableExpanded } = useLeagueTableCardPreference(groupId);
+  const [leagueTablePeriod, setLeagueTablePeriod] = useState<LeagueTableCardPeriod>("activeSeason");
 
   const isLoading = players.isLoading || fullHistory.isLoading;
   const isError = players.isError || fullHistory.isError;
@@ -192,6 +201,9 @@ export default function HomeScreen() {
                     />
                     <Text style={styles.heroValue}>%</Text>
                   </View>
+                  {myStats && myStats.played > 0 ? (
+                    <WinRateBreakdown wins={myStats.wins} losses={myStats.losses} draws={myStats.draws} />
+                  ) : null}
                 </View>
                 <View style={styles.heroStat}>
                   <Text style={styles.heroEyebrow}>{t("home.streak")}</Text>
@@ -218,6 +230,21 @@ export default function HomeScreen() {
         </LinearGradient>
         </FadeIn>
 
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t("home.quickActions")}</Text>
+          <View style={styles.quickActions}>
+            <ActionButton icon="add-circle" label={t("home.quickActionRecord")} onPress={() => router.push("/record-match")} />
+            <ActionButton icon="shuffle" label={t("home.quickActionDraw")} onPress={() => router.push("/draw")} />
+            <ActionButton icon="people" label={t("home.quickActionPlayers")} onPress={() => router.push("/players")} />
+            <ActionButton icon="trophy" label={t("home.quickActionLeaderboards")} onPress={() => router.push("/leaderboards")} />
+            <ActionButton icon="shield-checkmark" label={t("home.quickActionLeagueManagement")} onPress={() => router.push("/league-management")} />
+            <ActionButton icon="list" label={t("home.quickActionLeagueTable")} onPress={() => router.push("/league-table")} />
+            <ActionButton icon="calendar" label={t("home.quickActionMonthlySummary")} onPress={() => router.push("/monthly-summary")} />
+            <ActionButton icon="analytics" label={t("home.quickActionTrends")} onPress={() => router.push("/trends")} />
+            <ActionButton icon="bulb" label={t("home.quickActionInsights")} onPress={() => router.push("/insights")} />
+          </View>
+        </View>
+
         {highlights.length > 0 ? (
           <FadeIn>
             <View style={styles.highlightsSection}>
@@ -231,14 +258,6 @@ export default function HomeScreen() {
             </View>
           </FadeIn>
         ) : null}
-
-        <View style={styles.quickActions}>
-          <ActionButton icon="add-circle" label={t("home.quickActionRecord")} onPress={() => router.push("/record-match")} />
-          <ActionButton icon="shuffle" label={t("home.quickActionDraw")} onPress={() => router.push("/draw")} />
-          <ActionButton icon="people" label={t("home.quickActionPlayers")} onPress={() => router.push("/players")} />
-          <ActionButton icon="trophy" label={t("home.quickActionLeaderboards")} onPress={() => router.push("/leaderboards")} />
-          <ActionButton icon="shield-checkmark" label={t("home.quickActionLeagueManagement")} onPress={() => router.push("/league-management")} />
-        </View>
 
         {isLoading ? (
           <SkeletonList count={4} />
@@ -254,6 +273,23 @@ export default function HomeScreen() {
                 <StatTile label={t("home.statPlayers")} value={leagueSummary.playersCount} />
                 <StatTile label={t("home.statCurrentLeader")} value={leagueSummary.currentLeader?.playerName ?? t("home.noLeaderYet")} />
               </View>
+            </View>
+
+            <View style={styles.section}>
+              <LeagueTableCard
+                groupName={currentGroup?.name ?? null}
+                roster={roster}
+                allMatches={allMatches}
+                activeSeason={activeSeason}
+                myPlayerId={myPlayer?.id ?? null}
+                period={leagueTablePeriod}
+                onChangePeriod={setLeagueTablePeriod}
+                expanded={leagueTableExpanded}
+                onToggleExpanded={() => setLeagueTableExpanded(!leagueTableExpanded)}
+                onPressPlayer={(playerId) => router.push(`/player/${playerId}`)}
+                onViewFullTable={() => router.push("/league-table")}
+                onStartMatch={() => router.push("/record-match")}
+              />
             </View>
 
             {latestMatch ? (
@@ -288,9 +324,31 @@ export default function HomeScreen() {
               emptyProps={{ icon: "📈", title: t("home.notEnoughTrendData") }}
             >
               {trendCards.map((card) => {
-                const scoreLabel = card.key === "rising" || card.key === "falling" ? (card.score > 0 ? `+${card.score}` : `${card.score}`) : `${card.score}`;
                 const directionLabel = t(`trends.direction.${card.trend.direction}`);
                 const explanationText = card.explanation.key ? t(card.explanation.key, card.explanation.params) : "";
+
+                // Every trend card shows the same self-explanatory value --
+                // recent win rate vs. the previous window -- regardless of
+                // which underlying score (momentum/consistency/activity)
+                // selected this player for this card. A bare 0-100 score
+                // with no unit was exactly the "68, +49, -61" problem this
+                // replaces: a win rate + W/L/D breakdown + a labeled
+                // comparison is meaningful on its own.
+                const recentPct = card.trend.recentWinRate !== null ? Math.round(card.trend.recentWinRate * 100) : null;
+                const previousPct = card.trend.previousWinRate !== null ? Math.round(card.trend.previousWinRate * 100) : null;
+                const change = recentPct !== null ? describeMetricChange(recentPct, previousPct) : null;
+                const tone = change ? metricChangeTone(change) : "neutral";
+                const changeColor = tone === "positive" ? colors.win : tone === "negative" ? colors.loss : colors.textSecondary;
+                const formCounts = card.trend.currentForm.reduce(
+                  (acc, result) => {
+                    if (result === "win") acc.wins++;
+                    else if (result === "loss") acc.losses++;
+                    else acc.draws++;
+                    return acc;
+                  },
+                  { wins: 0, losses: 0, draws: 0 },
+                );
+
                 return (
                   <Pressable
                     key={card.key}
@@ -310,10 +368,18 @@ export default function HomeScreen() {
                       <Text style={styles.trendCardExplanation} numberOfLines={2}>
                         {explanationText}
                       </Text>
+                      {recentPct !== null ? <WinRateBreakdown wins={formCounts.wins} losses={formCounts.losses} draws={formCounts.draws} /> : null}
                     </View>
                     <View style={styles.trendCardScoreCol}>
-                      <Text style={styles.trendCardScore}>{scoreLabel}</Text>
-                      <TrendBadge direction={card.trend.direction} label={directionLabel} />
+                      <Text style={styles.trendCardScore}>{recentPct !== null ? `${recentPct}%` : "–"}</Text>
+                      {change && change.absoluteChange !== null ? (
+                        <Text style={[styles.trendCardChange, { color: changeColor }]}>
+                          {change.direction === "up" ? "↑" : change.direction === "down" ? "↓" : "→"} {change.absoluteChange > 0 ? "+" : ""}
+                          {change.absoluteChange}%
+                        </Text>
+                      ) : (
+                        <TrendBadge direction={card.trend.direction} label={directionLabel} />
+                      )}
                     </View>
                   </Pressable>
                 );
@@ -614,5 +680,9 @@ const styles = StyleSheet.create({
   trendCardScore: {
     ...typography.bodyStrong,
     color: colors.accent,
+  },
+  trendCardChange: {
+    ...typography.small,
+    fontWeight: "700",
   },
 });

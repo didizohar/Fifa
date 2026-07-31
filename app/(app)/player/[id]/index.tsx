@@ -14,6 +14,7 @@ import { ErrorBoundary } from "../../../../src/components/ErrorBoundary";
 import { ErrorState } from "../../../../src/components/ErrorState";
 import { FormStrip } from "../../../../src/components/FormStrip";
 import { InfoBanner } from "../../../../src/components/InfoBanner";
+import { InfoTooltip } from "../../../../src/components/InfoTooltip";
 import { MomentumIndicator } from "../../../../src/components/MomentumIndicator";
 import { OpponentPerformanceList } from "../../../../src/components/OpponentPerformanceList";
 import { PerformanceTimelineChart } from "../../../../src/components/PerformanceTimelineChart";
@@ -28,6 +29,7 @@ import { TimelineChart } from "../../../../src/components/TimelineChart";
 import { TrendComparisonRow } from "../../../../src/components/TrendComparisonRow";
 import { TrendExplanationCard } from "../../../../src/components/TrendExplanationCard";
 import { TrendScoreCard } from "../../../../src/components/TrendScoreCard";
+import { WinRateBreakdown } from "../../../../src/components/WinRateBreakdown";
 import { useAuth } from "../../../../src/hooks/useAuth";
 import { useGroup } from "../../../../src/hooks/useGroup";
 import { useGroupMatchHistory, usePlayerMatchHistory } from "../../../../src/hooks/useMatches";
@@ -43,6 +45,7 @@ import { formatRelativeDate, matchSideLabel } from "../../../../src/lib/format";
 import { generateFunFacts, type FunFact } from "../../../../src/lib/facts";
 import { useTranslation } from "../../../../src/lib/i18n";
 import { generateInsights, type Insight } from "../../../../src/lib/insights";
+import { computeIndividualStandings } from "../../../../src/lib/leagueStandings";
 import type { MatchSummary } from "../../../../src/lib/matches";
 import {
   hasUnparseableOwnMatchDates,
@@ -53,6 +56,7 @@ import {
 import { toPickablePlayer, type PickablePlayer } from "../../../../src/lib/players";
 import { computeAllRecords, type RecordEntry } from "../../../../src/lib/records";
 import {
+  computeBestMatchup,
   computeBiggestLoss,
   computeBiggestWin,
   computeClubPerformance,
@@ -179,7 +183,23 @@ export default function PlayerDetailScreen() {
     [playerId, roster.data, matches],
   );
   const nemesis = useMemo(() => computeNemesis(playerId, roster.data ?? EMPTY_PLAYERS, matches), [playerId, roster.data, matches]);
+  const bestMatchup = useMemo(() => computeBestMatchup(playerId, roster.data ?? EMPTY_PLAYERS, matches), [playerId, roster.data, matches]);
   const favoritePartner = partnerships.find((p) => p.played >= MIN_SAMPLE_SIZE) ?? null;
+  const favoriteClub = clubPerformance[0] ?? null;
+
+  // Points-based (win=3/draw=1/loss=0) league position, from the same
+  // engine that backs the League Table screen -- distinct from `rank`
+  // above, which is the older Win-Rate-only ranking. Needs the whole
+  // group's roster/history (not just this player's matches), same source
+  // as heldRecords below.
+  const leagueStandings = useMemo(
+    () => computeIndividualStandings(roster.data ?? EMPTY_PLAYERS, groupHistory.data ?? EMPTY_MATCHES),
+    [roster.data, groupHistory.data],
+  );
+  const leaguePosition = useMemo(() => {
+    const index = leagueStandings.findIndex((row) => row.id === playerId);
+    return index === -1 ? null : { position: index + 1, of: leagueStandings.length };
+  }, [leagueStandings, playerId]);
 
   const personalHighlights = useMemo(() => {
     const combined: Array<FunFact | Insight> = [
@@ -359,6 +379,11 @@ export default function PlayerDetailScreen() {
             variant="elevated"
           />
         </View>
+        {stats.played > 0 ? (
+          <View style={styles.heroWinRateBreakdown}>
+            <WinRateBreakdown wins={stats.wins} losses={stats.losses} draws={stats.draws} />
+          </View>
+        ) : null}
 
         <View style={styles.tabRow}>
           <SegmentedControl options={tabs} value={tab} onChange={setTab} />
@@ -366,6 +391,44 @@ export default function PlayerDetailScreen() {
 
         {tab === "overview" ? (
           <View style={styles.tabContent}>
+            {matchHistory.isLoading || groupHistory.isLoading ? (
+              <Card>
+                <Skeleton height={120} />
+              </Card>
+            ) : (
+              <Card>
+                <Text style={styles.sectionTitle}>Player Snapshot</Text>
+                <View style={styles.bestWorst}>
+                  <View style={styles.bestWorstRow}>
+                    <Text style={styles.bestWorstLabel}>League position</Text>
+                    <Text style={styles.bestWorstValue}>
+                      {leaguePosition ? `#${leaguePosition.position} of ${leaguePosition.of} (points)` : "Not yet qualified"}
+                    </Text>
+                  </View>
+                  <View style={styles.bestWorstRow}>
+                    <Text style={styles.bestWorstLabel}>Avg. goals conceded</Text>
+                    <Text style={styles.bestWorstValue}>
+                      {goalStats.goalsConcededPerMatch !== null ? `${goalStats.goalsConcededPerMatch.toFixed(2)} per match` : "–"}
+                    </Text>
+                  </View>
+                  <View style={styles.bestWorstRow}>
+                    <Text style={styles.bestWorstLabel}>Favorite club</Text>
+                    <Text style={styles.bestWorstValue} numberOfLines={1}>
+                      {favoriteClub ? `${favoriteClub.clubName} (${favoriteClub.played} matches)` : "No matches yet"}
+                    </Text>
+                  </View>
+                  <View style={styles.bestWorstRow}>
+                    <Text style={styles.bestWorstLabel}>Most successful vs.</Text>
+                    <Text style={styles.bestWorstValue} numberOfLines={1}>
+                      {bestMatchup
+                        ? `${bestMatchup.opponentName} (${bestMatchup.headToHead.winRate !== null ? Math.round(bestMatchup.headToHead.winRate * 100) : 0}% win rate, ${bestMatchup.headToHead.wins}-${bestMatchup.headToHead.losses}-${bestMatchup.headToHead.draws} in ${bestMatchup.headToHead.played})`
+                        : `Not enough matches yet (min. ${MIN_SAMPLE_SIZE} vs. one opponent)`}
+                    </Text>
+                  </View>
+                </View>
+              </Card>
+            )}
+
             {personalHighlights.length > 0 ? (
               <Card>
                 <Text style={styles.sectionTitle}>Highlights</Text>
@@ -428,7 +491,8 @@ export default function PlayerDetailScreen() {
                     <View style={styles.bestWorstRow}>
                       <Text style={styles.bestWorstLabel}>Toughest matchup</Text>
                       <Text style={styles.bestWorstValue} numberOfLines={1}>
-                        {nemesis.opponentName} ({nemesis.headToHead.winRate !== null ? Math.round(nemesis.headToHead.winRate * 100) : 0}% win rate)
+                        {nemesis.opponentName} ({nemesis.headToHead.winRate !== null ? Math.round(nemesis.headToHead.winRate * 100) : 0}% win rate,{" "}
+                        {nemesis.headToHead.wins}-{nemesis.headToHead.losses}-{nemesis.headToHead.draws} in {nemesis.headToHead.played})
                       </Text>
                     </View>
                   ) : null}
@@ -560,6 +624,7 @@ export default function PlayerDetailScreen() {
             {monthlyTrend.length >= 2 ? (
               <Card>
                 <Text style={styles.sectionTitle}>Monthly Performance</Text>
+                <Text style={styles.subLabel}>Bar height = matches played that month · label = win rate that month</Text>
                 <BarChart
                   rows={monthlyTrend.slice(-6).map((m) => ({
                     label: MONTH_SHORT_LABEL.format(new Date(m.year, m.month, 1)),
@@ -790,6 +855,9 @@ export default function PlayerDetailScreen() {
                         style={styles.analyticsTile}
                       />
                     </View>
+                    {playerAnalytics.overall.played > 0 ? (
+                      <WinRateBreakdown wins={playerAnalytics.overall.wins} losses={playerAnalytics.overall.losses} draws={playerAnalytics.overall.draws} />
+                    ) : null}
 
                     <RecentFormCard form={playerAnalytics.recentForm.form} />
                   </>
@@ -798,7 +866,16 @@ export default function PlayerDetailScreen() {
 
               {!matchHistory.isLoading && !matchHistory.isError ? (
                 <Card>
-                  <Text style={styles.sectionTitle}>{t("trends.sectionTitle")}</Text>
+                  <View style={styles.sectionTitleRow}>
+                    <Text style={[styles.sectionTitle, styles.sectionTitleInRow]}>{t("trends.sectionTitle")}</Text>
+                    <InfoTooltip
+                      title={t("trends.sectionTitle")}
+                      howCalculated={t("trends.infoHowCalculated")}
+                      matchesIncluded={t("trends.infoMatchesIncluded")}
+                      whenUpdates={t("trends.infoWhenUpdates")}
+                      whyUseful={t("trends.infoWhyUseful")}
+                    />
+                  </View>
                   {playerTrend.direction === "insufficientData" ? (
                     <InfoBanner tone="info" message={t("trends.insufficientDataNotice")} />
                   ) : (
@@ -1044,6 +1121,18 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...typography.heading,
     marginBottom: spacing.sm,
+  },
+  sectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  sectionTitleInRow: {
+    marginBottom: 0,
+  },
+  heroWinRateBreakdown: {
+    marginTop: -spacing.sm,
   },
   recordRow: {
     flexDirection: "row",

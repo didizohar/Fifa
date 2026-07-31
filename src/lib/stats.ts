@@ -83,6 +83,7 @@ export interface GoalStats {
   goalsScored: number;
   goalsConceded: number;
   goalsPerMatch: number | null;
+  goalsConcededPerMatch: number | null;
   cleanSheets: number;
 }
 
@@ -101,7 +102,13 @@ export function computeGoalStats(playerId: string, matches: MatchSummary[]): Goa
     if (sides.opponent.score === 0) cleanSheets++;
   }
 
-  return { goalsScored, goalsConceded, goalsPerMatch: played === 0 ? null : goalsScored / played, cleanSheets };
+  return {
+    goalsScored,
+    goalsConceded,
+    goalsPerMatch: played === 0 ? null : goalsScored / played,
+    goalsConcededPerMatch: played === 0 ? null : goalsConceded / played,
+    cleanSheets,
+  };
 }
 
 export interface StreakStats {
@@ -256,6 +263,20 @@ export function computeNemesis(playerId: string, roster: MatchSidePlayer[], matc
     }
   }
   return worst;
+}
+
+/** The opponent playerId has the highest win rate against ("most successful opponent"), among opponents played at least minPlayed times -- the mirror of computeNemesis. Null if nobody qualifies. */
+export function computeBestMatchup(playerId: string, roster: MatchSidePlayer[], matches: MatchSummary[], minPlayed = MIN_SAMPLE_SIZE): OpponentSummary | null {
+  let best: OpponentSummary | null = null;
+  for (const opponent of roster) {
+    if (opponent.id === playerId) continue;
+    const headToHead = computeHeadToHead(playerId, opponent.id, matches);
+    if (headToHead.played < minPlayed) continue;
+    if (!best || (headToHead.winRate ?? 0) > (best.headToHead.winRate ?? 0)) {
+      best = { opponentId: opponent.id, opponentName: opponent.display_name, headToHead };
+    }
+  }
+  return best;
 }
 
 export interface RivalryRow {

@@ -1,5 +1,7 @@
 import { drawClubsForMatch } from "../src/lib/random/matchClubDraw";
 import { createSeededRng } from "../src/lib/random/rng";
+import { filterClubVersionsForRandomGeneration, NATIONAL_TEAMS_LEAGUE_LABEL } from "../src/lib/clubRepository";
+import type { Club, ClubVersion } from "../src/lib/types/database";
 
 interface TestClub {
   id: string;
@@ -123,6 +125,104 @@ describe("drawClubsForMatch -- shared behavior", () => {
     expect(first.ok && second.ok).toBe(true);
     if (first.ok && second.ok) {
       expect(first.result.selectionMode).toBe(second.result.selectionMode);
+    }
+  });
+});
+
+describe("drawClubsForMatch -- allowDuplicates (\"Prevent Duplicate Clubs\" toggle)", () => {
+  it("defaults to never assigning the same club to both pairs (preserves historical behavior)", () => {
+    const clubs = [club("a", "A", 5), club("b", "B", 5)];
+    for (let seed = 0; seed < 20; seed++) {
+      const outcome = drawClubsForMatch({ clubs, starMode: "anyStrength", randomFn: rng(seed) });
+      expect(outcome.ok).toBe(true);
+      if (outcome.ok) expect(outcome.result.clubA.id).not.toBe(outcome.result.clubB.id);
+    }
+  });
+
+  it("with a single-club pool, fails by default but succeeds (duplicating it) when allowDuplicates is true", () => {
+    const clubs = [club("a", "A", 5)];
+    expect(drawClubsForMatch({ clubs, starMode: "anyStrength", randomFn: rng() })).toEqual({ ok: false, reason: "notEnoughClubs" });
+
+    const outcome = drawClubsForMatch({ clubs, starMode: "anyStrength", allowDuplicates: true, randomFn: rng() });
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) {
+      expect(outcome.result.clubA.id).toBe("a");
+      expect(outcome.result.clubB.id).toBe("a");
+    }
+  });
+
+  it("sameStar mode also honors allowDuplicates with a single eligible club at that level", () => {
+    const clubs = [club("a", "A", 5), club("b", "B", 3)];
+    expect(drawClubsForMatch({ clubs, starMode: "sameStar", selectedStarLevel: 5, randomFn: rng() })).toEqual({ ok: false, reason: "notEnoughClubs" });
+
+    const outcome = drawClubsForMatch({ clubs, starMode: "sameStar", selectedStarLevel: 5, allowDuplicates: true, randomFn: rng() });
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) {
+      expect(outcome.result.clubA.id).toBe("a");
+      expect(outcome.result.clubB.id).toBe("a");
+    }
+  });
+});
+
+describe("Winners Stay draw end-to-end with filterClubVersionsForRandomGeneration (\"Include National Teams\")", () => {
+  function makeClub(overrides: Partial<Club> & { id: string; name: string }): Club {
+    return {
+      country: null,
+      league: null,
+      primary_color: null,
+      secondary_color: null,
+      logo_url: null,
+      group_id: null,
+      notes: null,
+      deleted_at: null,
+      ...overrides,
+    };
+  }
+  function makeClubVersion(club: Club, starRating: number): ClubVersion {
+    return { id: `cv-${club.id}`, club_id: club.id, game_version_id: "gv-1", star_rating: starRating, club };
+  }
+
+  const clubPool: ClubVersion[] = [
+    makeClubVersion(makeClub({ id: "rm", name: "Real Madrid", league: "La Liga" }), 5),
+    makeClubVersion(makeClub({ id: "mc", name: "Manchester City", league: "Premier League" }), 5),
+    makeClubVersion(makeClub({ id: "brazil", name: "Brazil", league: NATIONAL_TEAMS_LEAGUE_LABEL }), 5),
+    makeClubVersion(makeClub({ id: "argentina", name: "Argentina", league: NATIONAL_TEAMS_LEAGUE_LABEL }), 5),
+  ];
+
+  it("can draw national teams when the preference is enabled", () => {
+    const pool = filterClubVersionsForRandomGeneration(clubPool, { includeNationalTeams: true });
+    const drawnIds = new Set<string>();
+    for (let seed = 0; seed < 40; seed++) {
+      const outcome = drawClubsForMatch({ clubs: pool, starMode: "anyStrength", randomFn: rng(seed) });
+      expect(outcome.ok).toBe(true);
+      if (outcome.ok) {
+        drawnIds.add(outcome.result.clubA.club_id);
+        drawnIds.add(outcome.result.clubB.club_id);
+      }
+    }
+    expect(drawnIds.has("brazil") || drawnIds.has("argentina")).toBe(true);
+  });
+
+  it("never draws a national team -- in the initial draw, a reroll, or a same-star redraw -- when the preference is disabled", () => {
+    const pool = filterClubVersionsForRandomGeneration(clubPool, { includeNationalTeams: false });
+    expect(pool.map((cv) => cv.club_id).sort()).toEqual(["mc", "rm"]);
+
+    for (let seed = 0; seed < 40; seed++) {
+      // "Same star rating" mode (initial draw at a chosen level).
+      const sameStar = drawClubsForMatch({ clubs: pool, starMode: "sameStar", selectedStarLevel: 5, randomFn: rng(seed) });
+      expect(sameStar.ok).toBe(true);
+      if (sameStar.ok) {
+        expect(sameStar.result.clubA.club.league).not.toBe(NATIONAL_TEAMS_LEAGUE_LABEL);
+        expect(sameStar.result.clubB.club.league).not.toBe(NATIONAL_TEAMS_LEAGUE_LABEL);
+      }
+
+      // "Any strength" mode (a reroll/redraw).
+      const reroll = drawClubsForMatch({ clubs: pool, starMode: "anyStrength", randomFn: rng(seed + 100) });
+      expect(reroll.ok).toBe(true);
+      if (reroll.ok) {
+        expect(reroll.result.clubA.club.league).not.toBe(NATIONAL_TEAMS_LEAGUE_LABEL);
+        expect(reroll.result.clubB.club.league).not.toBe(NATIONAL_TEAMS_LEAGUE_LABEL);
+      }
     }
   });
 });

@@ -17,7 +17,10 @@ export function TrendScoreCard({ label, score, explanation }: TrendScoreCardProp
     <View style={styles.container} accessibilityRole="text" accessibilityLabel={a11yLabel}>
       <View style={styles.headerRow}>
         <Text style={styles.label}>{label}</Text>
-        <Text style={styles.score}>{clamped}</Text>
+        <Text style={styles.score}>
+          {clamped}
+          <Text style={styles.scoreMax}>/100</Text>
+        </Text>
       </View>
       <View style={styles.track}>
         <View style={[styles.fill, { width: `${clamped}%` }]} />
@@ -48,6 +51,10 @@ const styles = StyleSheet.create({
   score: {
     ...typography.bodyStrong,
     color: colors.accent,
+  },
+  scoreMax: {
+    ...typography.small,
+    color: colors.textSecondary,
   },
   track: {
     height: 6,

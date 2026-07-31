@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-nat
 import { Button } from "../../src/components/Button";
 import { Card } from "../../src/components/Card";
 import { ClubBadge } from "../../src/components/ClubBadge";
+import { ClubPickerSheet } from "../../src/components/ClubPickerSheet";
 import { EmptyState } from "../../src/components/EmptyState";
 import { ErrorState } from "../../src/components/ErrorState";
 import { FilterChip } from "../../src/components/FilterChip";
@@ -15,13 +16,17 @@ import { SegmentedControl } from "../../src/components/SegmentedControl";
 import { Skeleton } from "../../src/components/Skeleton";
 import { TextField } from "../../src/components/TextField";
 import { useAuth } from "../../src/hooks/useAuth";
+import { useClubFavorites } from "../../src/hooks/useClubFavorites";
 import { useClubVersions } from "../../src/hooks/useClubVersions";
 import { useEditMatch } from "../../src/hooks/useEditMatch";
 import { useGroup } from "../../src/hooks/useGroup";
 import { useMatch } from "../../src/hooks/useMatches";
+import { useNationalTeamsPreference } from "../../src/hooks/useNationalTeamsPreference";
 import { usePlayers } from "../../src/hooks/usePlayers";
+import { useRecentlyUsedClubs } from "../../src/hooks/useRecentlyUsedClubs";
 import { useRecordMatch } from "../../src/hooks/useRecordMatch";
 import { confirmAction, notify } from "../../src/lib/confirm";
+import { filterClubVersionsForRandomGeneration } from "../../src/lib/clubRepository";
 import { matchSideLabel } from "../../src/lib/format";
 import { useTranslation } from "../../src/lib/i18n";
 import { type MatchPrefillRouteParams, validateMatchPrefill } from "../../src/lib/matchPrefill";
@@ -40,6 +45,7 @@ import {
   type EditableMatchDraft,
 } from "../../src/lib/validation/editMatchForm";
 import { validateMatchForm, type ComputedMatchResult } from "../../src/lib/validation/matchForm";
+import { useSeasons } from "../../src/hooks/useSeasons";
 import { useWinnersStaySession } from "../../src/hooks/useWinnersStaySession";
 import { colors, radius, spacing, typography } from "../../src/theme";
 
@@ -84,9 +90,15 @@ export default function RecordMatchScreen() {
   const editGameVersionId = isEditMode ? matchQuery.data?.game_version_id ?? undefined : currentGroup?.default_game_version_id;
   const { data: players, isLoading: playersLoading } = usePlayers(currentGroup?.id ?? null, isEditMode);
   const { data: clubVersions, isLoading: clubsLoading } = useClubVersions(editGameVersionId);
+  const { data: seasons } = useSeasons(currentGroup?.id ?? null);
+  const activeSeasonId = (seasons ?? []).find((s) => s.is_active)?.id ?? null;
   const recordMatch = useRecordMatch(currentGroup?.id ?? null);
   const editMatch = useEditMatch(currentGroup?.id ?? null);
   const winnersStaySession = useWinnersStaySession(currentGroup?.id ?? null);
+  const { favoriteIds: favoriteClubIds, toggleFavorite: toggleClubFavorite } = useClubFavorites(currentGroup?.id ?? null);
+  const { recentIds: recentClubIds, recordUsage: recordClubUsage } = useRecentlyUsedClubs(currentGroup?.id ?? null);
+  const { includeNationalTeams, setIncludeNationalTeams } = useNationalTeamsPreference(currentGroup?.id ?? null);
+  const [clubPickerSide, setClubPickerSide] = useState<1 | 2 | null>(null);
 
   const [matchType, setMatchType] = useState<MatchType>("singles");
   const [side1ClubId, setSide1ClubId] = useState<string | null>(null);
@@ -118,8 +130,23 @@ export default function RecordMatchScreen() {
   const [selectedStarLevel, setSelectedStarLevel] = useState<number | null>(null);
   const [hasDrawnClubs, setHasDrawnClubs] = useState(false);
   const [clubDrawFailed, setClubDrawFailed] = useState(false);
+  // Local, per-visit draw options -- "Include National Teams" deliberately
+  // is NOT one of these: it reuses the same shared, per-group
+  // includeNationalTeams/setIncludeNationalTeams preference the Club
+  // Picker already uses above, so there is exactly one source of truth
+  // (and one persisted preference) for national-teams filtering across
+  // Match Setup, the Club Picker, and this draw.
+  const [drawIncludeCustomClubs, setDrawIncludeCustomClubs] = useState(true);
+  const [drawPreventDuplicates, setDrawPreventDuplicates] = useState(true);
 
-  const validClubPool = useMemo(() => filterValidClubVersions(clubVersions ?? []), [clubVersions]);
+  // Same filterClubVersionsForRandomGeneration engine the standalone Random
+  // Club Generator (draw/clubs.tsx, draw/matchup.tsx) filters through --
+  // national teams / custom clubs eligibility is decided in exactly one
+  // place, not re-implemented per screen.
+  const validClubPool = useMemo(
+    () => filterClubVersionsForRandomGeneration(filterValidClubVersions(clubVersions ?? []), { includeNationalTeams, includeCustom: drawIncludeCustomClubs }),
+    [clubVersions, includeNationalTeams, drawIncludeCustomClubs],
+  );
   const availableStarLevels = useMemo(() => Array.from(new Set(validClubPool.map((cv) => cv.star_rating))).sort((a, b) => b - a), [validClubPool]);
 
   // Default to the highest available star level once clubs load, without stomping on a later user choice.
@@ -131,7 +158,7 @@ export default function RecordMatchScreen() {
   }, [availableStarLevels]);
 
   const handleDrawClubs = () => {
-    const outcome = drawClubsForMatch({ clubs: validClubPool, starMode, selectedStarLevel });
+    const outcome = drawClubsForMatch({ clubs: validClubPool, starMode, selectedStarLevel, allowDuplicates: !drawPreventDuplicates });
     if (!outcome.ok) {
       setClubDrawFailed(true);
       return;
@@ -348,6 +375,12 @@ export default function RecordMatchScreen() {
     try {
       const newMatchId = await recordMatch.mutateAsync({
         groupId: currentGroup.id,
+        // Tags the match with whichever season is currently active (null if
+        // the group has none) -- once a season ends, no later match can
+        // ever be assigned to it, since this is the only place season_id is
+        // ever set and update_match's RPC has no season_id parameter at
+        // all. That's what makes an archived season's match set frozen.
+        seasonId: activeSeasonId,
         gameVersionId: currentGroup.default_game_version_id!,
         matchType,
         isOvertime,
@@ -469,6 +502,34 @@ export default function RecordMatchScreen() {
               </View>
             ) : null}
 
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>{t("clubPicker.includeNationalTeams")}</Text>
+              <Switch
+                value={includeNationalTeams}
+                onValueChange={setIncludeNationalTeams}
+                trackColor={{ false: colors.border, true: colors.accentMuted }}
+                thumbColor={colors.textPrimary}
+              />
+            </View>
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>{t("draw.includeCustomClubs")}</Text>
+              <Switch
+                value={drawIncludeCustomClubs}
+                onValueChange={setDrawIncludeCustomClubs}
+                trackColor={{ false: colors.border, true: colors.accentMuted }}
+                thumbColor={colors.textPrimary}
+              />
+            </View>
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>{t("rotation.preventDuplicateClubs")}</Text>
+              <Switch
+                value={drawPreventDuplicates}
+                onValueChange={setDrawPreventDuplicates}
+                trackColor={{ false: colors.border, true: colors.accentMuted }}
+                thumbColor={colors.textPrimary}
+              />
+            </View>
+
             {clubDrawFailed ? <InfoBanner tone="warning" message={`${t("rotation.notEnoughClubsAtLevel")} ${t("rotation.chooseAnotherLevel")}`} /> : null}
 
             <Button label={hasDrawnClubs ? t("rotation.drawClubsAgain") : t("rotation.drawClubsByStars")} variant="secondary" onPress={handleDrawClubs} />
@@ -485,7 +546,7 @@ export default function RecordMatchScreen() {
         <Card style={styles.sideCard}>
           <Text style={styles.sideTitle}>Side 1</Text>
           {clubsLoading ? <Skeleton height={40} /> : (
-            <ClubSelect clubVersions={clubVersions ?? []} selectedId={side1ClubId} onSelect={setSide1ClubId} disabledId={isFromWinnersStay ? side2ClubId : null} />
+            <ClubSelectButton clubVersion={clubVersions?.find((cv) => cv.id === side1ClubId) ?? null} onPress={() => setClubPickerSide(1)} />
           )}
           {playersLoading ? <Skeleton height={80} /> : (
             <PlayerPicker
@@ -502,7 +563,7 @@ export default function RecordMatchScreen() {
         <Card style={styles.sideCard}>
           <Text style={styles.sideTitle}>Side 2</Text>
           {clubsLoading ? <Skeleton height={40} /> : (
-            <ClubSelect clubVersions={clubVersions ?? []} selectedId={side2ClubId} onSelect={setSide2ClubId} disabledId={isFromWinnersStay ? side1ClubId : null} />
+            <ClubSelectButton clubVersion={clubVersions?.find((cv) => cv.id === side2ClubId) ?? null} onPress={() => setClubPickerSide(2)} />
           )}
           {playersLoading ? <Skeleton height={80} /> : (
             <PlayerPicker
@@ -598,43 +659,42 @@ export default function RecordMatchScreen() {
 
         {isFromWinnersStay ? <Button label={t("rotation.backToHome")} variant="secondary" onPress={() => router.replace("/")} /> : null}
       </ScrollView>
+
+      {clubPickerSide !== null && editGameVersionId && currentGroup ? (
+        <ClubPickerSheet
+          visible
+          onClose={() => setClubPickerSide(null)}
+          clubVersions={clubVersions ?? []}
+          favoriteClubIds={favoriteClubIds}
+          recentClubIds={recentClubIds}
+          onToggleFavorite={toggleClubFavorite}
+          onSelect={(clubVersion) => {
+            if (clubPickerSide === 1) setSide1ClubId(clubVersion.id);
+            else setSide2ClubId(clubVersion.id);
+            recordClubUsage(clubVersion.club_id);
+          }}
+          disabledClubId={isFromWinnersStay ? (clubPickerSide === 1 ? side2ClubId : side1ClubId) : null}
+          includeNationalTeams={includeNationalTeams}
+          onToggleIncludeNationalTeams={setIncludeNationalTeams}
+          groupId={currentGroup.id}
+          gameVersionId={editGameVersionId}
+        />
+      ) : null}
     </Screen>
   );
 }
 
-function ClubSelect({
-  clubVersions,
-  selectedId,
-  onSelect,
-  disabledId = null,
-}: {
-  clubVersions: ClubVersion[];
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-  /** The other side's currently selected club -- when set, prevents (and visually disables) choosing that same club here too. Only passed in the Winners Stay context. */
-  disabledId?: string | null;
-}) {
+/** Opens the production ClubPickerSheet -- shows the currently selected club (or a placeholder prompt) as a single tappable row. This is the only club-selection entry point in match setup; there is no other, older selector left in this screen. */
+function ClubSelectButton({ clubVersion, onPress }: { clubVersion: ClubVersion | null; onPress: () => void }) {
+  const { t } = useTranslation();
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.clubScroll}>
-      {clubVersions.map((cv) => {
-        const isDisabled = disabledId !== null && cv.id === disabledId && cv.id !== selectedId;
-        return (
-          <Pressable
-            key={cv.id}
-            onPress={() => !isDisabled && onSelect(cv.id)}
-            disabled={isDisabled}
-            style={[styles.clubChip, selectedId === cv.id && styles.clubChipSelected, isDisabled && styles.clubChipDisabled]}
-            accessibilityRole="button"
-            accessibilityLabel={cv.club.name}
-            accessibilityState={{ selected: selectedId === cv.id, disabled: isDisabled }}
-          >
-            <Text style={[styles.clubChipLabel, selectedId === cv.id && styles.clubChipLabelSelected]} numberOfLines={1}>
-              {cv.club.name}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
+    <Pressable onPress={onPress} style={styles.clubSelectButton} accessibilityRole="button" accessibilityLabel={clubVersion?.club.name ?? t("clubPicker.title")}>
+      {clubVersion ? (
+        <ClubBadge name={clubVersion.club.name} starRating={clubVersion.star_rating} size="sm" />
+      ) : (
+        <Text style={styles.clubSelectPlaceholder}>{t("clubPicker.title")}</Text>
+      )}
+    </Pressable>
   );
 }
 
@@ -674,31 +734,19 @@ const styles = StyleSheet.create({
   sideTitle: {
     ...typography.heading,
   },
-  clubScroll: {
-    flexGrow: 0,
+  clubSelectButton: {
+    alignSelf: "flex-start",
   },
-  clubChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceElevated,
-    marginEnd: spacing.sm,
-  },
-  clubChipSelected: {
-    backgroundColor: colors.accentSubtle,
-    borderColor: colors.accent,
-  },
-  clubChipLabel: {
-    ...typography.caption,
-  },
-  clubChipLabelSelected: {
+  clubSelectPlaceholder: {
+    ...typography.body,
     color: colors.accent,
     fontWeight: "700",
-  },
-  clubChipDisabled: {
-    opacity: 0.35,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSubtle,
   },
   clubDrawCard: {
     gap: spacing.md,

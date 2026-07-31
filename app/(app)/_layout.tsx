@@ -28,6 +28,13 @@ export default function AppLayout() {
       <Stack.Screen name="draw/clubs" options={{ headerShown: true, title: t("draw.drawClubs"), ...themedHeaderOptions }} />
       <Stack.Screen name="draw/matchup" options={{ headerShown: true, title: t("draw.fullMatchup"), ...themedHeaderOptions }} />
       <Stack.Screen name="league-management" options={{ headerShown: true, title: t("league.title"), ...themedHeaderOptions }} />
+      <Stack.Screen name="league-table" options={{ headerShown: true, title: t("leagueTable.title"), ...themedHeaderOptions }} />
+      <Stack.Screen name="monthly-summary" options={{ headerShown: true, title: t("monthlySummary.title"), ...themedHeaderOptions }} />
+      <Stack.Screen name="trends" options={{ headerShown: true, title: t("trendsScreen.title"), ...themedHeaderOptions }} />
+      <Stack.Screen name="insights" options={{ headerShown: true, title: t("insightsScreen.title"), ...themedHeaderOptions }} />
+      <Stack.Screen name="custom-clubs" options={{ headerShown: true, title: t("customClubs.title"), ...themedHeaderOptions }} />
+      <Stack.Screen name="season-history" options={{ headerShown: true, title: t("seasonHistory.title"), ...themedHeaderOptions }} />
+      <Stack.Screen name="season/[id]" options={{ headerShown: true, title: t("seasonHistory.detailsTitle"), ...themedHeaderOptions }} />
     </Stack>
   );
 }

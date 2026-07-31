@@ -1,6 +1,7 @@
 import {
   computeAllRecordsFromRows,
   computeBestDoublesPairs,
+  computeBestMatchup,
   computeBiggestLoss,
   computeBiggestWin,
   computeCleanSheetsLeaderboard,
@@ -166,15 +167,15 @@ describe("findSides", () => {
 
 describe("computeGoalStats", () => {
   it("returns zeroed stats with a null per-match average for no matches", () => {
-    expect(computeGoalStats("p1", [])).toEqual({ goalsScored: 0, goalsConceded: 0, goalsPerMatch: null, cleanSheets: 0 });
+    expect(computeGoalStats("p1", [])).toEqual({ goalsScored: 0, goalsConceded: 0, goalsPerMatch: null, goalsConcededPerMatch: null, cleanSheets: 0 });
   });
 
-  it("sums goals scored/conceded, computes the per-match average, and counts clean sheets", () => {
+  it("sums goals scored/conceded, computes the per-match averages, and counts clean sheets", () => {
     const matches = [
       makeDetailedMatch({ playerIds: ["p1"], score: 3, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }),
       makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "loss" }, { playerIds: ["p2"], score: 2, result: "win" }),
     ];
-    expect(computeGoalStats("p1", matches)).toEqual({ goalsScored: 4, goalsConceded: 2, goalsPerMatch: 2, cleanSheets: 1 });
+    expect(computeGoalStats("p1", matches)).toEqual({ goalsScored: 4, goalsConceded: 2, goalsPerMatch: 2, goalsConcededPerMatch: 1, cleanSheets: 1 });
   });
 });
 
@@ -312,6 +313,36 @@ describe("computeFavoriteOpponent / computeNemesis", () => {
     const roster = [{ id: "p1", display_name: "p1", avatar_url: null, custom_color: "#000" }];
     expect(computeFavoriteOpponent("p1", roster, [])).toBeNull();
     expect(computeNemesis("p1", roster, [])).toBeNull();
+  });
+});
+
+describe("computeBestMatchup", () => {
+  const base = Date.now();
+  const day = (n: number) => new Date(base + n * 86_400_000).toISOString();
+  const roster = [
+    { id: "p1", display_name: "p1", avatar_url: null, custom_color: "#000" },
+    { id: "p2", display_name: "p2", avatar_url: null, custom_color: "#000" },
+    { id: "p3", display_name: "p3", avatar_url: null, custom_color: "#000" },
+  ];
+
+  it("finds the opponent with the highest qualified win rate -- the mirror of computeNemesis", () => {
+    const matches = [
+      // p1 beats p2 three times straight (best-matchup candidate).
+      ...[0, 1, 2].map((n) => makeDetailedMatch({ playerIds: ["p1"], score: 2, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }, { playedAt: day(n) })),
+      // p1 loses to p3 three times straight (nemesis candidate, must not win here).
+      ...[3, 4, 5].map((n) => makeDetailedMatch({ playerIds: ["p1"], score: 0, result: "loss" }, { playerIds: ["p3"], score: 2, result: "win" }, { playedAt: day(n) })),
+    ];
+    expect(computeBestMatchup("p1", roster, matches, 3)?.opponentId).toBe("p2");
+    expect(computeNemesis("p1", roster, matches, 3)?.opponentId).toBe("p3");
+  });
+
+  it("excludes an opponent below the minimum sample size", () => {
+    const matches = [makeDetailedMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }, { playedAt: day(0) })];
+    expect(computeBestMatchup("p1", roster, matches, 3)).toBeNull();
+  });
+
+  it("returns null when there are no qualifying opponents", () => {
+    expect(computeBestMatchup("p1", [roster[0]!], [])).toBeNull();
   });
 });
 

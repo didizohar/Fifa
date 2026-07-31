@@ -32,6 +32,11 @@ export const clubKeys = {
   gameVersions: ["gameVersions"] as const,
 };
 
+export const seasonKeys = {
+  list: (groupId: string) => ["seasons", groupId] as const,
+  matchCount: (seasonId: string) => ["seasons", "matchCount", seasonId] as const,
+};
+
 /**
  * Every query key a match edit can affect, as prefixes rather than
  * fully-specified keys -- react-query's invalidateQueries treats a given

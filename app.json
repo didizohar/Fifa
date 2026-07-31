@@ -5,6 +5,7 @@
     "scheme": "fcrival",
     "version": "0.2.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "assetBundlePatterns": [
       "**/*"
@@ -17,7 +18,11 @@
       }
     },
     "android": {
-      "package": "com.fcrival.app"
+      "package": "com.fcrival.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0D0B"
+      }
     },
     "extra": {
       "eas": {
@@ -28,10 +33,26 @@
     "plugins": [
       "expo-router",
       "expo-image",
-      "expo-splash-screen",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#0A0D0B"
+        }
+      ],
       "expo-font",
       "expo-sharing",
-      "expo-localization"
+      "expo-localization",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "FC Rival needs access to your photos so you can set a player's avatar.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ]
     ],
     "owner": "didizzz"
   }

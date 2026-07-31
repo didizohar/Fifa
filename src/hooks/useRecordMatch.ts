@@ -11,6 +11,13 @@ export function useRecordMatch(groupId: string | null) {
       if (!groupId) return;
       queryClient.invalidateQueries({ queryKey: playerKeys.list(groupId) });
       queryClient.invalidateQueries({ queryKey: matchKeys.list(groupId) });
+      // groupHistory backs Home's League Table card, the full League Table
+      // screen, and League Management's counts -- without this, all of them
+      // kept showing pre-match data until their own unrelated staleTime
+      // elapsed. useEditMatch already invalidates this (via
+      // determineAffectedQueries); recording a brand new match was the one
+      // path that didn't.
+      queryClient.invalidateQueries({ queryKey: matchKeys.groupHistory(groupId) });
       queryClient.invalidateQueries({ queryKey: ["matches", "records"] });
     },
   });

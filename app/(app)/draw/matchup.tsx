@@ -15,10 +15,14 @@ import { Screen } from "../../../src/components/Screen";
 import { SegmentedControl } from "../../../src/components/SegmentedControl";
 import { ShareCopyRow } from "../../../src/components/ShareCopyRow";
 import { SkeletonList } from "../../../src/components/Skeleton";
+import { useClubFavorites } from "../../../src/hooks/useClubFavorites";
 import { useClubVersions, useGameVersions } from "../../../src/hooks/useClubVersions";
 import { useDrawSuspense } from "../../../src/hooks/useDrawSuspense";
 import { useGroup } from "../../../src/hooks/useGroup";
+import { useNationalTeamsPreference } from "../../../src/hooks/useNationalTeamsPreference";
 import { usePlayers } from "../../../src/hooks/usePlayers";
+import { useRecentlyUsedClubs } from "../../../src/hooks/useRecentlyUsedClubs";
+import { filterClubVersionsForRandomGeneration } from "../../../src/lib/clubRepository";
 import { useTranslation } from "../../../src/lib/i18n";
 import { buildMatchPrefillParams } from "../../../src/lib/matchPrefill";
 import { toPickablePlayer } from "../../../src/lib/players";
@@ -60,7 +64,18 @@ export default function FullMatchupScreen() {
   }, [gameVersionId, currentGroup, gameVersions]);
 
   const { data: clubVersions, isLoading: clubsLoading, isError: clubsError, refetch: refetchClubs } = useClubVersions(gameVersionId);
-  const basePool = useMemo(() => filterValidClubVersions(clubVersions ?? []), [clubVersions]);
+  const { includeNationalTeams, setIncludeNationalTeams } = useNationalTeamsPreference(currentGroup?.id ?? null);
+  const { favoriteIds } = useClubFavorites(currentGroup?.id ?? null);
+  const { recentIds } = useRecentlyUsedClubs(currentGroup?.id ?? null);
+  const [includeCustomClubs, setIncludeCustomClubs] = useState(true);
+  const [excludeFavorites, setExcludeFavorites] = useState(false);
+  const [excludeRecentlyUsed, setExcludeRecentlyUsed] = useState(false);
+
+  const basePool = useMemo(() => {
+    const valid = filterValidClubVersions(clubVersions ?? []);
+    const excludeClubIds = [...(excludeFavorites ? favoriteIds : []), ...(excludeRecentlyUsed ? recentIds : [])];
+    return filterClubVersionsForRandomGeneration(valid, { includeCustom: includeCustomClubs, includeNationalTeams, excludeClubIds });
+  }, [clubVersions, includeCustomClubs, includeNationalTeams, excludeFavorites, excludeRecentlyUsed, favoriteIds, recentIds]);
   const distinctStars = useMemo(() => Array.from(new Set(basePool.map((cv) => cv.star_rating))).sort((a, b) => b - a), [basePool]);
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -368,6 +383,22 @@ export default function FullMatchupScreen() {
           <View style={styles.toggleRow}>
             <Text style={styles.toggleLabel}>{t("draw.allowDuplicateClubs")}</Text>
             <Switch value={allowDuplicates} onValueChange={setAllowDuplicates} />
+          </View>
+          <View style={styles.toggleRow}>
+            <Text style={styles.toggleLabel}>{t("clubPicker.includeNationalTeams")}</Text>
+            <Switch value={includeNationalTeams} onValueChange={setIncludeNationalTeams} />
+          </View>
+          <View style={styles.toggleRow}>
+            <Text style={styles.toggleLabel}>{t("draw.includeCustomClubs")}</Text>
+            <Switch value={includeCustomClubs} onValueChange={setIncludeCustomClubs} />
+          </View>
+          <View style={styles.toggleRow}>
+            <Text style={styles.toggleLabel}>{t("draw.excludeFavoriteClubs")}</Text>
+            <Switch value={excludeFavorites} onValueChange={setExcludeFavorites} />
+          </View>
+          <View style={styles.toggleRow}>
+            <Text style={styles.toggleLabel}>{t("draw.excludeRecentClubs")}</Text>
+            <Switch value={excludeRecentlyUsed} onValueChange={setExcludeRecentlyUsed} />
           </View>
         </Card>
 

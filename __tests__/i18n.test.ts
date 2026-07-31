@@ -460,8 +460,6 @@ describe("Product Completion Pass translation coverage", () => {
     "league.matchesPlayed",
     "league.viewArchivedPlayers",
     "league.managePlayers",
-    "league.comingSoonTitle",
-    "league.comingSoonMessage",
     "monthlyReport.storyIntro",
     "monthlyReport.storyPlayerOfMonth",
     "monthlyReport.storyTopScorer",
@@ -544,5 +542,122 @@ describe("Edit Match translation coverage", () => {
     expect(en.editMatch.editedBadge).toBe("Edited");
     expect(he.editMatch.editedBadge).toBe("נערך");
     expect(he.editMatch.winnersStayLinkedMessage).toBe('המשחק הזה משויך לסשן "המנצחים נשארים". שינוי התוצאה עשוי לשנות את הרוטציה הבאה.');
+  });
+});
+
+/** Explicit, named coverage for the League Table, Monthly Summary, Trends, and Insights screens, plus the shared "metrics" comparison strings and the Winners Stay "Back to Home"/history additions. */
+describe("Production improvements translation coverage", () => {
+  const newScreenKeys = [
+    "rotation.backToHomeFromSummary",
+    "rotation.pastSessions",
+    "leagueTable.title",
+    "leagueTable.subtitle",
+    "leagueTable.individualTab",
+    "leagueTable.pairsTab",
+    "leagueTable.filterAllTime",
+    "leagueTable.filterCurrentMonth",
+    "leagueTable.filterPreviousMonth",
+    "leagueTable.filterCustom",
+    "leagueTable.colPosition",
+    "leagueTable.colPlayer",
+    "leagueTable.colPair",
+    "leagueTable.colPlayed",
+    "leagueTable.colWins",
+    "leagueTable.colDraws",
+    "leagueTable.colLosses",
+    "leagueTable.colGoalsFor",
+    "leagueTable.colGoalsAgainst",
+    "leagueTable.colGoalDifference",
+    "leagueTable.colPoints",
+    "leagueTable.emptyTitle",
+    "leagueTable.emptyMessage",
+    "leagueTable.customRangeStart",
+    "leagueTable.customRangeEnd",
+    "leagueTable.applyCustomRange",
+    "leagueTable.invalidCustomRange",
+    "monthlySummary.title",
+    "monthlySummary.previousMonth",
+    "monthlySummary.nextMonth",
+    "monthlySummary.matchesPlayed",
+    "monthlySummary.sessionsCompleted",
+    "monthlySummary.totalGoals",
+    "monthlySummary.averageGoalsPerMatch",
+    "monthlySummary.playerMostWins",
+    "monthlySummary.highestWinRate",
+    "monthlySummary.topScorer",
+    "monthlySummary.mostImproved",
+    "monthlySummary.highestScoringMatch",
+    "monthlySummary.bestPair",
+    "monthlySummary.mostSelectedClub",
+    "monthlySummary.noDataTitle",
+    "monthlySummary.noDataMessage",
+    "monthlySummary.comparedToPreviousMonth",
+    "monthlySummary.noPreviousMonthData",
+    "monthlySummary.noAwardYet",
+    "trendsScreen.title",
+    "trendsScreen.subtitle",
+    "trendsScreen.metricWinRate",
+    "trendsScreen.metricWins",
+    "trendsScreen.metricGoalsPerMatch",
+    "trendsScreen.metricGoalDifference",
+    "trendsScreen.metricMatchesPlayed",
+    "trendsScreen.metricLeaguePoints",
+    "trendsScreen.selectPlayers",
+    "trendsScreen.emptyTitle",
+    "trendsScreen.emptyMessage",
+    "trendsScreen.noDataAvailable",
+    "trendsScreen.playMoreMatches",
+    "trendsScreen.yAxisLabel",
+    "trendsScreen.xAxisLabel",
+    "insightsScreen.title",
+    "insightsScreen.subtitle",
+    "insightsScreen.bestFormTitle",
+    "insightsScreen.bestFormWhy",
+    "insightsScreen.worstFormTitle",
+    "insightsScreen.worstFormWhy",
+    "insightsScreen.playerOfMonthTitle",
+    "insightsScreen.playerOfMonthWhy",
+    "insightsScreen.topScorerTitle",
+    "insightsScreen.topScorerWhy",
+    "insightsScreen.bestDefenseTitle",
+    "insightsScreen.bestDefenseWhy",
+    "insightsScreen.biggestVictoryTitle",
+    "insightsScreen.biggestVictoryWhy",
+    "insightsScreen.mostFrequentRivalryTitle",
+    "insightsScreen.mostFrequentRivalryWhy",
+    "insightsScreen.longestWinStreakTitle",
+    "insightsScreen.longestWinStreakWhy",
+    "insightsScreen.longestLossStreakTitle",
+    "insightsScreen.longestLossStreakWhy",
+    "insightsScreen.mostImprovedTitle",
+    "insightsScreen.mostImprovedWhy",
+    "insightsScreen.emptyTitle",
+    "insightsScreen.emptyMessage",
+    "metrics.comparedToPreviousMatches",
+    "metrics.comparedToPreviousMonth",
+    "metrics.noComparisonData",
+    "metrics.winRateBreakdown",
+    "metrics.wonOfLast",
+    "metrics.infoModalTitle",
+    "metrics.howCalculated",
+    "metrics.matchesIncluded",
+    "metrics.whenUpdates",
+    "metrics.whyUseful",
+    "metrics.noDataAvailable",
+    "metrics.playMoreMatches",
+  ];
+
+  const readPath = (dict: unknown, path: string) => path.split(".").reduce<unknown>((acc, part) => (acc as Record<string, unknown>)?.[part], dict);
+
+  it.each(newScreenKeys)("%s exists as a non-empty string in English and Hebrew", (path) => {
+    const enValue = readPath(en, path);
+    const heValue = readPath(he, path);
+    expect(typeof enValue === "string" && enValue.trim().length > 0).toBe(true);
+    expect(typeof heValue === "string" && heValue.trim().length > 0).toBe(true);
+  });
+
+  it("matches the exact required 'Back to Home' copy in both locales", () => {
+    expect(en.rotation.backToHomeFromSummary).toBe("Back to Home");
+    expect(he.rotation.backToHomeFromSummary).toBe("חזרה למסך הבית");
   });
 });

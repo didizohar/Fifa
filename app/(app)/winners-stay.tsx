@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Button } from "../../src/components/Button";
 import { Card } from "../../src/components/Card";
@@ -12,9 +12,10 @@ import { Screen } from "../../src/components/Screen";
 import { SegmentedControl } from "../../src/components/SegmentedControl";
 import { Skeleton } from "../../src/components/Skeleton";
 import { useGroup } from "../../src/hooks/useGroup";
-import { useMatch } from "../../src/hooks/useMatches";
+import { useGroupMatchHistory, useMatch } from "../../src/hooks/useMatches";
 import { usePlayers } from "../../src/hooks/usePlayers";
 import { useWinnersStaySession } from "../../src/hooks/useWinnersStaySession";
+import { useWinnersStaySessionHistory } from "../../src/hooks/useWinnersStaySessionHistory";
 import { useTranslation } from "../../src/lib/i18n";
 import type { MatchSidePlayer } from "../../src/lib/matches";
 import { buildMatchPrefillParams } from "../../src/lib/matchPrefill";
@@ -35,6 +36,8 @@ import {
   startWinnersStaySession,
   undoLastRotation,
 } from "../../src/lib/rotation/session";
+import { archiveCompletedSession } from "../../src/lib/rotation/sessionHistory";
+import { computeSessionInsights } from "../../src/lib/rotation/sessionInsights";
 import type { MatchResult, RotationPlayer, WinnersStaySession } from "../../src/lib/rotation/types";
 import { colors, radius, spacing, typography } from "../../src/theme";
 
@@ -58,7 +61,9 @@ export default function WinnersStayScreen() {
   const { t } = useTranslation();
   const { currentGroupId } = useGroup();
   const roster = usePlayers(currentGroupId);
+  const groupHistory = useGroupMatchHistory(currentGroupId);
   const { session, isHydrated, isCorrupted, setSession, discardCorrupted } = useWinnersStaySession(currentGroupId);
+  const { history: sessionHistory, setHistory: setSessionHistory } = useWinnersStaySessionHistory(currentGroupId);
   const matchQuery = useMatch(matchId);
   const [isEditingQueue, setIsEditingQueue] = useState(false);
 
@@ -107,6 +112,70 @@ export default function WinnersStayScreen() {
     if (cleaned.length !== session.waitingQueue.length) setSession({ ...session, waitingQueue: cleaned });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.id, session?.waitingQueue, roster.data]);
+
+  // Session-scoped highlights (winner, MVP, biggest upset, etc.) computed
+  // from the group's actual recorded matches -- WinnersStaySession itself
+  // only tracks round-by-round rotation state, not a full match log, so
+  // this reconstructs "this session's matches" from the group's match
+  // history by time window + participants. Only ever read for display;
+  // nothing about the rotation engine itself depends on this. Must be an
+  // unconditional top-level hook -- declared before EVERY early return in
+  // this component (the hydration/corrupted-session guards below, and the
+  // `!session` guard further down), not just the last of them, so the
+  // exact same hooks run in the exact same order on every single render.
+  const sessionInsights = useMemo(() => {
+    if (!session) return null;
+    const allMatches = groupHistory.data ?? [];
+    const participantIds = new Set(session.activePlayerIds);
+    const sessionMatches = allMatches.filter((m) => {
+      if (m.match_type !== "doubles") return false;
+      const playedAt = new Date(m.played_at).getTime();
+      if (Number.isNaN(playedAt) || playedAt < new Date(session.startedAt).getTime()) return false;
+      return m.sides.every((side) => side.players.every((p) => participantIds.has(p.id)));
+    });
+    const sessionRoster = (roster.data ?? []).filter((p) => participantIds.has(p.id));
+    return computeSessionInsights(sessionRoster, sessionMatches);
+  }, [session, groupHistory.data, roster.data]);
+
+  // Same "declared before every early return" requirement as sessionInsights
+  // above -- these two are plain useRefs, but a useRef declared after an
+  // early return is exactly as much a Rules-of-Hooks violation as a useState
+  // or useMemo would be.
+  //
+  // hasHandledBackToHomeRef guards against a rapid double-press (or a
+  // synthetic double-fire in tests) running this twice before router.replace
+  // unmounts the screen -- archiveCompletedSession is already idempotent by
+  // session id, but this makes "exactly once" true of the handler itself,
+  // not just of its eventual on-disk result.
+  const hasHandledBackToHomeRef = useRef(false);
+  const handleBackToHome = () => {
+    if (hasHandledBackToHomeRef.current) return;
+    hasHandledBackToHomeRef.current = true;
+    if (session) {
+      // Archive first so the completed session's summary stays reachable
+      // via history, THEN clear the active slot -- never the other way
+      // around, or a crash between the two steps would lose the summary.
+      setSessionHistory(archiveCompletedSession(sessionHistory, session, new Date().toISOString()));
+    }
+    setSession(null);
+    // replace (not push/back) removes this screen from the stack entirely,
+    // so hardware/gesture back can't return to the now-cleared session.
+    router.replace("/");
+  };
+
+  // Same archive-then-clear data steps as handleBackToHome, but stays on
+  // this screen -- clearing the session slot alone is enough to fall
+  // through to the setup UI below (the same "!session" branch), so the
+  // user lands straight back in session setup instead of at Home.
+  const hasHandledStartNewRef = useRef(false);
+  const handleStartNewSession = () => {
+    if (hasHandledStartNewRef.current) return;
+    hasHandledStartNewRef.current = true;
+    if (session) {
+      setSessionHistory(archiveCompletedSession(sessionHistory, session, new Date().toISOString()));
+    }
+    setSession(null);
+  };
 
   if (!isHydrated || roster.isLoading) {
     return (
@@ -182,6 +251,65 @@ export default function WinnersStayScreen() {
                   ? t("rotation.emptyQueueMessage")
                   : summary.finalWaitingQueue.map((q) => playersById[q.playerId]?.display_name ?? q.playerId).join(", ")}
               </Text>
+
+              {sessionInsights && sessionInsights.matchesPlayed > 0 ? (
+                <View style={styles.sessionInsightsBlock}>
+                  <Text style={styles.subLabel}>{t("rotation.sessionHighlights")}</Text>
+                  <SummaryRow label={t("rotation.matchesPlayed")} value={String(sessionInsights.matchesPlayed)} />
+                  <SummaryRow label={t("rotation.totalGoals")} value={String(sessionInsights.totalGoals)} />
+                  {sessionInsights.winner ? (
+                    <SummaryRow
+                      label={t("rotation.sessionWinner")}
+                      value={`${sessionInsights.winner.name} (${sessionInsights.winner.wins}W-${sessionInsights.winner.losses}L-${sessionInsights.winner.draws}D)`}
+                    />
+                  ) : null}
+                  {sessionInsights.mvp ? (
+                    <SummaryRow
+                      label={t("rotation.sessionMvp")}
+                      value={`${sessionInsights.mvp.name} (${sessionInsights.mvp.wins}W-${sessionInsights.mvp.losses}L-${sessionInsights.mvp.draws}D)`}
+                    />
+                  ) : null}
+                  {sessionInsights.highestScoringMatch ? (
+                    <SummaryRow label={t("rotation.highestScoringMatch")} value={`${sessionInsights.highestScoringMatch.holderName} (${sessionInsights.highestScoringMatch.valueLabel})`} />
+                  ) : null}
+                  {sessionInsights.bestClub ? (
+                    <SummaryRow
+                      label={t("rotation.bestClub")}
+                      value={`${sessionInsights.bestClub.clubName} (${sessionInsights.bestClub.wins}W-${sessionInsights.bestClub.losses}L-${sessionInsights.bestClub.draws}D)`}
+                    />
+                  ) : null}
+                  {sessionInsights.biggestUpset ? (
+                    <SummaryRow
+                      label={t("rotation.biggestUpset")}
+                      value={t("rotation.biggestUpsetValue", {
+                        winner: sessionInsights.biggestUpset.winnerName,
+                        loser: sessionInsights.biggestUpset.loserName,
+                        score: sessionInsights.biggestUpset.scoreLabel,
+                      })}
+                    />
+                  ) : null}
+                </View>
+              ) : null}
+
+              <View style={styles.summaryActionsRow}>
+                <Button label={t("rotation.backToHomeFromSummary")} onPress={handleBackToHome} />
+                <Button label={t("leagueTable.title")} variant="secondary" onPress={() => router.push("/league-table")} />
+                <Button label={t("rotation.startNewSession")} variant="secondary" onPress={handleStartNewSession} />
+              </View>
+            </Card>
+          ) : null}
+
+          {sessionHistory.length > 0 ? (
+            <Card style={styles.summaryCard}>
+              <Text style={styles.header}>{t("rotation.pastSessions")}</Text>
+              {sessionHistory.slice(0, 5).map((record) => (
+                <View key={record.id} style={styles.pastSessionRow}>
+                  <Text style={styles.body}>{new Date(record.endedAt).toLocaleDateString()}</Text>
+                  <Text style={styles.pastSessionDetail}>
+                    {t("rotation.roundsPlayed")}: {record.summary.roundsPlayed} · {formatDuration(record.summary.durationMs)}
+                  </Text>
+                </View>
+              ))}
             </Card>
           ) : null}
 
@@ -507,6 +635,27 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     gap: spacing.sm,
+  },
+  sessionInsightsBlock: {
+    gap: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+    paddingTop: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  summaryActionsRow: {
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  pastSessionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: spacing.xs,
+  },
+  pastSessionDetail: {
+    ...typography.small,
+    color: colors.textSecondary,
   },
   summaryRow: {
     flexDirection: "row",
