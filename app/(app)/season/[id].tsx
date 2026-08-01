@@ -39,7 +39,7 @@ export default function SeasonDetailsScreen() {
 
   if (isLoading) {
     return (
-      <Screen>
+      <Screen avoidKeyboard>
         <SkeletonList count={5} height={64} />
       </Screen>
     );
@@ -47,7 +47,7 @@ export default function SeasonDetailsScreen() {
 
   if (isError || !season || !report) {
     return (
-      <Screen>
+      <Screen avoidKeyboard>
         <ErrorState message={t("seasonHistory.noDataYet")} />
       </Screen>
     );
@@ -56,7 +56,7 @@ export default function SeasonDetailsScreen() {
   const { overview, awards, statistics, clubRankings } = report;
 
   return (
-    <Screen padded={false}>
+    <Screen padded={false} avoidKeyboard>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View style={styles.cardTitleRow}>

@@ -102,7 +102,7 @@ export default function HistoryScreen() {
   const clearFilters = () => setFilters(DEFAULT_MATCH_FILTERS);
 
   return (
-    <Screen padded={false}>
+    <Screen padded={false} avoidKeyboard>
       <View style={styles.header}>
         <Text style={styles.title}>{t("history.title")}</Text>
         <View style={styles.headerActions}>

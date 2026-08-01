@@ -72,7 +72,7 @@ export default function CustomClubsScreen() {
   };
 
   return (
-    <Screen padded={false}>
+    <Screen padded={false} avoidKeyboard>
       <View style={styles.header}>
         <Text style={styles.title}>{t("customClubs.title")}</Text>
       </View>

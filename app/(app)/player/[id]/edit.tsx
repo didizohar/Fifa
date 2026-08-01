@@ -46,7 +46,7 @@ export default function EditPlayerScreen() {
 
   if (isLoading || !player) {
     return (
-      <Screen>
+      <Screen avoidKeyboard>
         {isError ? (
           <ErrorState message="Couldn't load this player's details. Check your connection and try again." onRetry={refetch} />
         ) : (
@@ -74,7 +74,7 @@ export default function EditPlayerScreen() {
   };
 
   return (
-    <Screen>
+    <Screen avoidKeyboard>
       <View style={styles.form}>
         <TextField label="Name" value={displayName} onChangeText={setDisplayName} error={error} />
         <TextField label="Nickname (optional)" value={nickname} onChangeText={setNickname} />

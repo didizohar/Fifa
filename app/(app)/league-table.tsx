@@ -83,7 +83,7 @@ export default function LeagueTableScreen() {
   const isLoading = players.isLoading || matchHistory.isLoading;
 
   return (
-    <Screen padded={false}>
+    <Screen padded={false} avoidKeyboard>
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>{t("leagueTable.title")}</Text>

@@ -77,7 +77,7 @@ export default function ResetPasswordScreen() {
 
   if (exchangeState === "exchanging") {
     return (
-      <Screen>
+      <Screen avoidKeyboard>
         <View style={styles.centered}>
           <ActivityIndicator color={colors.accent} />
         </View>
@@ -87,7 +87,7 @@ export default function ResetPasswordScreen() {
 
   if (exchangeState === "invalid") {
     return (
-      <Screen>
+      <Screen avoidKeyboard>
         <View style={styles.centered}>
           <Text style={styles.logo}>⚠️</Text>
           <Text style={styles.title}>{t("auth.resetLinkInvalidTitle")}</Text>
@@ -100,7 +100,7 @@ export default function ResetPasswordScreen() {
 
   if (isDone) {
     return (
-      <Screen>
+      <Screen avoidKeyboard>
         <View style={styles.centered}>
           <Text style={styles.logo}>✅</Text>
           <Text style={styles.subtitle}>{t("auth.resetPasswordSuccessMessage")}</Text>
@@ -111,7 +111,7 @@ export default function ResetPasswordScreen() {
   }
 
   return (
-    <Screen>
+    <Screen avoidKeyboard>
       <View style={styles.header}>
         <Text style={styles.title}>{t("auth.resetPasswordTitle")}</Text>
         <Text style={styles.subtitle}>{t("auth.resetPasswordSubtitle")}</Text>

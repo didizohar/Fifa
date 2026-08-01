@@ -187,7 +187,7 @@ export default function LeagueManagementScreen() {
   };
 
   return (
-    <Screen>
+    <Screen avoidKeyboard>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>{t("league.title")}</Text>
         {currentGroup ? <Text style={styles.subtitle}>{t("league.subtitle", { name: currentGroup.name })}</Text> : null}

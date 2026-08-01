@@ -433,7 +433,7 @@ export default function RecordMatchScreen() {
   const showForm = !editLoading && !editNotFound && !editPermissionDenied && !tooFewPlayers;
 
   return (
-    <Screen>
+    <Screen avoidKeyboard>
       {isEditMode && showForm ? <Stack.Screen options={{ title: t("editMatch.entryAction") }} /> : null}
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {editLoading ? (

@@ -42,7 +42,7 @@ export default function JoinGroupScreen() {
   };
 
   return (
-    <Screen>
+    <Screen avoidKeyboard>
       <View style={styles.header}>
         <Text style={styles.title}>{t("group.joinTitle")}</Text>
         <Text style={styles.subtitle}>{t("group.joinSubtitle")}</Text>

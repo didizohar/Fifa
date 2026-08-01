@@ -42,7 +42,7 @@ export default function CreateGroupScreen() {
   };
 
   return (
-    <Screen>
+    <Screen avoidKeyboard>
       <View style={styles.header}>
         <Text style={styles.title}>{t("group.createTitle")}</Text>
         <Text style={styles.subtitle}>{t("group.createSubtitle")}</Text>

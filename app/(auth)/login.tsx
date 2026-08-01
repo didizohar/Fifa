@@ -37,7 +37,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <Screen>
+    <Screen avoidKeyboard>
       <View style={styles.header}>
         <Text style={styles.logo}>⚽️</Text>
         <Text style={styles.title}>FC Rival</Text>

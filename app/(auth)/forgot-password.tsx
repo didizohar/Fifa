@@ -38,7 +38,7 @@ export default function ForgotPasswordScreen() {
 
   if (isSent) {
     return (
-      <Screen>
+      <Screen avoidKeyboard>
         <View style={styles.confirmContainer}>
           <Text style={styles.logo}>📬</Text>
           <Text style={styles.title}>{t("auth.resetRequestSuccessTitle")}</Text>
@@ -52,7 +52,7 @@ export default function ForgotPasswordScreen() {
   }
 
   return (
-    <Screen>
+    <Screen avoidKeyboard>
       <View style={styles.header}>
         <Text style={styles.logo}>🔑</Text>
         <Text style={styles.title}>{t("auth.resetRequestTitle")}</Text>

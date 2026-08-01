@@ -135,7 +135,7 @@ export default function TeamDrawScreen() {
     : "";
 
   return (
-    <Screen>
+    <Screen avoidKeyboard>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {isLoading ? (
           <SkeletonList count={5} />

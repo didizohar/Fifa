@@ -40,7 +40,7 @@ export default function SignupScreen() {
 
   if (needsConfirmation) {
     return (
-      <Screen>
+      <Screen avoidKeyboard>
         <View style={styles.confirmContainer}>
           <Text style={styles.logo}>📬</Text>
           <Text style={styles.title}>{t("auth.checkEmailTitle")}</Text>
@@ -56,7 +56,7 @@ export default function SignupScreen() {
   }
 
   return (
-    <Screen>
+    <Screen avoidKeyboard>
       <View style={styles.header}>
         <Text style={styles.logo}>⚽️</Text>
         <Text style={styles.title}>{t("auth.signupTitle")}</Text>

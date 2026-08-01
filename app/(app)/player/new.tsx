@@ -41,7 +41,7 @@ export default function NewPlayerScreen() {
   };
 
   return (
-    <Screen>
+    <Screen avoidKeyboard>
       <View style={styles.form}>
         <TextField label="Name" placeholder="Player name" value={displayName} onChangeText={setDisplayName} autoFocus error={error} />
         <TextField label="Nickname (optional)" placeholder="e.g. The Wall" value={nickname} onChangeText={setNickname} />

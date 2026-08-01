@@ -7,26 +7,40 @@ interface ScreenProps {
   children: ReactNode;
   style?: ViewStyle;
   padded?: boolean;
+  /**
+   * Opt-in only -- pass true on screens that render a TextField/TextInput.
+   * KeyboardAvoidingView was previously applied unconditionally to every
+   * screen in the app, most of which have no text input at all. It does its
+   * own layout measurement/settle pass on mount (needed to compute its
+   * padding against the keyboard), which has no purpose on an input-less
+   * screen and was a real, needless source of an extra layout pass right as
+   * the screen became interactive.
+   */
+  avoidKeyboard?: boolean;
 }
 
-export function Screen({ children, style, padded = true }: ScreenProps) {
+export function Screen({ children, style, padded = true, avoidKeyboard = false }: ScreenProps) {
+  const content = (
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View style={styles.webCenter}>
+        <View style={[styles.container, styles.webMaxWidth, padded && styles.padded, style]}>{children}</View>
+      </View>
+    </TouchableWithoutFeedback>
+  );
+
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
-      >
-        {/* TouchableWithoutFeedback only fires when a touch isn't claimed by a
-            child responder first, so this never steals taps from buttons,
-            inputs, or scroll gestures -- it only dismisses the keyboard when
-            the user taps genuinely empty space. */}
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-          <View style={styles.webCenter}>
-            <View style={[styles.container, styles.webMaxWidth, padded && styles.padded, style]}>{children}</View>
-          </View>
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
+      {avoidKeyboard ? (
+        <KeyboardAvoidingView
+          style={styles.container}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
+        >
+          {content}
+        </KeyboardAvoidingView>
+      ) : (
+        content
+      )}
     </SafeAreaView>
   );
 }
