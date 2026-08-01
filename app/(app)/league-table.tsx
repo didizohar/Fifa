@@ -306,13 +306,13 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   posCell: {
-    width: 32,
+    width: 26,
     textAlign: "center",
   },
   nameCell: {
     width: 120,
     textAlign: "auto",
-    paddingStart: spacing.sm,
+    paddingStart: spacing.xs,
   },
   numCell: {
     width: 48,

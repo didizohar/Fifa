@@ -1,4 +1,5 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, ViewStyle } from "react-native";
+import { useRef } from "react";
+import { ActivityIndicator, Animated, Easing, Pressable, StyleSheet, Text, ViewStyle } from "react-native";
 import { colors, radius, spacing, typography } from "../theme";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
@@ -17,29 +18,37 @@ interface ButtonProps {
 
 export function Button({ label, onPress, variant = "primary", size = "lg", loading, disabled, style }: ButtonProps) {
   const isDisabled = disabled || loading;
+  // Subtle press feedback shared by every button in the app -- a small,
+  // fast scale (not a slow/bouncy one) on top of the existing opacity dip.
+  const scale = useRef(new Animated.Value(1)).current;
+  const animateTo = (toValue: number) => Animated.timing(scale, { toValue, duration: 100, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
 
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={isDisabled}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled: isDisabled, busy: loading }}
-      style={({ pressed }) => [
-        styles.base,
-        sizeStyles[size],
-        variantStyles[variant],
-        isDisabled && styles.disabled,
-        pressed && !isDisabled && styles.pressed,
-        style,
-      ]}
-    >
-      {loading ? (
-        <ActivityIndicator color={variant === "primary" ? colors.background : colors.accent} />
-      ) : (
-        <Text style={[styles.label, labelSizeStyles[size], labelVariantStyles[variant]]}>{label}</Text>
-      )}
-    </Pressable>
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={() => !isDisabled && animateTo(0.97)}
+        onPressOut={() => animateTo(1)}
+        disabled={isDisabled}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ disabled: isDisabled, busy: loading }}
+        style={({ pressed }) => [
+          styles.base,
+          sizeStyles[size],
+          variantStyles[variant],
+          isDisabled && styles.disabled,
+          pressed && !isDisabled && styles.pressed,
+          style,
+        ]}
+      >
+        {loading ? (
+          <ActivityIndicator color={variant === "primary" ? colors.background : colors.accent} />
+        ) : (
+          <Text style={[styles.label, labelSizeStyles[size], labelVariantStyles[variant]]}>{label}</Text>
+        )}
+      </Pressable>
+    </Animated.View>
   );
 }
 

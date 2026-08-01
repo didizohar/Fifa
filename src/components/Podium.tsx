@@ -16,10 +16,14 @@ interface PodiumProps {
   onPressEntry?: (playerId: string) => void;
 }
 
+// A wider spread top-to-bottom (was 88/68/52, avatars 56/48/48) so the
+// podium reads as three distinct steps at a glance instead of three
+// similar-height blocks -- 2nd and 3rd now also differ in avatar size, not
+// just stand height and medal/tone.
 const PLACE_STYLE = {
-  1: { tone: colors.gold, height: 88, avatarSize: 56, medal: "🥇" },
-  2: { tone: colors.silver, height: 68, avatarSize: 48, medal: "🥈" },
-  3: { tone: colors.bronze, height: 52, avatarSize: 48, medal: "🥉" },
+  1: { tone: colors.gold, height: 104, avatarSize: 60, medal: "🥇" },
+  2: { tone: colors.silver, height: 72, avatarSize: 50, medal: "🥈" },
+  3: { tone: colors.bronze, height: 44, avatarSize: 42, medal: "🥉" },
 } as const;
 
 /** Top-3 podium -- rendered as 2nd / 1st / 3rd left-to-right, with 1st visually tallest. */

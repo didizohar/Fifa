@@ -239,6 +239,15 @@ export default function LeaderboardsScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>{t("leaderboards.title")}</Text>
         <View style={styles.headerActions}>
+          <Pressable
+            onPress={() => router.push("/league-table")}
+            style={styles.iconOnlyButton}
+            accessibilityRole="button"
+            accessibilityLabel={t("leagueTable.title")}
+            hitSlop={8}
+          >
+            <Ionicons name="list" size={18} color={colors.accent} />
+          </Pressable>
           <ExportButton filename={`fc-rival-leaderboard-${category}.csv`} getCsv={getLeaderboardCsv} />
           <Pressable
             onPress={() => {
@@ -441,6 +450,9 @@ const styles = StyleSheet.create({
   title: {
     ...typography.title,
   },
+  iconOnlyButton: {
+    padding: spacing.xs,
+  },
   sortButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -495,6 +507,11 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingBottom: spacing.xxl,
+    // Consistent spacing between the podium, the ranked list, and the
+    // "not yet qualified" section below it -- previously relied on each
+    // block's own incidental margins, which read as an uneven gap between
+    // the podium and the list versus between the list and what follows it.
+    gap: spacing.lg,
   },
   list: {
     gap: spacing.sm,

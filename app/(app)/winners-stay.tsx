@@ -124,7 +124,13 @@ export default function WinnersStayScreen() {
   // `!session` guard further down), not just the last of them, so the
   // exact same hooks run in the exact same order on every single render.
   const sessionInsights = useMemo(() => {
-    if (!session) return null;
+    // Only ever rendered in the completed-session summary below, but this
+    // hook must stay unconditional (Rules of Hooks) -- so the early return
+    // is what actually matters for performance: without it, every accept /
+    // redraw / undo / queue edit during ACTIVE play would re-filter the
+    // group's entire match history and recompute standings on every
+    // render, just to throw the result away unused until the session ends.
+    if (!session || session.status !== "completed") return null;
     const allMatches = groupHistory.data ?? [];
     const participantIds = new Set(session.activePlayerIds);
     const sessionMatches = allMatches.filter((m) => {
@@ -246,7 +252,7 @@ export default function WinnersStayScreen() {
               <SummaryRow label={t("rotation.playersUsed")} value={String(summary.playersUsedCount)} />
               <SummaryRow label={t("rotation.longestWinningRun")} value={String(summary.longestWinningRun)} />
               <Text style={styles.subLabel}>{t("rotation.finalQueue")}</Text>
-              <Text style={styles.body}>
+              <Text style={styles.body} numberOfLines={3}>
                 {summary.finalWaitingQueue.length === 0
                   ? t("rotation.emptyQueueMessage")
                   : summary.finalWaitingQueue.map((q) => playersById[q.playerId]?.display_name ?? q.playerId).join(", ")}
@@ -292,9 +298,9 @@ export default function WinnersStayScreen() {
               ) : null}
 
               <View style={styles.summaryActionsRow}>
-                <Button label={t("rotation.backToHomeFromSummary")} onPress={handleBackToHome} />
-                <Button label={t("leagueTable.title")} variant="secondary" onPress={() => router.push("/league-table")} />
-                <Button label={t("rotation.startNewSession")} variant="secondary" onPress={handleStartNewSession} />
+                <Button label={t("rotation.backToHomeFromSummary")} size="md" onPress={handleBackToHome} />
+                <Button label={t("leagueTable.title")} variant="secondary" size="md" onPress={() => router.push("/league-table")} />
+                <Button label={t("rotation.startNewSession")} variant="secondary" size="md" onPress={handleStartNewSession} />
               </View>
             </Card>
           ) : null}
@@ -521,7 +527,9 @@ function PairLine({ label, pair }: { label: string; pair: { players: [RotationPl
   return (
     <View style={styles.pairLine}>
       <Text style={styles.pairLineLabel}>{label}</Text>
-      <Text style={styles.pairLineNames}>{pair.players.map((p) => p.display_name).join(" & ")}</Text>
+      <Text style={styles.pairLineNames} numberOfLines={1} ellipsizeMode="tail">
+        {pair.players.map((p) => p.display_name).join(" & ")}
+      </Text>
       <Text style={styles.pairLineStreak}>
         {t("rotation.consecutiveMatches")}: {pair.consecutiveMatchesPlayed}
       </Text>
@@ -533,7 +541,9 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.summaryRow}>
       <Text style={styles.body}>{label}</Text>
-      <Text style={styles.summaryValue}>{value}</Text>
+      <Text style={styles.summaryValue} numberOfLines={2} ellipsizeMode="tail">
+        {value}
+      </Text>
     </View>
   );
 }
@@ -660,9 +670,13 @@ const styles = StyleSheet.create({
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    gap: spacing.sm,
   },
   summaryValue: {
     ...typography.bodyStrong,
     color: colors.accent,
+    flex: 1,
+    flexShrink: 1,
+    textAlign: "right",
   },
 });

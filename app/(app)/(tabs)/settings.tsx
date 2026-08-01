@@ -76,6 +76,13 @@ export default function SettingsScreen() {
           </Card>
         ) : null}
 
+        {currentGroup ? (
+          <Card style={styles.card}>
+            <Text style={styles.cardLabel}>{t("settings.groupManagement")}</Text>
+            <Button label={t("league.title")} variant="secondary" onPress={() => router.push("/league-management")} />
+          </Card>
+        ) : null}
+
         {groups.length > 1 ? (
           <Card style={styles.card}>
             <Text style={styles.cardLabel}>{t("settings.switchGroup")}</Text>

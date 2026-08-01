@@ -235,12 +235,8 @@ export default function HomeScreen() {
           <View style={styles.quickActions}>
             <ActionButton icon="add-circle" label={t("home.quickActionRecord")} onPress={() => router.push("/record-match")} />
             <ActionButton icon="shuffle" label={t("home.quickActionDraw")} onPress={() => router.push("/draw")} />
-            <ActionButton icon="people" label={t("home.quickActionPlayers")} onPress={() => router.push("/players")} />
-            <ActionButton icon="trophy" label={t("home.quickActionLeaderboards")} onPress={() => router.push("/leaderboards")} />
-            <ActionButton icon="shield-checkmark" label={t("home.quickActionLeagueManagement")} onPress={() => router.push("/league-management")} />
-            <ActionButton icon="list" label={t("home.quickActionLeagueTable")} onPress={() => router.push("/league-table")} />
-            <ActionButton icon="calendar" label={t("home.quickActionMonthlySummary")} onPress={() => router.push("/monthly-summary")} />
             <ActionButton icon="analytics" label={t("home.quickActionTrends")} onPress={() => router.push("/trends")} />
+            <ActionButton icon="calendar" label={t("home.quickActionMonthlySummary")} onPress={() => router.push("/monthly-summary")} />
             <ActionButton icon="bulb" label={t("home.quickActionInsights")} onPress={() => router.push("/insights")} />
           </View>
         </View>
@@ -388,8 +384,10 @@ export default function HomeScreen() {
 
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>{t("home.insightOfTheDay")}</Text>
-              <Card compact style={styles.insightCard}>
-                <Text style={styles.insightIcon}>💡</Text>
+              <Card variant="elevated" style={styles.insightCard}>
+                <View style={styles.insightIconBadge}>
+                  <Text style={styles.insightIcon}>💡</Text>
+                </View>
                 <Text style={styles.insightText}>{insightOfTheDay?.text ?? t("home.noInsightYet")}</Text>
               </Card>
             </View>
@@ -602,15 +600,23 @@ const styles = StyleSheet.create({
   },
   insightCard: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.sm,
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  insightIconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.pill,
+    backgroundColor: colors.accentSubtle,
+    alignItems: "center",
+    justifyContent: "center",
   },
   insightIcon: {
     fontSize: 18,
     lineHeight: 20,
   },
   insightText: {
-    ...typography.body,
+    ...typography.bodyStrong,
     flex: 1,
     flexShrink: 1,
   },

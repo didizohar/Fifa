@@ -21,7 +21,7 @@ export function ActionButton({ icon, label, onPress }: ActionButtonProps) {
       <View style={styles.icon}>
         <Ionicons name={icon} size={iconSize.md} color={colors.accent} />
       </View>
-      <Text style={styles.label} numberOfLines={1}>
+      <Text style={styles.label} numberOfLines={2} ellipsizeMode="tail">
         {label}
       </Text>
     </Pressable>
@@ -30,7 +30,12 @@ export function ActionButton({ icon, label, onPress }: ActionButtonProps) {
 
 const styles = StyleSheet.create({
   action: {
-    flex: 1,
+    // Fixed-percentage width (not flex: 1) so every button in the wrapped
+    // grid gets the same, predictable size regardless of how many share a
+    // row or how long a neighboring label is -- 3 per row (Home's 5 Quick
+    // Actions land as a balanced 3+2), reflowing naturally on narrower/
+    // wider screens since it's a percentage, not a fixed pixel width.
+    width: "31%",
     alignItems: "center",
     gap: spacing.xs,
     paddingVertical: spacing.sm,
@@ -50,5 +55,11 @@ const styles = StyleSheet.create({
   label: {
     ...typography.small,
     textAlign: "center",
+    // Reserves space for a second line up front so a short 1-line label
+    // and a long 2-line label produce the same button height -- otherwise
+    // the grid would look uneven row to row. typography.small has no
+    // explicit lineHeight, so this mirrors RN's ~1.25x default rather than
+    // reading a field that doesn't exist.
+    minHeight: typography.small.fontSize * 1.25 * 2,
   },
 });
