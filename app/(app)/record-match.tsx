@@ -411,58 +411,48 @@ export default function RecordMatchScreen() {
 
   if (!currentGroup) return null;
 
-  if (isEditMode) {
-    if (matchQuery.isLoading || (matchQuery.data && (playersLoading || clubsLoading))) {
-      return (
-        <Screen>
-          <View style={styles.content}>
-            <Skeleton height={100} borderRadius={radius.lg} />
-            <Skeleton height={220} borderRadius={radius.lg} />
-            <Skeleton height={220} borderRadius={radius.lg} />
-          </View>
-        </Screen>
-      );
-    }
-
-    if (matchQuery.isError || !matchQuery.data) {
-      const isNotFound = (matchQuery.error as { code?: string } | null)?.code === "PGRST116";
-      return (
-        <Screen>
-          <ErrorState
-            message={isNotFound ? t("editMatch.matchNotFound") : t("editMatch.networkError")}
-            onRetry={isNotFound ? undefined : () => matchQuery.refetch()}
-          />
-        </Screen>
-      );
-    }
-
-    if (!canEditMatch(currentRole, user?.id, matchQuery.data.created_by)) {
-      return (
-        <Screen>
-          <ErrorState message={t("editMatch.permissionDenied")} />
-        </Screen>
-      );
-    }
-  }
-
-  if (!isEditMode && !playersLoading && (players ?? []).length < MIN_PLAYERS_TO_RECORD) {
-    return (
-      <Screen>
-        <EmptyState
-          icon="🧑‍🤝‍🧑"
-          title="Not enough players yet"
-          message="A match needs at least two players in the group. Add one, then come back here."
-          actionLabel="Add player"
-          onAction={() => router.push("/player/new")}
-        />
-      </Screen>
-    );
-  }
+  // Screen/ScrollView below is now ALWAYS mounted -- loading/error/
+  // permission-denied/empty states render as its *content*, not as
+  // separate early-return trees. Same root cause and fix as the draw
+  // screens (see draw/matchup.tsx): a separate early-return tree with no
+  // ScrollView at all meant the real ScrollView only mounted once
+  // matchQuery/players/clubVersions resolved, racing the push transition
+  // on real devices.
+  const editLoading = isEditMode && (matchQuery.isLoading || !!(matchQuery.data && (playersLoading || clubsLoading)));
+  const editNotFound = isEditMode && !editLoading && (matchQuery.isError || !matchQuery.data);
+  const editNotFoundIsMissing = editNotFound ? (matchQuery.error as { code?: string } | null)?.code === "PGRST116" : false;
+  const editPermissionDenied =
+    isEditMode && !editLoading && !editNotFound && !!matchQuery.data && !canEditMatch(currentRole, user?.id, matchQuery.data.created_by);
+  const tooFewPlayers = !isEditMode && !playersLoading && (players ?? []).length < MIN_PLAYERS_TO_RECORD;
+  const showForm = !editLoading && !editNotFound && !editPermissionDenied && !tooFewPlayers;
 
   return (
     <Screen>
-      {isEditMode ? <Stack.Screen options={{ title: t("editMatch.entryAction") }} /> : null}
+      {isEditMode && showForm ? <Stack.Screen options={{ title: t("editMatch.entryAction") }} /> : null}
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {editLoading ? (
+          <>
+            <Skeleton height={100} borderRadius={radius.lg} />
+            <Skeleton height={220} borderRadius={radius.lg} />
+            <Skeleton height={220} borderRadius={radius.lg} />
+          </>
+        ) : editNotFound ? (
+          <ErrorState
+            message={editNotFoundIsMissing ? t("editMatch.matchNotFound") : t("editMatch.networkError")}
+            onRetry={editNotFoundIsMissing ? undefined : () => matchQuery.refetch()}
+          />
+        ) : editPermissionDenied ? (
+          <ErrorState message={t("editMatch.permissionDenied")} />
+        ) : tooFewPlayers ? (
+          <EmptyState
+            icon="🧑‍🤝‍🧑"
+            title="Not enough players yet"
+            message="A match needs at least two players in the group. Add one, then come back here."
+            actionLabel="Add player"
+            onAction={() => router.push("/player/new")}
+          />
+        ) : (
+          <>
         {showPrefillBanner ? (
           <View style={styles.prefillBanner}>
             <Text style={styles.prefillBannerText}>{t("draw.prefillBannerMessage")}</Text>
@@ -658,6 +648,8 @@ export default function RecordMatchScreen() {
         <Button label={isEditMode ? t("editMatch.saveChanges") : "Save match"} onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
 
         {isFromWinnersStay ? <Button label={t("rotation.backToHome")} variant="secondary" onPress={() => router.replace("/")} /> : null}
+          </>
+        )}
       </ScrollView>
 
       {clubPickerSide !== null && editGameVersionId && currentGroup ? (

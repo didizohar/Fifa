@@ -16,7 +16,27 @@ export default function AppLayout() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen
         name="record-match"
-        options={{ presentation: "modal", headerShown: true, title: "Record match", ...themedHeaderOptions }}
+        options={{
+          presentation: "modal",
+          headerShown: true,
+          title: "Record match",
+          // A modal sheet's native interactive-dismiss pan gesture and the
+          // content ScrollView's own pan gesture both want the same
+          // vertical drag. Over the player-picker rows specifically, each
+          // Pressable also claims itself as a responder candidate (JS-
+          // resolved, unlike the two native recognizers), so a touch
+          // starting there needs a three-way negotiation instead of two --
+          // that's what stalled for seconds on a real device. Disabling
+          // the gesture removes the competing recognizer at the source
+          // instead of tuning fragile timing/delay props. The header back
+          // button and Save/Cancel remain as the dismiss paths, which is
+          // also the safer choice here: a system-level swipe-dismiss isn't
+          // guaranteed to route through this screen's own unsaved-changes
+          // guard (navigation.addListener("beforeRemove", ...)) the way a
+          // button-driven dismiss does.
+          gestureEnabled: false,
+          ...themedHeaderOptions,
+        }}
       />
       <Stack.Screen name="player/new" options={{ headerShown: true, title: "Add player", ...themedHeaderOptions }} />
       <Stack.Screen name="player/[id]/index" options={{ headerShown: true, title: "Player", ...themedHeaderOptions }} />
