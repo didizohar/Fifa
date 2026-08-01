@@ -9,6 +9,18 @@ interface Stats {
   total: number;
 }
 
+interface DisplayStats {
+  renders: number;
+  last: number;
+  max: number;
+  mean: number;
+  fps: number;
+}
+
+const UPDATE_INTERVAL_MS = 1000;
+
+const INITIAL_DISPLAY: DisplayStats = { renders: 0, last: 0, max: 0, mean: 0, fps: 60 };
+
 /**
  * Dev-only, on-screen render/FPS readout -- __DEV__-gated so it never ships
  * in a release/TestFlight build. Wrap a screen's scrollable content in this
@@ -16,6 +28,13 @@ interface Stats {
  * commit took (React Profiler's actualDuration), and the JS-thread frame
  * rate while interacting -- real numbers instead of guessing at "feels
  * heavy". Remove once a screen's perf work is validated.
+ *
+ * Measuring must never itself cause more rendering to measure: onRender and
+ * the per-frame counter below only ever write to refs. A single
+ * setInterval, decoupled from both the Profiler and the frame loop, is the
+ * only thing that calls setState, at a fixed throttled cadence -- so this
+ * overlay's own render count stays flat regardless of how often the
+ * profiled subtree or the animation frame actually fire.
  */
 export function PerfOverlay({ id, children }: { id: string; children: ReactNode }) {
   if (!__DEV__) return <>{children}</>;
@@ -24,29 +43,35 @@ export function PerfOverlay({ id, children }: { id: string; children: ReactNode 
 
 function PerfOverlayInner({ id, children }: { id: string; children: ReactNode }) {
   const statsRef = useRef<Stats>({ renders: 0, last: 0, max: 0, mean: 0, total: 0 });
-  const fpsRef = useRef(60);
-  const [, forceTick] = useState(0);
+  const frameCountRef = useRef(0);
+  const [display, setDisplay] = useState<DisplayStats>(INITIAL_DISPLAY);
 
   useEffect(() => {
-    let frames = 0;
-    let windowStart = Date.now();
     let raf: ReturnType<typeof requestAnimationFrame>;
-    const loop = () => {
-      frames++;
-      const now = Date.now();
-      const elapsed = now - windowStart;
-      if (elapsed >= 500) {
-        fpsRef.current = Math.round((frames * 1000) / elapsed);
-        frames = 0;
-        windowStart = now;
-        forceTick((t) => t + 1);
-      }
-      raf = requestAnimationFrame(loop);
+    const frameLoop = () => {
+      frameCountRef.current += 1;
+      raf = requestAnimationFrame(frameLoop);
     };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(frameLoop);
+
+    const interval = setInterval(() => {
+      const fps = Math.round((frameCountRef.current * 1000) / UPDATE_INTERVAL_MS);
+      frameCountRef.current = 0;
+      const s = statsRef.current;
+      setDisplay({ renders: s.renders, last: s.last, max: s.max, mean: s.mean, fps });
+    }, UPDATE_INTERVAL_MS);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      clearInterval(interval);
+    };
   }, []);
 
+  // Refs only, deliberately -- calling setState here would re-render this
+  // component, which re-commits the Profiler's own subtree, which would
+  // fire onRender again, which would call setState again: an unbounded
+  // "Maximum update depth exceeded" loop. The setInterval above is the only
+  // path that ever calls setState.
   const onRender: ProfilerOnRenderCallback = (_profilerId, _phase, actualDuration) => {
     const s = statsRef.current;
     s.renders += 1;
@@ -54,10 +79,8 @@ function PerfOverlayInner({ id, children }: { id: string; children: ReactNode })
     s.max = Math.max(s.max, actualDuration);
     s.total += actualDuration;
     s.mean = s.total / s.renders;
-    forceTick((t) => t + 1);
   };
 
-  const s = statsRef.current;
   return (
     <>
       <Profiler id={id} onRender={onRender}>
@@ -66,10 +89,10 @@ function PerfOverlayInner({ id, children }: { id: string; children: ReactNode })
       <View style={styles.badge} pointerEvents="none">
         <Text style={styles.text}>{id}</Text>
         <Text style={styles.text}>
-          renders {s.renders} · fps {fpsRef.current}
+          renders {display.renders} · fps {display.fps}
         </Text>
         <Text style={styles.text}>
-          last {s.last.toFixed(1)}ms · max {s.max.toFixed(1)}ms · avg {s.mean.toFixed(1)}ms
+          last {display.last.toFixed(1)}ms · max {display.max.toFixed(1)}ms · avg {display.mean.toFixed(1)}ms
         </Text>
       </View>
     </>
