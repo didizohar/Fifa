@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useTranslation } from "../lib/i18n";
 import type { PickablePlayer } from "../lib/players";
@@ -13,7 +13,14 @@ interface PlayerPickerProps {
   maxSelected: number;
 }
 
-export function PlayerPicker({ players, selectedIds, onToggle, disabledIds = [], maxSelected }: PlayerPickerProps) {
+// Every screen that uses this renders one row per roster player (often
+// 10-30+ Pressables at once) -- without memo, any unrelated state change
+// anywhere in the parent (a score +/-, a Switch, a different Card) forces
+// this entire subtree to re-render and re-diff on every keystroke/tap,
+// even though none of its own props changed. Requires every caller to
+// pass a stable (useCallback'd) onToggle and a stable disabledIds
+// reference, or this memo does nothing -- see the screens that render it.
+export const PlayerPicker = memo(function PlayerPicker({ players, selectedIds, onToggle, disabledIds = [], maxSelected }: PlayerPickerProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
 
@@ -66,7 +73,7 @@ export function PlayerPicker({ players, selectedIds, onToggle, disabledIds = [],
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

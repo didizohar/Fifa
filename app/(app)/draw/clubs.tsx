@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { Avatar } from "../../../src/components/Avatar";
 import { Button } from "../../../src/components/Button";
@@ -201,9 +201,12 @@ export default function ClubDrawScreen() {
     setUsedDuplicates(false);
   };
 
-  const toggleSelection = (playerId: string) => {
+  // useCallback so PlayerPicker's React.memo actually skips re-rendering
+  // the roster list on unrelated state changes (club mode, star filters,
+  // switches) -- see src/components/PlayerPicker.tsx.
+  const toggleSelection = useCallback((playerId: string) => {
     setSelectedIds((prev) => (prev.includes(playerId) ? prev.filter((id) => id !== playerId) : [...prev, playerId]));
-  };
+  }, []);
 
   // Screen/ScrollView below is now ALWAYS mounted -- loading/error/empty
   // states render as its *content*, not as separate early-return trees.

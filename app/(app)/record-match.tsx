@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Stack, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { Button } from "../../src/components/Button";
@@ -246,12 +246,18 @@ export default function RecordMatchScreen() {
     setSide2PlayerIds([]);
   };
 
-  const toggleSide1Player = (id: string) => {
+  // useCallback (not a plain function) so PlayerPicker's React.memo actually
+  // skips re-rendering the roster list when unrelated state (score, a
+  // Switch, the other side) changes -- a new function reference every
+  // render would defeat the memo entirely. Empty deps is correct: both only
+  // use the functional setState form, so they never need to close over
+  // anything that changes.
+  const toggleSide1Player = useCallback((id: string) => {
     setSide1PlayerIds((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
-  };
-  const toggleSide2Player = (id: string) => {
+  }, []);
+  const toggleSide2Player = useCallback((id: string) => {
     setSide2PlayerIds((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
-  };
+  }, []);
 
   const currentDraft: EditableMatchDraft = {
     matchType,

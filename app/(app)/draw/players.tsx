@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AccessibilityInfo, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { Avatar } from "../../../src/components/Avatar";
 import { Button } from "../../../src/components/Button";
@@ -43,9 +43,12 @@ export default function RandomPlayerDrawScreen() {
     if (howMany > selectedIds.length) setHowMany(Math.max(1, selectedIds.length));
   }, [selectedIds, howMany]);
 
-  const toggleSelection = (playerId: string) => {
+  // useCallback so PlayerPicker's React.memo actually skips re-rendering
+  // the roster list on unrelated state changes (howMany, drawn results)
+  // -- see src/components/PlayerPicker.tsx.
+  const toggleSelection = useCallback((playerId: string) => {
     setSelectedIds((prev) => (prev.includes(playerId) ? prev.filter((id) => id !== playerId) : [...prev, playerId]));
-  };
+  }, []);
 
   const draw = () => {
     const eligible = (players ?? []).filter((p) => selectedIds.includes(p.id));
