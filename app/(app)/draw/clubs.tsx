@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { Avatar } from "../../../src/components/Avatar";
 import { Button } from "../../../src/components/Button";
@@ -163,37 +163,48 @@ export default function ClubDrawScreen() {
     });
   };
 
-  const redrawOne = (playerId: string) => {
-    if (!assignments) return;
-    const othersUsed = new Set([...assignments.entries()].filter(([id]) => id !== playerId).map(([, c]) => c.id));
-    const pool = allowDuplicates ? filteredClubs : filteredClubs.filter((c) => !othersUsed.has(c.id));
-    const candidates = pool.length > 0 ? pool : filteredClubs;
-    if (candidates.length === 0) return;
-    const pick = assignRandomClubs(candidates, 1, { allowDuplicates: true }).assignments[0];
-    if (!pick) return;
-    suspense.start(() => {
-      setAssignments((prev) => {
+  // useCallback'd (deps limited to the data they actually need) so the
+  // memoized ResultRow below doesn't re-render every participant row when
+  // unrelated screen state changes -- e.g. toggling "exclude recently used"
+  // or changing the player selection previously re-rendered every row's
+  // Pressable closures.
+  const redrawOne = useCallback(
+    (playerId: string) => {
+      if (!assignments) return;
+      const othersUsed = new Set([...assignments.entries()].filter(([id]) => id !== playerId).map(([, c]) => c.id));
+      const pool = allowDuplicates ? filteredClubs : filteredClubs.filter((c) => !othersUsed.has(c.id));
+      const candidates = pool.length > 0 ? pool : filteredClubs;
+      if (candidates.length === 0) return;
+      const pick = assignRandomClubs(candidates, 1, { allowDuplicates: true }).assignments[0];
+      if (!pick) return;
+      suspense.start(() => {
+        setAssignments((prev) => {
+          const next = new Map(prev);
+          next.set(playerId, pick);
+          const clubIds = [...next.values()].map((c) => c.id);
+          setUsedDuplicates(new Set(clubIds).size < clubIds.length);
+          return next;
+        });
+        setRevealKey((k) => k + 1);
+      });
+    },
+    [assignments, filteredClubs, allowDuplicates, suspense.start],
+  );
+
+  const toggleLock = useCallback(
+    (playerId: string) => {
+      setLockedClubs((prev) => {
         const next = new Map(prev);
-        next.set(playerId, pick);
-        const clubIds = [...next.values()].map((c) => c.id);
-        setUsedDuplicates(new Set(clubIds).size < clubIds.length);
+        if (next.has(playerId)) {
+          next.delete(playerId);
+        } else if (assignments?.has(playerId)) {
+          next.set(playerId, assignments.get(playerId)!);
+        }
         return next;
       });
-      setRevealKey((k) => k + 1);
-    });
-  };
-
-  const toggleLock = (playerId: string) => {
-    setLockedClubs((prev) => {
-      const next = new Map(prev);
-      if (next.has(playerId)) {
-        next.delete(playerId);
-      } else if (assignments?.has(playerId)) {
-        next.set(playerId, assignments.get(playerId)!);
-      }
-      return next;
-    });
-  };
+    },
+    [assignments],
+  );
 
   const resetDraw = () => {
     setAssignments(null);
@@ -348,48 +359,18 @@ export default function ClubDrawScreen() {
         {assignments ? (
           <ResultRevealCard revealKey={revealKey}>
             {usedDuplicates && !allowDuplicates ? <Text style={styles.duplicateNote}>{t("draw.duplicateClubsUsed")}</Text> : null}
-            {participants.map((player) => {
-              const club = assignments.get(player.id);
-              const isLocked = lockedClubs.has(player.id);
-              return (
-                <View key={player.id} style={styles.resultRow}>
-                  <Avatar uri={player.avatar_url} name={player.display_name} color={player.custom_color} size={40} />
-                  <View style={styles.resultInfo}>
-                    <Text style={styles.resultName} numberOfLines={1}>
-                      {player.display_name}
-                    </Text>
-                    {club ? <ClubBadge name={club.club.name} starRating={club.star_rating} size="sm" /> : null}
-                    {mode === "handicap" ? (
-                      player.draw_level === null ? (
-                        <Text style={styles.handicapNote}>{t("draw.missingDrawLevel", { name: player.display_name })}</Text>
-                      ) : club && player.draw_level > participantAverageDrawLevel ? (
-                        <Text style={styles.handicapNote}>
-                          {t("draw.handicapExplanation", { name: player.display_name, stars: String(club.star_rating) })}
-                        </Text>
-                      ) : null
-                    ) : null}
-                  </View>
-                  <Pressable
-                    onPress={() => toggleLock(player.id)}
-                    accessibilityRole="button"
-                    accessibilityLabel={isLocked ? t("common.unlock") : t("common.lock")}
-                    hitSlop={6}
-                  >
-                    <Ionicons name={isLocked ? "lock-closed" : "lock-open-outline"} size={iconSize.sm} color={isLocked ? colors.accent : colors.textMuted} />
-                  </Pressable>
-                  {!isLocked ? (
-                    <Pressable
-                      onPress={() => redrawOne(player.id)}
-                      accessibilityRole="button"
-                      accessibilityLabel={t("common.redraw")}
-                      hitSlop={6}
-                    >
-                      <Ionicons name="refresh" size={iconSize.sm} color={colors.accent} />
-                    </Pressable>
-                  ) : null}
-                </View>
-              );
-            })}
+            {participants.map((player) => (
+              <ResultRow
+                key={player.id}
+                player={player}
+                club={assignments.get(player.id)}
+                isLocked={lockedClubs.has(player.id)}
+                isHandicapMode={mode === "handicap"}
+                participantAverageDrawLevel={participantAverageDrawLevel}
+                onToggleLock={toggleLock}
+                onRedraw={redrawOne}
+              />
+            ))}
             <ShareCopyRow text={resultText} />
           </ResultRevealCard>
         ) : null}
@@ -399,6 +380,64 @@ export default function ClubDrawScreen() {
     </Screen>
   );
 }
+
+// Memoized so an unrelated screen re-render (e.g. toggling a filter switch,
+// changing the player selection) doesn't re-render every participant row --
+// only the row(s) whose actual props (club, lock state) changed.
+interface ResultRowProps {
+  player: PlayerProfile;
+  club: ClubVersion | undefined;
+  isLocked: boolean;
+  isHandicapMode: boolean;
+  participantAverageDrawLevel: number;
+  onToggleLock: (playerId: string) => void;
+  onRedraw: (playerId: string) => void;
+}
+
+const ResultRow = memo(function ResultRow({
+  player,
+  club,
+  isLocked,
+  isHandicapMode,
+  participantAverageDrawLevel,
+  onToggleLock,
+  onRedraw,
+}: ResultRowProps) {
+  const { t } = useTranslation();
+  return (
+    <View style={styles.resultRow}>
+      <Avatar uri={player.avatar_url} name={player.display_name} color={player.custom_color} size={40} />
+      <View style={styles.resultInfo}>
+        <Text style={styles.resultName} numberOfLines={1}>
+          {player.display_name}
+        </Text>
+        {club ? <ClubBadge name={club.club.name} starRating={club.star_rating} size="sm" /> : null}
+        {isHandicapMode ? (
+          player.draw_level === null ? (
+            <Text style={styles.handicapNote}>{t("draw.missingDrawLevel", { name: player.display_name })}</Text>
+          ) : club && player.draw_level > participantAverageDrawLevel ? (
+            <Text style={styles.handicapNote}>
+              {t("draw.handicapExplanation", { name: player.display_name, stars: String(club.star_rating) })}
+            </Text>
+          ) : null
+        ) : null}
+      </View>
+      <Pressable
+        onPress={() => onToggleLock(player.id)}
+        accessibilityRole="button"
+        accessibilityLabel={isLocked ? t("common.unlock") : t("common.lock")}
+        hitSlop={6}
+      >
+        <Ionicons name={isLocked ? "lock-closed" : "lock-open-outline"} size={iconSize.sm} color={isLocked ? colors.accent : colors.textMuted} />
+      </Pressable>
+      {!isLocked ? (
+        <Pressable onPress={() => onRedraw(player.id)} accessibilityRole="button" accessibilityLabel={t("common.redraw")} hitSlop={6}>
+          <Ionicons name="refresh" size={iconSize.sm} color={colors.accent} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+});
 
 const styles = StyleSheet.create({
   content: {
