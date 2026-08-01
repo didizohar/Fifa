@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AccessibilityInfo, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { Avatar } from "../../../src/components/Avatar";
 import { Button } from "../../../src/components/Button";
@@ -57,42 +57,39 @@ export default function RandomPlayerDrawScreen() {
     });
   };
 
-  if (isLoading) {
-    return (
-      <Screen>
-        <SkeletonList count={5} />
-      </Screen>
-    );
-  }
+  // Screen/ScrollView below is now ALWAYS mounted -- loading/error/empty
+  // states render as its *content*, not as separate early-return trees.
+  // See draw/matchup.tsx for the full root-cause writeup: when the loading
+  // branch returned a separate <Screen><SkeletonList/></Screen> (a plain
+  // View, no ScrollView at all), the real ScrollView only mounted for the
+  // first time once data resolved -- often right as the push transition
+  // was settling, racing the screen-edge swipe-back gesture for priority
+  // and causing scrolling to appear frozen for a moment on real devices.
+  const zeroPlayers = !isLoading && !isError && (!players || players.length === 0);
 
-  if (isError) {
-    return (
-      <Screen>
-        <ErrorState onRetry={refetch} />
-      </Screen>
-    );
-  }
-
-  if (!players || players.length === 0) {
-    return (
-      <Screen>
-        <EmptyState
-          icon="🎲"
-          title={t("draw.zeroPlayers")}
-          message={t("draw.zeroPlayersMessage")}
-          actionLabel={t("common.addPlayer")}
-          onAction={() => router.push("/player/new")}
-        />
-      </Screen>
-    );
-  }
-
-  const pickablePlayers = players.map(toPickablePlayer);
+  // players only changes when the roster query refetches -- toggling
+  // selection or opening the picker's search box previously re-mapped
+  // every player on every render even though the source list hadn't moved.
+  const pickablePlayers = useMemo(() => (players ?? []).map(toPickablePlayer), [players]);
   const resultText = drawnPlayers ? `${t("draw.resultTitle")}: ${drawnPlayers.map((p) => p.display_name).join(", ")}` : "";
 
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {isLoading ? (
+          <SkeletonList count={5} />
+        ) : isError ? (
+          <ErrorState onRetry={refetch} />
+        ) : zeroPlayers ? (
+          <EmptyState
+            icon="🎲"
+            title={t("draw.zeroPlayers")}
+            message={t("draw.zeroPlayersMessage")}
+            actionLabel={t("common.addPlayer")}
+            onAction={() => router.push("/player/new")}
+          />
+        ) : (
+          <>
         <Card style={styles.section}>
           <View style={styles.toggleRow}>
             <Text style={styles.toggleLabel}>{t("draw.includeArchived")}</Text>
@@ -143,6 +140,8 @@ export default function RandomPlayerDrawScreen() {
             <ShareCopyRow text={resultText} />
           </ResultRevealCard>
         ) : null}
+          </>
+        )}
       </ScrollView>
     </Screen>
   );

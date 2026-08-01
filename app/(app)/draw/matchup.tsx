@@ -259,37 +259,25 @@ export default function FullMatchupScreen() {
     });
   };
 
-  if (playersLoading || clubsLoading) {
-    return (
-      <Screen>
-        <SkeletonList count={5} />
-      </Screen>
-    );
-  }
+  // The ScrollView below is now ALWAYS mounted -- loading/error/empty states
+  // render as its *content*, not as separate early-return trees. Previously
+  // each state had its own `<Screen>` return, so nothing scrollable existed
+  // in the tree until data resolved: the moment it did, React swapped in a
+  // brand-new ScrollView (5 potential nested horizontal rows, several Cards,
+  // many Switches) right as the push transition was settling. That
+  // ScrollView's native pan-gesture recognizer hadn't registered/won
+  // priority yet, so the still-active screen-edge swipe-back gesture (or the
+  // transition itself) claimed the touch instead -- explaining both the
+  // multi-second "frozen" scroll and the swipe-near-top-triggers-back
+  // symptom, and why it only showed up on real devices (simulators are fast
+  // enough that the race never becomes visible). Keeping one persistent
+  // ScrollView means its gesture recognizer attaches once, immediately on
+  // open, well before the transition finishes or the query resolves.
+  const isLoading = playersLoading || clubsLoading;
+  const isError = playersError || clubsError;
+  const zeroPlayers = !isLoading && !isError && (!players || players.length === 0);
 
-  if (playersError || clubsError) {
-    return (
-      <Screen>
-        <ErrorState onRetry={playersError ? refetchPlayers : refetchClubs} />
-      </Screen>
-    );
-  }
-
-  if (!players || players.length === 0) {
-    return (
-      <Screen>
-        <EmptyState
-          icon="🎲"
-          title={t("draw.zeroPlayers")}
-          message={t("draw.zeroPlayersMessage")}
-          actionLabel={t("common.addPlayer")}
-          onAction={() => router.push("/player/new")}
-        />
-      </Screen>
-    );
-  }
-
-  const pickablePlayers = players.map(toPickablePlayer);
+  const pickablePlayers = useMemo(() => (players ?? []).map(toPickablePlayer), [players]);
   const notEnoughPlayers = selectedIds.length < requiredPlayers;
   const noClubsMatch = (clubMode === "exactStars" || clubMode === "starRange") && filteredClubs.length === 0;
   const resultText = sides
@@ -304,6 +292,20 @@ export default function FullMatchupScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {isLoading ? (
+          <SkeletonList count={5} />
+        ) : isError ? (
+          <ErrorState onRetry={playersError ? refetchPlayers : refetchClubs} />
+        ) : zeroPlayers ? (
+          <EmptyState
+            icon="🎲"
+            title={t("draw.zeroPlayers")}
+            message={t("draw.zeroPlayersMessage")}
+            actionLabel={t("common.addPlayer")}
+            onAction={() => router.push("/player/new")}
+          />
+        ) : (
+          <>
         <Card style={styles.section}>
           <Text style={styles.label}>{t("draw.matchupStep2")}</Text>
           <SegmentedControl
@@ -323,7 +325,7 @@ export default function FullMatchupScreen() {
         {gameVersions && gameVersions.length > 1 ? (
           <Card style={styles.section}>
             <Text style={styles.label}>{t("draw.gameVersion")}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+            <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
               {gameVersions.map((gv) => (
                 <FilterChip key={gv.id} label={gv.name} active={gameVersionId === gv.id} onPress={() => setGameVersionId(gv.id)} />
               ))}
@@ -347,7 +349,7 @@ export default function FullMatchupScreen() {
 
         <Card style={styles.section}>
           <Text style={styles.label}>{t("draw.clubMode")}</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+          <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
             <FilterChip label={t("draw.clubModeRandom")} active={clubMode === "random"} onPress={() => setClubMode("random")} />
             <FilterChip label={t("draw.clubModeExactStars")} active={clubMode === "exactStars"} onPress={() => setClubMode("exactStars")} />
             <FilterChip label={t("draw.clubModeStarRange")} active={clubMode === "starRange"} onPress={() => setClubMode("starRange")} />
@@ -356,7 +358,7 @@ export default function FullMatchupScreen() {
           </ScrollView>
 
           {clubMode === "exactStars" ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+            <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
               {distinctStars.map((stars) => (
                 <FilterChip key={stars} label={t("draw.exactStarsLabel", { stars: String(stars) })} active={exactStars === stars} onPress={() => setExactStars(stars)} />
               ))}
@@ -366,13 +368,13 @@ export default function FullMatchupScreen() {
           {clubMode === "starRange" ? (
             <View style={styles.rangeSection}>
               <Text style={styles.rangeCaption}>{t("draw.rangeFrom")}</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+              <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
                 {distinctStars.map((stars) => (
                   <FilterChip key={stars} label={String(stars)} active={rangeMin === stars} onPress={() => setRangeMin(stars)} />
                 ))}
               </ScrollView>
               <Text style={styles.rangeCaption}>{t("draw.rangeTo")}</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+              <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
                 {distinctStars.map((stars) => (
                   <FilterChip key={stars} label={String(stars)} active={rangeMax === stars} onPress={() => setRangeMax(stars)} />
                 ))}
@@ -485,6 +487,8 @@ export default function FullMatchupScreen() {
             <ShareCopyRow text={resultText} />
           </ResultRevealCard>
         ) : null}
+          </>
+        )}
       </ScrollView>
     </Screen>
   );

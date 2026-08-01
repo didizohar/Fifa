@@ -205,37 +205,19 @@ export default function ClubDrawScreen() {
     setSelectedIds((prev) => (prev.includes(playerId) ? prev.filter((id) => id !== playerId) : [...prev, playerId]));
   };
 
-  if (playersLoading || clubsLoading) {
-    return (
-      <Screen>
-        <SkeletonList count={5} />
-      </Screen>
-    );
-  }
+  // Screen/ScrollView below is now ALWAYS mounted -- loading/error/empty
+  // states render as its *content*, not as separate early-return trees.
+  // See draw/matchup.tsx for the full root-cause writeup: when the loading
+  // branch returned a separate <Screen><SkeletonList/></Screen> (a plain
+  // View, no ScrollView at all), the real ScrollView only mounted for the
+  // first time once data resolved -- often right as the push transition
+  // was settling, racing the screen-edge swipe-back gesture for priority
+  // and causing scrolling to appear frozen for a moment on real devices.
+  const isLoading = playersLoading || clubsLoading;
+  const isError = playersError || clubsError;
+  const zeroPlayers = !isLoading && !isError && (!players || players.length === 0);
 
-  if (playersError || clubsError) {
-    return (
-      <Screen>
-        <ErrorState onRetry={playersError ? refetchPlayers : refetchClubs} />
-      </Screen>
-    );
-  }
-
-  if (!players || players.length === 0) {
-    return (
-      <Screen>
-        <EmptyState
-          icon="🎲"
-          title={t("draw.zeroPlayers")}
-          message={t("draw.zeroPlayersMessage")}
-          actionLabel={t("common.addPlayer")}
-          onAction={() => router.push("/player/new")}
-        />
-      </Screen>
-    );
-  }
-
-  const pickablePlayers = players.map(toPickablePlayer);
+  const pickablePlayers = useMemo(() => (players ?? []).map(toPickablePlayer), [players]);
   const noClubsMatch = filteredClubs.length === 0;
   const participantAverageDrawLevel = averageDrawLevel(participants, (p) => p.draw_level);
   const resultText = assignments
@@ -245,6 +227,20 @@ export default function ClubDrawScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {isLoading ? (
+          <SkeletonList count={5} />
+        ) : isError ? (
+          <ErrorState onRetry={playersError ? refetchPlayers : refetchClubs} />
+        ) : zeroPlayers ? (
+          <EmptyState
+            icon="🎲"
+            title={t("draw.zeroPlayers")}
+            message={t("draw.zeroPlayersMessage")}
+            actionLabel={t("common.addPlayer")}
+            onAction={() => router.push("/player/new")}
+          />
+        ) : (
+          <>
         {gameVersions && gameVersions.length > 1 ? (
           <Card style={styles.section}>
             <Text style={styles.label}>{t("draw.gameVersion")}</Text>
@@ -394,6 +390,8 @@ export default function ClubDrawScreen() {
             <ShareCopyRow text={resultText} />
           </ResultRevealCard>
         ) : null}
+          </>
+        )}
       </ScrollView>
     </Screen>
   );

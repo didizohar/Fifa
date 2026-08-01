@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { Avatar } from "../../../src/components/Avatar";
 import { Button } from "../../../src/components/Button";
@@ -112,37 +112,19 @@ export default function TeamDrawScreen() {
     });
   };
 
-  if (isLoading) {
-    return (
-      <Screen>
-        <SkeletonList count={5} />
-      </Screen>
-    );
-  }
+  // Screen/ScrollView below is now ALWAYS mounted -- loading/error/empty
+  // states render as its *content*, not as separate early-return trees.
+  // See draw/matchup.tsx for the full root-cause writeup: when the loading
+  // branch returned a separate <Screen><SkeletonList/></Screen> (a plain
+  // View, no ScrollView at all), the real ScrollView only mounted for the
+  // first time once data resolved -- often right as the push transition
+  // was settling, racing the screen-edge swipe-back gesture for priority
+  // and causing scrolling to appear frozen for a moment on real devices.
+  const zeroPlayers = !isLoading && !isError && (!players || players.length === 0);
 
-  if (isError) {
-    return (
-      <Screen>
-        <ErrorState onRetry={refetch} />
-      </Screen>
-    );
-  }
-
-  if (!players || players.length === 0) {
-    return (
-      <Screen>
-        <EmptyState
-          icon="🎲"
-          title={t("draw.zeroPlayers")}
-          message={t("draw.zeroPlayersMessage")}
-          actionLabel={t("common.addPlayer")}
-          onAction={() => router.push("/player/new")}
-        />
-      </Screen>
-    );
-  }
-
-  const pickablePlayers = players.map(toPickablePlayer);
+  // Same rationale as draw/players.tsx: players only actually changes when
+  // the roster query refetches, not on every selection/lock/move re-render.
+  const pickablePlayers = useMemo(() => (players ?? []).map(toPickablePlayer), [players]);
   const sizes = teams?.map((team) => team.length) ?? [];
   const unevenSizes = sizes.length > 0 && new Set(sizes).size > 1;
   const resultText = teams
@@ -152,6 +134,20 @@ export default function TeamDrawScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {isLoading ? (
+          <SkeletonList count={5} />
+        ) : isError ? (
+          <ErrorState onRetry={refetch} />
+        ) : zeroPlayers ? (
+          <EmptyState
+            icon="🎲"
+            title={t("draw.zeroPlayers")}
+            message={t("draw.zeroPlayersMessage")}
+            actionLabel={t("common.addPlayer")}
+            onAction={() => router.push("/player/new")}
+          />
+        ) : (
+          <>
         <Card style={styles.section}>
           <View style={styles.toggleRow}>
             <Text style={styles.toggleLabel}>{t("draw.includeArchived")}</Text>
@@ -256,13 +252,17 @@ export default function TeamDrawScreen() {
                   );
                 })}
                 {unevenSizes ? (
-                  <Text style={styles.sizeNote}>{t("draw.teamSizeNote", { name: teamLabel(teamIndex), count: String(team.length) })}</Text>
+                  <Text style={styles.sizeNote} numberOfLines={2}>
+                    {t("draw.teamSizeNote", { name: teamLabel(teamIndex), count: String(team.length) })}
+                  </Text>
                 ) : null}
               </Card>
             ))}
             <ShareCopyRow text={resultText} />
           </ResultRevealCard>
         ) : null}
+          </>
+        )}
       </ScrollView>
     </Screen>
   );
