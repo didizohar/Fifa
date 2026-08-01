@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { EmptyState } from "../../src/components/EmptyState";
 import { FilterChip } from "../../src/components/FilterChip";
@@ -160,14 +160,7 @@ export default function LeagueTableScreen() {
             {rows.map((row, index) => {
               const isMe = myPlayerId !== null && row.playerIds.includes(myPlayerId);
               const medal = sortMode === "points" && index < MEDALS.length ? MEDALS[index] : null;
-              return (
-                <View key={row.id} style={[styles.stickyRow, isMe && styles.myRow]}>
-                  <Text style={[styles.cellText, styles.posCell]}>{medal ?? index + 1}</Text>
-                  <Text style={[styles.cellText, styles.nameCell, isMe && styles.myRowText]} numberOfLines={1}>
-                    {row.name}
-                  </Text>
-                </View>
-              );
+              return <StickyTableRow key={row.id} row={row} index={index} isMe={isMe} medal={medal} />;
             })}
           </View>
 
@@ -185,18 +178,7 @@ export default function LeagueTableScreen() {
               </View>
               {rows.map((row) => {
                 const isMe = myPlayerId !== null && row.playerIds.includes(myPlayerId);
-                return (
-                  <View key={row.id} style={[styles.dataRow, isMe && styles.myRow]}>
-                    <Text style={[styles.cellText, styles.numCell]}>{row.played}</Text>
-                    <Text style={[styles.cellText, styles.numCell]}>{row.wins}</Text>
-                    <Text style={[styles.cellText, styles.numCell]}>{row.draws}</Text>
-                    <Text style={[styles.cellText, styles.numCell]}>{row.losses}</Text>
-                    <Text style={[styles.cellText, styles.numCell]}>{row.goalsFor}</Text>
-                    <Text style={[styles.cellText, styles.numCell]}>{row.goalsAgainst}</Text>
-                    <Text style={[styles.cellText, styles.numCell]}>{row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}</Text>
-                    <Text style={[styles.cellText, styles.ptsCell, styles.ptsText]}>{row.points}</Text>
-                  </View>
-                );
+                return <DataTableRow key={row.id} row={row} isMe={isMe} />;
               })}
             </View>
           </ScrollView>
@@ -205,6 +187,39 @@ export default function LeagueTableScreen() {
     </Screen>
   );
 }
+
+// The table re-renders on every filter/sort/tab change (correct -- rows
+// itself changes then) but also on unrelated state like typing in the
+// custom date range fields, which doesn't touch `rows` at all. Memoizing
+// these means that keystroke doesn't re-diff every row in both the sticky
+// column and the horizontally-scrolled data columns. row/index/isMe/medal
+// are all plain values (not callbacks), so no caller-side stabilization
+// is needed for the memo to take effect.
+const StickyTableRow = memo(function StickyTableRow({ row, index, isMe, medal }: { row: LeagueStandingRow; index: number; isMe: boolean; medal: string | null }) {
+  return (
+    <View style={[styles.stickyRow, isMe && styles.myRow]}>
+      <Text style={[styles.cellText, styles.posCell]}>{medal ?? index + 1}</Text>
+      <Text style={[styles.cellText, styles.nameCell, isMe && styles.myRowText]} numberOfLines={1}>
+        {row.name}
+      </Text>
+    </View>
+  );
+});
+
+const DataTableRow = memo(function DataTableRow({ row, isMe }: { row: LeagueStandingRow; isMe: boolean }) {
+  return (
+    <View style={[styles.dataRow, isMe && styles.myRow]}>
+      <Text style={[styles.cellText, styles.numCell]}>{row.played}</Text>
+      <Text style={[styles.cellText, styles.numCell]}>{row.wins}</Text>
+      <Text style={[styles.cellText, styles.numCell]}>{row.draws}</Text>
+      <Text style={[styles.cellText, styles.numCell]}>{row.losses}</Text>
+      <Text style={[styles.cellText, styles.numCell]}>{row.goalsFor}</Text>
+      <Text style={[styles.cellText, styles.numCell]}>{row.goalsAgainst}</Text>
+      <Text style={[styles.cellText, styles.numCell]}>{row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}</Text>
+      <Text style={[styles.cellText, styles.ptsCell, styles.ptsText]}>{row.points}</Text>
+    </View>
+  );
+});
 
 const styles = StyleSheet.create({
   header: {

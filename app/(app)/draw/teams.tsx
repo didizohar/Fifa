@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { Avatar } from "../../../src/components/Avatar";
 import { Button } from "../../../src/components/Button";
@@ -95,25 +95,36 @@ export default function TeamDrawScreen() {
     setTeams(null);
   };
 
-  const toggleLock = (playerId: string, teamIndex: number) => {
+  // Both useCallback'd with empty deps (functional setState only, no
+  // closed-over state) so the memoized TeamPlayerRow below actually skips
+  // re-rendering rows in OTHER teams when one team's name field changes --
+  // without this, every row across every team re-rendered on every
+  // keystroke in any team's name TextField.
+  const toggleLock = useCallback((playerId: string, teamIndex: number) => {
     setLocked((prev) => {
       const next = new Map(prev);
       if (next.has(playerId)) next.delete(playerId);
       else next.set(playerId, teamIndex);
       return next;
     });
-  };
+  }, []);
 
-  const movePlayer = (playerId: string, fromTeam: number, toTeam: number) => {
-    if (!teams || toTeam < 0 || toTeam >= teams.length) return;
-    setTeams(movePlayerBetweenTeams(teams, playerId, fromTeam, toTeam));
+  const movePlayer = useCallback((playerId: string, fromTeam: number, toTeam: number) => {
+    setTeams((prevTeams) => {
+      if (!prevTeams || toTeam < 0 || toTeam >= prevTeams.length) return prevTeams;
+      return movePlayerBetweenTeams(prevTeams, playerId, fromTeam, toTeam);
+    });
     setLocked((prev) => {
       if (!prev.has(playerId)) return prev;
       const nextLocked = new Map(prev);
       nextLocked.set(playerId, toTeam);
       return nextLocked;
     });
-  };
+  }, []);
+
+  const handleTeamNameChange = useCallback((index: number, value: string) => {
+    setTeamNames((prev) => prev.map((name, i) => (i === index ? value : name)));
+  }, []);
 
   // Screen/ScrollView below is now ALWAYS mounted -- loading/error/empty
   // states render as its *content*, not as separate early-return trees.
@@ -211,49 +222,22 @@ export default function TeamDrawScreen() {
               <Card key={teamIndex} variant="elevated" style={styles.teamCard}>
                 <TextField
                   value={teamNames[teamIndex] ?? ""}
-                  onChangeText={(value) =>
-                    setTeamNames((prev) => prev.map((name, i) => (i === teamIndex ? value : name)))
-                  }
+                  onChangeText={(value) => handleTeamNameChange(teamIndex, value)}
                   placeholder={t("draw.teamLabel", { number: String(teamIndex + 1) })}
                 />
                 <Text style={styles.teamCount}>{t("draw.teamPlayerCount", { count: String(team.length) })}</Text>
-                {team.map((player) => {
-                  const isLocked = locked.get(player.id) === teamIndex;
-                  return (
-                    <View key={player.id} style={styles.playerRow}>
-                      <Avatar uri={player.avatar_url} name={player.display_name} color={player.custom_color} size={36} />
-                      <Text style={styles.playerName} numberOfLines={1}>
-                        {player.display_name}
-                      </Text>
-                      <Pressable
-                        onPress={() => movePlayer(player.id, teamIndex, teamIndex - 1)}
-                        disabled={teamIndex === 0}
-                        accessibilityRole="button"
-                        accessibilityLabel={t("draw.movePlayer", { name: player.display_name })}
-                        hitSlop={6}
-                      >
-                        <Chevron direction="back" size={iconSize.sm} color={teamIndex === 0 ? colors.textMuted : colors.accent} />
-                      </Pressable>
-                      <Pressable
-                        onPress={() => movePlayer(player.id, teamIndex, teamIndex + 1)}
-                        disabled={teamIndex === teams.length - 1}
-                        accessibilityRole="button"
-                        accessibilityLabel={t("draw.movePlayer", { name: player.display_name })}
-                        hitSlop={6}
-                      >
-                        <Chevron direction="forward" size={iconSize.sm} color={teamIndex === teams.length - 1 ? colors.textMuted : colors.accent} />
-                      </Pressable>
-                      <Pressable
-                        onPress={() => toggleLock(player.id, teamIndex)}
-                        accessibilityRole="button"
-                        accessibilityLabel={isLocked ? t("common.unlock") : t("common.lock")}
-                        hitSlop={6}
-                      >
-                        <Ionicons name={isLocked ? "lock-closed" : "lock-open-outline"} size={iconSize.sm} color={isLocked ? colors.accent : colors.textMuted} />
-                      </Pressable>
-                    </View>
-                  );
-                })}
+                {team.map((player) => (
+                  <TeamPlayerRow
+                    key={player.id}
+                    player={player}
+                    teamIndex={teamIndex}
+                    isFirstTeam={teamIndex === 0}
+                    isLastTeam={teamIndex === teams.length - 1}
+                    isLocked={locked.get(player.id) === teamIndex}
+                    onMove={movePlayer}
+                    onToggleLock={toggleLock}
+                  />
+                ))}
                 {unevenSizes ? (
                   <Text style={styles.sizeNote} numberOfLines={2}>
                     {t("draw.teamSizeNote", { name: teamLabel(teamIndex), count: String(team.length) })}
@@ -270,6 +254,66 @@ export default function TeamDrawScreen() {
     </Screen>
   );
 }
+
+// Every team's player rows re-rendered on ANY unrelated state change --
+// typing in a different team's name field, toggling a lock elsewhere --
+// since nothing here was memoized and onMove/onToggleLock were freshly
+// bound per row per render. onMove/onToggleLock are the same stable
+// (useCallback'd) functions for every row; only the primitive props
+// (player, teamIndex, isFirstTeam/isLastTeam/isLocked) actually vary.
+const TeamPlayerRow = memo(function TeamPlayerRow({
+  player,
+  teamIndex,
+  isFirstTeam,
+  isLastTeam,
+  isLocked,
+  onMove,
+  onToggleLock,
+}: {
+  player: PlayerProfile;
+  teamIndex: number;
+  isFirstTeam: boolean;
+  isLastTeam: boolean;
+  isLocked: boolean;
+  onMove: (playerId: string, fromTeam: number, toTeam: number) => void;
+  onToggleLock: (playerId: string, teamIndex: number) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <View style={styles.playerRow}>
+      <Avatar uri={player.avatar_url} name={player.display_name} color={player.custom_color} size={36} />
+      <Text style={styles.playerName} numberOfLines={1}>
+        {player.display_name}
+      </Text>
+      <Pressable
+        onPress={() => onMove(player.id, teamIndex, teamIndex - 1)}
+        disabled={isFirstTeam}
+        accessibilityRole="button"
+        accessibilityLabel={t("draw.movePlayer", { name: player.display_name })}
+        hitSlop={6}
+      >
+        <Chevron direction="back" size={iconSize.sm} color={isFirstTeam ? colors.textMuted : colors.accent} />
+      </Pressable>
+      <Pressable
+        onPress={() => onMove(player.id, teamIndex, teamIndex + 1)}
+        disabled={isLastTeam}
+        accessibilityRole="button"
+        accessibilityLabel={t("draw.movePlayer", { name: player.display_name })}
+        hitSlop={6}
+      >
+        <Chevron direction="forward" size={iconSize.sm} color={isLastTeam ? colors.textMuted : colors.accent} />
+      </Pressable>
+      <Pressable
+        onPress={() => onToggleLock(player.id, teamIndex)}
+        accessibilityRole="button"
+        accessibilityLabel={isLocked ? t("common.unlock") : t("common.lock")}
+        hitSlop={6}
+      >
+        <Ionicons name={isLocked ? "lock-closed" : "lock-open-outline"} size={iconSize.sm} color={isLocked ? colors.accent : colors.textMuted} />
+      </Pressable>
+    </View>
+  );
+});
 
 const styles = StyleSheet.create({
   content: {
