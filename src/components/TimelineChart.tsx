@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { TimelinePoint } from "../lib/analytics/types";
 import { selectTimelineAxisLabelIndices, summarizeTimelineTrend } from "../lib/playerAnalyticsView";
@@ -24,8 +24,15 @@ interface TimelineChartProps {
 
 const DEFAULT_IS_VALID = (point: TimelinePoint) => point.matchesInBucket > 0;
 
-/** Generic bucketed timeline chart -- no charting library, same plain-View technique as Sparkline/BarChart. One bar per bucket, tap a bar for its exact value. */
-export function TimelineChart({
+/**
+ * Generic bucketed timeline chart -- no charting library, same plain-View
+ * technique as Sparkline/BarChart. One bar per bucket, tap a bar for its
+ * exact value. Memoized: a screen can render one of these per player (up to
+ * 30 Pressables each for a 30-day range), so an unrelated re-render of the
+ * host screen must not re-create this whole tree -- see trends.tsx for how
+ * `formatValue`/`points` are kept referentially stable for this to work.
+ */
+export const TimelineChart = memo(function TimelineChart({
   points,
   formatValue,
   emptyMessage,
@@ -108,7 +115,7 @@ export function TimelineChart({
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   detailRow: {

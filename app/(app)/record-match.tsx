@@ -5,6 +5,7 @@ import { Button } from "../../src/components/Button";
 import { Card } from "../../src/components/Card";
 import { ClubBadge } from "../../src/components/ClubBadge";
 import { ClubPickerSheet } from "../../src/components/ClubPickerSheet";
+import { PerfOverlay } from "../../src/components/dev/PerfOverlay";
 import { EmptyState } from "../../src/components/EmptyState";
 import { ErrorState } from "../../src/components/ErrorState";
 import { FilterChip } from "../../src/components/FilterChip";
@@ -435,6 +436,7 @@ export default function RecordMatchScreen() {
   return (
     <Screen avoidKeyboard>
       {isEditMode && showForm ? <Stack.Screen options={{ title: t("editMatch.entryAction") }} /> : null}
+      <PerfOverlay id="RecordMatch">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {editLoading ? (
           <>
@@ -657,6 +659,7 @@ export default function RecordMatchScreen() {
           </>
         )}
       </ScrollView>
+      </PerfOverlay>
 
       {clubPickerSide !== null && editGameVersionId && currentGroup ? (
         <ClubPickerSheet

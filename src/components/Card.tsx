@@ -1,4 +1,4 @@
-import { StyleSheet, View, ViewProps } from "react-native";
+import { Platform, StyleSheet, View, ViewProps } from "react-native";
 import { colors, radius, shadows, spacing } from "../theme";
 
 type CardVariant = "default" | "elevated" | "glow";
@@ -11,7 +11,17 @@ interface CardProps extends ViewProps {
 }
 
 export function Card({ style, variant = "default", compact = false, ...props }: CardProps) {
-  return <View style={[styles.card, compact && styles.compact, variantStyles[variant], style]} {...props} />;
+  return (
+    <View
+      style={[styles.card, compact && styles.compact, variantStyles[variant], style]}
+      // Without this, iOS recomputes each Card's drop-shadow mask on the
+      // render thread every frame it's on screen (including during scroll)
+      // instead of caching it as a bitmap -- costly with several Cards
+      // stacked in one scrolling screen (Record Match, Winners Stay).
+      shouldRasterizeIOS={Platform.OS === "ios"}
+      {...props}
+    />
+  );
 }
 
 const styles = StyleSheet.create({

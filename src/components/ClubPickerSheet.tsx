@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { FlatList, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { FlatList, ListRenderItemInfo, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import {
   CUSTOM_CLUBS_LEAGUE_LABEL,
   NATIONAL_TEAMS_LEAGUE_LABEL,
@@ -19,6 +19,7 @@ import { clubKeys } from "../lib/queryClient";
 import type { ClubVersion } from "../lib/types/database";
 import { colors, radius, spacing, typography } from "../theme";
 import { Button } from "./Button";
+import { ClubListRow } from "./ClubListRow";
 import { ClubPicker } from "./ClubPicker";
 import { EmptyState } from "./EmptyState";
 import { FadeIn } from "./FadeIn";
@@ -98,44 +99,41 @@ export function ClubPickerSheet({
     [visibleClubVersions, allClubsQuery, includeNationalTeams, favoriteClubIds],
   );
 
-  const closeAndReset = () => {
+  const closeAndReset = useCallback(() => {
     setMode("menu");
     setAllClubsQuery("");
     onClose();
-  };
+  }, [onClose]);
 
-  const handleSelect = (clubVersion: ClubVersion) => {
-    onSelect(clubVersion);
-    closeAndReset();
-  };
+  const handleSelect = useCallback(
+    (clubVersion: ClubVersion) => {
+      onSelect(clubVersion);
+      closeAndReset();
+    },
+    [onSelect, closeAndReset],
+  );
 
   const handleCreated = (clubVersion: ClubVersion) => {
     queryClient.invalidateQueries({ queryKey: clubKeys.versions(gameVersionId) });
     handleSelect(clubVersion);
   };
 
-  const renderClubRow = (cv: ClubVersion) => {
-    const isFavorite = favoriteClubIds.includes(cv.club_id);
-    const isDisabled = disabledClubId !== null && cv.club_id === disabledClubId;
-    return (
-      <View key={cv.id} style={[styles.clubRow, isDisabled && styles.clubRowDisabled]}>
-        <Pressable onPress={() => !isDisabled && handleSelect(cv)} style={styles.clubRowMain} disabled={isDisabled} accessibilityRole="button" accessibilityLabel={cv.club.name}>
-          <View style={[styles.logoPlaceholder, { backgroundColor: cv.club.primary_color ?? colors.surfaceElevated }]}>
-            <Text style={styles.logoInitial}>{cv.club.name.trim().charAt(0).toUpperCase()}</Text>
-          </View>
-          <View style={styles.clubInfo}>
-            <Text style={styles.clubName} numberOfLines={1}>
-              {cv.club.name}
-            </Text>
-            <StarRating value={cv.star_rating} size={12} />
-          </View>
-        </Pressable>
-        <Pressable onPress={() => onToggleFavorite(cv.club_id)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t("clubPicker.toggleFavorite")}>
-          <Text style={styles.favoriteIcon}>{isFavorite ? "★" : "☆"}</Text>
-        </Pressable>
-      </View>
-    );
-  };
+  // useCallback so ClubListRow's React.memo actually skips re-rendering
+  // every row (up to the entire club catalog in "All Clubs" mode) on every
+  // keystroke in the search box -- see ClubPicker.tsx's identical fix for
+  // the full explanation.
+  const renderClubRow = useCallback(
+    ({ item }: ListRenderItemInfo<ClubVersion>) => (
+      <ClubListRow
+        clubVersion={item}
+        isFavorite={favoriteClubIds.includes(item.club_id)}
+        isDisabled={disabledClubId !== null && item.club_id === disabledClubId}
+        onSelect={handleSelect}
+        onToggleFavorite={onToggleFavorite}
+      />
+    ),
+    [favoriteClubIds, disabledClubId, handleSelect, onToggleFavorite],
+  );
 
   const renderMenu = () => (
     <FadeIn>
@@ -163,12 +161,7 @@ export function ClubPickerSheet({
     data.length === 0 ? (
       <EmptyState icon={emptyIcon} title={emptyMessage} />
     ) : (
-      <FlatList
-        data={data}
-        keyExtractor={(cv) => cv.id}
-        renderItem={({ item }) => renderClubRow(item)}
-        contentContainerStyle={styles.listContent}
-      />
+      <FlatList data={data} keyExtractor={(cv) => cv.id} renderItem={renderClubRow} contentContainerStyle={styles.listContent} />
     );
 
   const renderBody = () => {
@@ -473,44 +466,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: spacing.xl,
-  },
-  clubRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: spacing.sm,
-    gap: spacing.sm,
-  },
-  clubRowDisabled: {
-    opacity: 0.4,
-  },
-  clubRowMain: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    flex: 1,
-  },
-  logoPlaceholder: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logoInitial: {
-    ...typography.bodyStrong,
-    color: colors.background,
-  },
-  clubInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  clubName: {
-    ...typography.body,
-  },
-  favoriteIcon: {
-    fontSize: 20,
-    color: colors.gold,
   },
   addCustomContent: {
     gap: spacing.md,

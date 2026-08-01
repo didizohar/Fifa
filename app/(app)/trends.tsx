@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { PerfOverlay } from "../../src/components/dev/PerfOverlay";
 import { EmptyState } from "../../src/components/EmptyState";
 import { FilterChip } from "../../src/components/FilterChip";
 import { PlayerPicker } from "../../src/components/PlayerPicker";
@@ -55,6 +56,17 @@ export default function TrendsScreen() {
 
   const isLoading = players.isLoading || matchHistory.isLoading;
 
+  // Both useCallback'd so PlayerPicker and (more importantly) every
+  // TimelineChart below -- each renders one Pressable per data point, up to
+  // 30 per player -- can actually skip re-rendering when unrelated state
+  // changes. Previously these were fresh inline closures every render,
+  // which silently defeated PlayerPicker's memo and made TimelineChart
+  // un-memoizable even after wrapping it in React.memo.
+  const togglePlayer = useCallback((id: string) => {
+    setSelectedPlayerIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }, []);
+  const formatValue = useCallback((value: number) => formatMetricValue(metric, value), [metric]);
+
   return (
     <Screen>
       <View style={styles.header}>
@@ -77,9 +89,10 @@ export default function TrendsScreen() {
       {isLoading ? (
         <SkeletonList count={3} />
       ) : (
+        <PerfOverlay id="Trends">
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.selectLabel}>{t("trendsScreen.selectPlayers")}</Text>
-          <PlayerPicker players={pickablePlayers} selectedIds={selectedPlayerIds} onToggle={(id) => setSelectedPlayerIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))} maxSelected={pickablePlayers.length} />
+          <PlayerPicker players={pickablePlayers} selectedIds={selectedPlayerIds} onToggle={togglePlayer} maxSelected={pickablePlayers.length} />
 
           {series.length === 0 ? (
             <EmptyState icon="📈" title={t("trendsScreen.emptyTitle")} message={t("trendsScreen.emptyMessage")} />
@@ -89,7 +102,7 @@ export default function TrendsScreen() {
                 <Text style={styles.seriesName}>{s.playerName}</Text>
                 <TimelineChart
                   points={s.points}
-                  formatValue={(v) => formatMetricValue(metric, v)}
+                  formatValue={formatValue}
                   emptyMessage={t("trendsScreen.noDataAvailable")}
                   noDataLabel="–"
                 />
@@ -97,6 +110,7 @@ export default function TrendsScreen() {
             ))
           )}
         </ScrollView>
+        </PerfOverlay>
       )}
     </Screen>
   );

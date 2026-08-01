@@ -1,5 +1,6 @@
 import { memo, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { PerfOverlay } from "../../src/components/dev/PerfOverlay";
 import { EmptyState } from "../../src/components/EmptyState";
 import { FilterChip } from "../../src/components/FilterChip";
 import { InfoTooltip } from "../../src/components/InfoTooltip";
@@ -151,6 +152,7 @@ export default function LeagueTableScreen() {
       ) : rows.length === 0 ? (
         <EmptyState icon="🏆" title={t("leagueTable.emptyTitle")} message={t("leagueTable.emptyMessage")} />
       ) : (
+        <PerfOverlay id="LeagueTable">
         <View style={styles.tableRow}>
           <View style={styles.stickyColumn}>
             <View style={styles.headerCellRow}>
@@ -183,6 +185,7 @@ export default function LeagueTableScreen() {
             </View>
           </ScrollView>
         </View>
+        </PerfOverlay>
       )}
     </Screen>
   );

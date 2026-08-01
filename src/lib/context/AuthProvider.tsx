@@ -1,5 +1,5 @@
 import type { Session, User } from "@supabase/supabase-js";
-import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabase";
 
 interface AuthContextValue {
@@ -47,13 +47,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const markPasswordRecovery = useCallback(() => setIsPasswordRecovery(true), []);
   const clearPasswordRecovery = useCallback(() => setIsPasswordRecovery(false), []);
 
-  return (
-    <AuthContext.Provider
-      value={{ session, user: session?.user ?? null, isLoading, isPasswordRecovery, markPasswordRecovery, clearPasswordRecovery }}
-    >
-      {children}
-    </AuthContext.Provider>
+  // Memoized (GroupProvider already does this) -- every screen in the app
+  // consumes this context, so an unmemoized value object here meant any
+  // AuthProvider re-render (e.g. a Supabase token refresh) forced every
+  // consumer everywhere to re-render too, regardless of whether the field
+  // it actually reads changed.
+  const value = useMemo<AuthContextValue>(
+    () => ({ session, user: session?.user ?? null, isLoading, isPasswordRecovery, markPasswordRecovery, clearPasswordRecovery }),
+    [session, isLoading, isPasswordRecovery, markPasswordRecovery, clearPasswordRecovery],
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuthContext(): AuthContextValue {

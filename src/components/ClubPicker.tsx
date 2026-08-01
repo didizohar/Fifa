@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import { FlatList, ListRenderItemInfo, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   getLeagueIcon,
   groupClubVersionsByLeague,
@@ -11,7 +11,7 @@ import { useTranslation } from "../lib/i18n";
 import type { ClubVersion } from "../lib/types/database";
 import { colors, radius, spacing, typography } from "../theme";
 import { Chevron } from "./Chevron";
-import { StarRating } from "./StarRating";
+import { ClubListRow } from "./ClubListRow";
 
 interface ClubPickerProps {
   clubVersions: ClubVersion[];
@@ -60,6 +60,25 @@ export function ClubPicker({
   const recentClubVersions = useMemo(
     () => recentClubIds.map((id) => clubVersions.find((cv) => cv.club_id === id)).filter((cv): cv is ClubVersion => !!cv),
     [clubVersions, recentClubIds],
+  );
+
+  // useCallback so ClubListRow's React.memo actually skips re-rendering
+  // every row (a league can hold hundreds of clubs) on every keystroke in
+  // the search box -- FlatList re-invokes renderItem for each visible row
+  // whenever `data`'s reference changes, but the memoized row underneath
+  // only re-renders if its own props (clubVersion/isFavorite/isDisabled/
+  // onSelect/onToggleFavorite) actually changed.
+  const renderItem = useCallback(
+    ({ item }: ListRenderItemInfo<ClubVersion>) => (
+      <ClubListRow
+        clubVersion={item}
+        isFavorite={favoriteClubIds.includes(item.club_id)}
+        isDisabled={disabledClubId !== null && item.club_id === disabledClubId}
+        onSelect={onSelect}
+        onToggleFavorite={onToggleFavorite}
+      />
+    ),
+    [favoriteClubIds, disabledClubId, onSelect, onToggleFavorite],
   );
 
   if (selectedLeague === null) {
@@ -120,33 +139,7 @@ export function ClubPicker({
         style={styles.searchInput}
       />
 
-      <FlatList
-        data={filtered}
-        keyExtractor={(cv) => cv.id}
-        renderItem={({ item }) => {
-          const isFavorite = favoriteClubIds.includes(item.club_id);
-          const isDisabled = disabledClubId !== null && item.club_id === disabledClubId;
-          return (
-            <View style={[styles.clubRow, isDisabled && styles.clubRowDisabled]}>
-              <Pressable onPress={() => !isDisabled && onSelect(item)} style={styles.clubRowMain} disabled={isDisabled} accessibilityRole="button" accessibilityLabel={item.club.name}>
-                <View style={[styles.logoPlaceholder, { backgroundColor: item.club.primary_color ?? colors.surfaceElevated }]}>
-                  <Text style={styles.logoInitial}>{item.club.name.trim().charAt(0).toUpperCase()}</Text>
-                </View>
-                <View style={styles.clubInfo}>
-                  <Text style={styles.clubName} numberOfLines={1}>
-                    {item.club.name}
-                  </Text>
-                  <StarRating value={item.star_rating} size={12} />
-                </View>
-              </Pressable>
-              <Pressable onPress={() => onToggleFavorite(item.club_id)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t("clubPicker.toggleFavorite")}>
-                <Text style={styles.favoriteIcon}>{isFavorite ? "★" : "☆"}</Text>
-              </Pressable>
-            </View>
-          );
-        }}
-        ListEmptyComponent={<Text style={styles.empty}>{t("clubPicker.noResults")}</Text>}
-      />
+      <FlatList data={filtered} keyExtractor={(cv) => cv.id} renderItem={renderItem} ListEmptyComponent={<Text style={styles.empty}>{t("clubPicker.noResults")}</Text>} />
     </View>
   );
 }
@@ -221,44 +214,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.md,
     color: colors.textPrimary,
-  },
-  clubRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: spacing.sm,
-    gap: spacing.sm,
-  },
-  clubRowDisabled: {
-    opacity: 0.4,
-  },
-  clubRowMain: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    flex: 1,
-  },
-  logoPlaceholder: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logoInitial: {
-    ...typography.bodyStrong,
-    color: colors.background,
-  },
-  clubInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  clubName: {
-    ...typography.body,
-  },
-  favoriteIcon: {
-    fontSize: 20,
-    color: colors.gold,
   },
   empty: {
     ...typography.caption,
