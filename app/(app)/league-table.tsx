@@ -85,6 +85,15 @@ export default function LeagueTableScreen() {
 
   return (
     <Screen padded={false} avoidKeyboard>
+      {/*
+        Screen itself is not scrollable (see Screen.tsx) -- this whole body
+        was previously rendered directly as its children with no vertical
+        ScrollView anywhere, so any rows below the fold were simply
+        unreachable: there was nothing to intercept a vertical pan gesture
+        at all. The nested horizontal ScrollView below (for the numeric
+        columns) is perpendicular, so it doesn't conflict with this one.
+      */}
+      <ScrollView contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>{t("leagueTable.title")}</Text>
@@ -187,6 +196,7 @@ export default function LeagueTableScreen() {
         </View>
         </PerfOverlay>
       )}
+      </ScrollView>
     </Screen>
   );
 }
@@ -225,6 +235,9 @@ const DataTableRow = memo(function DataTableRow({ row, isMe }: { row: LeagueStan
 });
 
 const styles = StyleSheet.create({
+  screenContent: {
+    paddingBottom: spacing.xxl,
+  },
   header: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
@@ -279,8 +292,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   tableRow: {
+    // No flex:1 -- this now lives inside a ScrollView's content (see the
+    // outer ScrollView added above), which sizes to its content rather than
+    // a bounded viewport height. flex:1 there (flexBasis: 0%, no fixed
+    // space to grow into) would collapse this row to zero height instead
+    // of its natural content size.
     flexDirection: "row",
-    flex: 1,
     paddingHorizontal: spacing.lg,
   },
   stickyColumn: {
