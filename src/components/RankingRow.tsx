@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { memo, useCallback } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors, radius, spacing, typography } from "../theme";
 import { AnimatedNumber } from "./AnimatedNumber";
@@ -7,6 +8,8 @@ import { Avatar } from "./Avatar";
 const MEDALS = ["🥇", "🥈", "🥉"] as const;
 
 interface RankingRowProps {
+  /** Needed so onPress can be a single stable callback shared by every row (see onPress below) instead of each caller inline-binding a fresh closure per row per render, which would defeat this component's memo. */
+  playerId: string;
   rank: number;
   name: string;
   avatarUrl?: string | null;
@@ -15,18 +18,25 @@ interface RankingRowProps {
   value: number | string;
   /** Secondary line under the name, e.g. "12 played · 60% win". */
   detail: string;
-  onPress?: () => void;
+  /** Receives this row's playerId -- pass one stable (useCallback'd) function shared across every row, not a per-row inline closure. */
+  onPress?: (playerId: string) => void;
   /** Marks this row as belonging to the signed-in user, e.g. in a leaderboard. */
   highlighted?: boolean;
   /** Positions gained (positive) or lost (negative) since this ranking was last shown this session. Omit or 0 to show nothing. */
   movement?: number;
 }
 
-export function RankingRow({ rank, name, avatarUrl, color, value, detail, onPress, highlighted = false, movement = 0 }: RankingRowProps) {
+// Leaderboards/Home/LeagueTableCard all render one of these per ranked
+// player (potentially the whole roster) -- memo means a re-render caused
+// by unrelated state (sort mode, filter, a different row's movement)
+// only actually re-renders rows whose own props changed, PROVIDED every
+// caller passes a stable onPress (see the playerId/onPress doc above).
+export const RankingRow = memo(function RankingRow({ playerId, rank, name, avatarUrl, color, value, detail, onPress, highlighted = false, movement = 0 }: RankingRowProps) {
   const medal = rank >= 1 && rank <= 3 ? MEDALS[rank - 1] : null;
+  const handlePress = useCallback(() => onPress?.(playerId), [onPress, playerId]);
   return (
     <Pressable
-      onPress={onPress}
+      onPress={onPress ? handlePress : undefined}
       accessibilityRole={onPress ? "button" : undefined}
       style={({ pressed }) => [styles.row, highlighted && styles.highlighted, pressed && styles.pressed]}
     >
@@ -51,7 +61,7 @@ export function RankingRow({ rank, name, avatarUrl, color, value, detail, onPres
       <AnimatedNumber value={value} style={styles.metric} />
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   row: {

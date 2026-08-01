@@ -124,13 +124,14 @@ export function LeagueTableCard({
             return (
               <RankingRow
                 key={row.id}
+                playerId={row.id}
                 rank={index + 1}
                 name={row.name}
                 avatarUrl={player?.avatar_url}
                 color={player?.custom_color ?? colors.accent}
                 value={row.points}
                 detail={t("home.leagueTableCardRowDetail", { gd: row.goalDifference > 0 ? `+${row.goalDifference}` : String(row.goalDifference), played: String(row.played) })}
-                onPress={() => onPressPlayer(row.id)}
+                onPress={onPressPlayer}
                 highlighted={myPlayerId !== null && row.id === myPlayerId}
                 movement={movementByPlayerId.get(row.id) ?? 0}
               />

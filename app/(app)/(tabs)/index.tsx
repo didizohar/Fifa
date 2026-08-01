@@ -1,7 +1,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import type { ComponentProps, ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { ActionButton } from "../../../src/components/ActionButton";
 import { AnimatedNumber } from "../../../src/components/AnimatedNumber";
@@ -58,6 +58,13 @@ const EMPTY_MATCHES: MatchSummary[] = [];
 
 export default function HomeScreen() {
   const router = useRouter();
+  // Single stable reference shared by every RankingRow (Top Players) and
+  // LeagueTableCard row -- router itself is a stable object from
+  // expo-router, so this callback identity never changes, letting both
+  // memoized components actually skip re-rendering rows on unrelated
+  // state changes instead of every caller inline-binding a fresh closure
+  // per row per render.
+  const handlePressPlayer = useCallback((playerId: string) => router.push(`/player/${playerId}`), [router]);
   const { t } = useTranslation();
   const { user } = useAuth();
   const { currentGroup } = useGroup();
@@ -282,7 +289,7 @@ export default function HomeScreen() {
                 onChangePeriod={setLeagueTablePeriod}
                 expanded={leagueTableExpanded}
                 onToggleExpanded={() => setLeagueTableExpanded(!leagueTableExpanded)}
-                onPressPlayer={(playerId) => router.push(`/player/${playerId}`)}
+                onPressPlayer={handlePressPlayer}
                 onViewFullTable={() => router.push("/league-table")}
                 onStartMatch={() => router.push("/record-match")}
               />
@@ -418,13 +425,14 @@ export default function HomeScreen() {
               {winRateLeaders.slice(0, RANKINGS_PREVIEW).map((row, index) => (
                 <RankingRow
                   key={row.playerId}
+                  playerId={row.playerId}
                   rank={index + 1}
                   name={row.playerName}
                   avatarUrl={row.avatarUrl}
                   color={row.color}
                   value={row.valueLabel}
                   detail={row.detail}
-                  onPress={() => router.push(`/player/${row.playerId}`)}
+                  onPress={handlePressPlayer}
                 />
               ))}
             </Section>

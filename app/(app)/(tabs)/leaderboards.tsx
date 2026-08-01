@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutAnimation, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../src/components/Avatar";
 import { Card } from "../../../src/components/Card";
@@ -83,6 +83,9 @@ const EMPTY_MATCHES: MatchSummary[] = [];
 
 export default function LeaderboardsScreen() {
   const router = useRouter();
+  // Single stable reference shared by every RankingRow -- see the same
+  // pattern (and rationale) in app/(app)/(tabs)/index.tsx.
+  const handlePressPlayer = useCallback((playerId: string) => router.push(`/player/${playerId}`), [router]);
   const { t, locale } = useTranslation();
   const { user } = useAuth();
   const { currentGroup } = useGroup();
@@ -396,6 +399,7 @@ export default function LeaderboardsScreen() {
                 {displayRows.slice(3).map((row, index) => (
                   <RankingRow
                     key={row.playerId}
+                    playerId={row.playerId}
                     rank={index + 4}
                     name={row.playerName}
                     avatarUrl={row.avatarUrl}
@@ -404,7 +408,7 @@ export default function LeaderboardsScreen() {
                     detail={row.detail}
                     highlighted={row.playerId === myPlayerId}
                     movement={movement.get(row.playerId) ?? 0}
-                    onPress={() => router.push(`/player/${row.playerId}`)}
+                    onPress={handlePressPlayer}
                   />
                 ))}
               </View>
