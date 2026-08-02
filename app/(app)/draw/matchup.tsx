@@ -25,7 +25,6 @@ import { useRecentlyUsedClubs } from "../../../src/hooks/useRecentlyUsedClubs";
 import { filterClubVersionsForRandomGeneration } from "../../../src/lib/clubRepository";
 import { useTranslation } from "../../../src/lib/i18n";
 import { buildMatchPrefillParams } from "../../../src/lib/matchPrefill";
-import { perfLog } from "../../../src/lib/perfLog";
 import { toPickablePlayer } from "../../../src/lib/players";
 import {
   assignBalancedClubs,
@@ -48,7 +47,6 @@ type ClubMode = "random" | "exactStars" | "starRange" | "balanced" | "handicap";
 const SIDE_COUNT = 2;
 
 export default function FullMatchupScreen() {
-  perfLog("matchup: render (component function called)");
   const router = useRouter();
   const { t } = useTranslation();
   const { currentGroup } = useGroup();
@@ -178,7 +176,6 @@ export default function FullMatchupScreen() {
   };
 
   const drawAll = () => {
-    perfLog("matchup: Draw tapped (handler start)");
     const eligible = (players ?? []).filter((p) => selectedIds.includes(p.id));
     const result = generateFullMatchup({
       eligiblePlayers: eligible,
@@ -189,10 +186,8 @@ export default function FullMatchupScreen() {
       allowDuplicates,
       getDrawLevel: (p) => resolveDrawLevel(p.draw_level),
     });
-    perfLog("matchup: generateFullMatchup returned (sync compute done)");
     if (!result) return;
     suspense.start(() => {
-      perfLog("matchup: suspense reveal callback firing (state commit)");
       setSides(result.sides);
       setSideClubs(result.clubs);
       setLockedPlayers(new Map());
@@ -200,7 +195,6 @@ export default function FullMatchupScreen() {
       setUsedDuplicateClub(result.usedDuplicateClub);
       setRevealKey((k) => k + 1);
       announce(result.sides, result.clubs);
-      perfLog("matchup: state setters + announce called (post-commit)");
     });
   };
 
@@ -360,7 +354,7 @@ export default function FullMatchupScreen() {
           <Text style={styles.label}>{t("draw.clubMode")}</Text>
           <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
             <FilterChip label={t("draw.clubModeRandom")} active={clubMode === "random"} onPress={() => setClubMode("random")} />
-            <FilterChip label={t("draw.clubModeExactStars")} active={clubMode === "exactStars"} onPress={() => { perfLog("matchup: Exact Stars tapped"); setClubMode("exactStars"); }} />
+            <FilterChip label={t("draw.clubModeExactStars")} active={clubMode === "exactStars"} onPress={() => setClubMode("exactStars")} />
             <FilterChip label={t("draw.clubModeStarRange")} active={clubMode === "starRange"} onPress={() => setClubMode("starRange")} />
             <FilterChip label={t("draw.clubModeBalanced")} active={clubMode === "balanced"} onPress={() => setClubMode("balanced")} />
             <FilterChip label={t("draw.clubModeHandicap")} active={clubMode === "handicap"} onPress={() => setClubMode("handicap")} />
@@ -484,14 +478,13 @@ export default function FullMatchupScreen() {
             <View style={styles.recordAction}>
               <Button
                 label={t("draw.proceedToRecordMatch")}
-                onPress={() => {
-                  perfLog("matchup: Proceed to Record Match tapped");
+                onPress={() =>
                   sides &&
-                    router.push({
-                      pathname: "/record-match",
-                      params: buildMatchPrefillParams(matchType, sides, sideClubs),
-                    });
-                }}
+                  router.push({
+                    pathname: "/record-match",
+                    params: buildMatchPrefillParams(matchType, sides, sideClubs),
+                  })
+                }
               />
             </View>
             <ShareCopyRow text={resultText} />
