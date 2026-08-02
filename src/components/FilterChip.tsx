@@ -14,7 +14,7 @@ export function FilterChip({ label, active, onPress, disabled = false }: FilterC
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      style={[styles.chip, active && styles.chipActive, disabled && styles.chipDisabled]}
+      style={({ pressed }) => [styles.chip, active && styles.chipActive, disabled && styles.chipDisabled, pressed && !disabled && styles.chipPressed]}
       accessibilityRole="button"
       accessibilityState={{ selected: active, disabled }}
     >
@@ -40,6 +40,9 @@ const styles = StyleSheet.create({
   },
   chipDisabled: {
     opacity: 0.4,
+  },
+  chipPressed: {
+    opacity: 0.7,
   },
   label: {
     ...typography.caption,

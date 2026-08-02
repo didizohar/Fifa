@@ -17,7 +17,7 @@ export function ScoreStepper({ label, value, onChange, max = 99 }: ScoreStepperP
       <View style={styles.row}>
         <Pressable
           onPress={() => onChange(Math.max(0, value - 1))}
-          style={styles.button}
+          style={({ pressed }) => [styles.button, pressed && value > 0 && styles.buttonPressed]}
           disabled={value <= 0}
           accessibilityRole="button"
           accessibilityLabel={t("common.decreaseLabel", { label })}
@@ -27,7 +27,7 @@ export function ScoreStepper({ label, value, onChange, max = 99 }: ScoreStepperP
         <Text style={styles.value} accessibilityLabel={t("common.valueLabel", { label, value: String(value) })}>{value}</Text>
         <Pressable
           onPress={() => onChange(Math.min(max, value + 1))}
-          style={styles.button}
+          style={({ pressed }) => [styles.button, pressed && value < max && styles.buttonPressed]}
           disabled={value >= max}
           accessibilityRole="button"
           accessibilityLabel={t("common.increaseLabel", { label })}
@@ -61,6 +61,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
+  },
+  buttonPressed: {
+    backgroundColor: colors.border,
   },
   buttonLabel: {
     fontSize: 20,
