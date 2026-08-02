@@ -24,11 +24,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!isMounted) return;
-      setSession(data.session);
-      setIsLoading(false);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!isMounted) return;
+        setSession(data.session);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        // A failed session restore (e.g. corrupted AsyncStorage data) must
+        // still resolve isLoading -- otherwise the root navigator's
+        // isResolved never becomes true and the app is stuck on the splash
+        // screen forever, with no error and no way in. Treat it the same
+        // as "no session": the user lands on the login screen, the safe
+        // default, instead of a permanent blank launch.
+        if (!isMounted) return;
+        setSession(null);
+        setIsLoading(false);
+      });
 
     const { data: subscription } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!isMounted) return;
