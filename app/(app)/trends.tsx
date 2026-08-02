@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { PerfOverlay } from "../../src/components/dev/PerfOverlay";
 import { EmptyState } from "../../src/components/EmptyState";
 import { FilterChip } from "../../src/components/FilterChip";
 import { PlayerPicker } from "../../src/components/PlayerPicker";
@@ -89,7 +88,6 @@ export default function TrendsScreen() {
       {isLoading ? (
         <SkeletonList count={3} />
       ) : (
-        <PerfOverlay id="Trends">
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.selectLabel}>{t("trendsScreen.selectPlayers")}</Text>
           <PlayerPicker players={pickablePlayers} selectedIds={selectedPlayerIds} onToggle={togglePlayer} maxSelected={pickablePlayers.length} />
@@ -110,7 +108,6 @@ export default function TrendsScreen() {
             ))
           )}
         </ScrollView>
-        </PerfOverlay>
       )}
     </Screen>
   );
