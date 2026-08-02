@@ -135,6 +135,12 @@ export default function TeamDrawScreen() {
   // was settling, racing the screen-edge swipe-back gesture for priority
   // and causing scrolling to appear frozen for a moment on real devices.
   const zeroPlayers = !isLoading && !isError && (!players || players.length === 0);
+  // Without this, selecting fewer players than teamCount (the count is
+  // clamped to a minimum of MIN_TEAMS regardless of selection size) let you
+  // tap Draw anyway -- splitIntoTeams/splitIntoBalancedTeams don't error on
+  // too few players, they silently produce one or more empty teams. Same
+  // guard pattern as draw/matchup.tsx's notEnoughPlayers.
+  const notEnoughPlayers = selectedIds.length > 0 && selectedIds.length < teamCount;
 
   // Same rationale as draw/players.tsx: players only actually changes when
   // the roster query refetches, not on every selection/lock/move re-render.
@@ -205,15 +211,19 @@ export default function TeamDrawScreen() {
               ]}
             />
           </View>
-          <View style={styles.drawActions}>
-            <Button
-              label={suspense.isDrawing ? t("common.skip") : teams ? t("common.redraw") : t("draw.drawButton")}
-              onPress={suspense.isDrawing ? suspense.skip : () => draw()}
-              disabled={selectedIds.length === 0}
-              style={styles.drawButton}
-            />
-            {teams ? <Button label={t("common.reset")} variant="secondary" onPress={resetDraw} /> : null}
-          </View>
+          {notEnoughPlayers ? (
+            <EmptyState icon="🎲" title={t("draw.notEnoughPlayers")} message={t("draw.notEnoughPlayersMessage", { requested: String(teamCount), available: String(selectedIds.length) })} />
+          ) : (
+            <View style={styles.drawActions}>
+              <Button
+                label={suspense.isDrawing ? t("common.skip") : teams ? t("common.redraw") : t("draw.drawButton")}
+                onPress={suspense.isDrawing ? suspense.skip : () => draw()}
+                disabled={selectedIds.length === 0}
+                style={styles.drawButton}
+              />
+              {teams ? <Button label={t("common.reset")} variant="secondary" onPress={resetDraw} /> : null}
+            </View>
+          )}
         </Card>
 
         {teams ? (
