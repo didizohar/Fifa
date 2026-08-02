@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Button } from "../src/components/Button";
 import { Screen } from "../src/components/Screen";
 import { TextField } from "../src/components/TextField";
@@ -112,33 +112,35 @@ export default function ResetPasswordScreen() {
 
   return (
     <Screen avoidKeyboard>
-      <View style={styles.header}>
-        <Text style={styles.title}>{t("auth.resetPasswordTitle")}</Text>
-        <Text style={styles.subtitle}>{t("auth.resetPasswordSubtitle")}</Text>
-      </View>
-      <View style={styles.form}>
-        <TextField
-          label={t("auth.newPasswordLabel")}
-          placeholder={t("auth.passwordPlaceholderNew")}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          autoComplete="password-new"
-          returnKeyType="next"
-        />
-        <TextField
-          label={t("auth.confirmNewPasswordLabel")}
-          placeholder={t("auth.confirmPasswordPlaceholder")}
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry
-          autoComplete="password-new"
-          returnKeyType="go"
-          onSubmitEditing={handleSubmit}
-          error={error}
-        />
-        <Button label={t("auth.resetPasswordButton")} onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
-      </View>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <Text style={styles.title}>{t("auth.resetPasswordTitle")}</Text>
+          <Text style={styles.subtitle}>{t("auth.resetPasswordSubtitle")}</Text>
+        </View>
+        <View style={styles.form}>
+          <TextField
+            label={t("auth.newPasswordLabel")}
+            placeholder={t("auth.passwordPlaceholderNew")}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            autoComplete="password-new"
+            returnKeyType="next"
+          />
+          <TextField
+            label={t("auth.confirmNewPasswordLabel")}
+            placeholder={t("auth.confirmPasswordPlaceholder")}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry
+            autoComplete="password-new"
+            returnKeyType="go"
+            onSubmitEditing={handleSubmit}
+            error={error}
+          />
+          <Button label={t("auth.resetPasswordButton")} onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
+        </View>
+      </ScrollView>
     </Screen>
   );
 }

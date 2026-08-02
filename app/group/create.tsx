@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Redirect, useRouter } from "expo-router";
-import { StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Button } from "../../src/components/Button";
 import { Screen } from "../../src/components/Screen";
 import { TextField } from "../../src/components/TextField";
@@ -43,23 +43,25 @@ export default function CreateGroupScreen() {
 
   return (
     <Screen avoidKeyboard>
-      <View style={styles.header}>
-        <Text style={styles.title}>{t("group.createTitle")}</Text>
-        <Text style={styles.subtitle}>{t("group.createSubtitle")}</Text>
-      </View>
-      <View style={styles.form}>
-        <TextField
-          label={t("group.nameLabel")}
-          placeholder={t("group.namePlaceholder")}
-          value={name}
-          onChangeText={setName}
-          autoFocus
-          returnKeyType="go"
-          onSubmitEditing={handleCreate}
-          error={error}
-        />
-        <Button label={t("group.createButton")} onPress={handleCreate} loading={isSubmitting} disabled={isSubmitting} />
-      </View>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <Text style={styles.title}>{t("group.createTitle")}</Text>
+          <Text style={styles.subtitle}>{t("group.createSubtitle")}</Text>
+        </View>
+        <View style={styles.form}>
+          <TextField
+            label={t("group.nameLabel")}
+            placeholder={t("group.namePlaceholder")}
+            value={name}
+            onChangeText={setName}
+            autoFocus
+            returnKeyType="go"
+            onSubmitEditing={handleCreate}
+            error={error}
+          />
+          <Button label={t("group.createButton")} onPress={handleCreate} loading={isSubmitting} disabled={isSubmitting} />
+        </View>
+      </ScrollView>
     </Screen>
   );
 }

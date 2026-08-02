@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "expo-router";
-import { StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Button } from "../../src/components/Button";
 import { Screen } from "../../src/components/Screen";
 import { TextField } from "../../src/components/TextField";
@@ -38,44 +38,46 @@ export default function LoginScreen() {
 
   return (
     <Screen avoidKeyboard>
-      <View style={styles.header}>
-        <Text style={styles.logo}>⚽️</Text>
-        <Text style={styles.title}>FC Rival</Text>
-        <Text style={styles.subtitle}>{t("auth.loginSubtitle")}</Text>
-      </View>
-      <View style={styles.form}>
-        <TextField
-          label={t("auth.emailLabel")}
-          placeholder={t("auth.emailPlaceholder")}
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          autoComplete="email"
-          keyboardType="email-address"
-          returnKeyType="next"
-        />
-        <TextField
-          label={t("auth.passwordLabel")}
-          placeholder={t("auth.passwordPlaceholder")}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          autoComplete="password"
-          returnKeyType="go"
-          onSubmitEditing={handleLogin}
-          error={error}
-        />
-        <Link href="/(auth)/forgot-password" style={styles.forgotLink}>
-          <Text style={styles.linkAccent}>{t("auth.forgotPassword")}</Text>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <Text style={styles.logo}>⚽️</Text>
+          <Text style={styles.title}>FC Rival</Text>
+          <Text style={styles.subtitle}>{t("auth.loginSubtitle")}</Text>
+        </View>
+        <View style={styles.form}>
+          <TextField
+            label={t("auth.emailLabel")}
+            placeholder={t("auth.emailPlaceholder")}
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            autoComplete="email"
+            keyboardType="email-address"
+            returnKeyType="next"
+          />
+          <TextField
+            label={t("auth.passwordLabel")}
+            placeholder={t("auth.passwordPlaceholder")}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            autoComplete="password"
+            returnKeyType="go"
+            onSubmitEditing={handleLogin}
+            error={error}
+          />
+          <Link href="/(auth)/forgot-password" style={styles.forgotLink}>
+            <Text style={styles.linkAccent}>{t("auth.forgotPassword")}</Text>
+          </Link>
+          <Button label={t("auth.signIn")} onPress={handleLogin} loading={isSubmitting} disabled={isSubmitting} />
+        </View>
+        <Link href="/(auth)/signup" style={styles.link}>
+          <Text style={styles.linkText}>
+            {t("auth.noAccountPrompt")}
+            <Text style={styles.linkAccent}>{t("auth.signUp")}</Text>
+          </Text>
         </Link>
-        <Button label={t("auth.signIn")} onPress={handleLogin} loading={isSubmitting} disabled={isSubmitting} />
-      </View>
-      <Link href="/(auth)/signup" style={styles.link}>
-        <Text style={styles.linkText}>
-          {t("auth.noAccountPrompt")}
-          <Text style={styles.linkAccent}>{t("auth.signUp")}</Text>
-        </Text>
-      </Link>
+      </ScrollView>
     </Screen>
   );
 }

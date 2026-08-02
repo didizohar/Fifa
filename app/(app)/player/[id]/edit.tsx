@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Button } from "../../../../src/components/Button";
 import { ErrorState } from "../../../../src/components/ErrorState";
 import { Screen } from "../../../../src/components/Screen";
@@ -75,7 +75,7 @@ export default function EditPlayerScreen() {
 
   return (
     <Screen avoidKeyboard>
-      <View style={styles.form}>
+      <ScrollView contentContainerStyle={styles.form} showsVerticalScrollIndicator={false}>
         <TextField label="Name" value={displayName} onChangeText={setDisplayName} error={error} />
         <TextField label="Nickname (optional)" value={nickname} onChangeText={setNickname} />
         <View style={styles.colorSection}>
@@ -107,7 +107,7 @@ export default function EditPlayerScreen() {
           </View>
         </View>
         <Button label="Save changes" onPress={handleSubmit} loading={updatePlayer.isPending} />
-      </View>
+      </ScrollView>
     </Screen>
   );
 }

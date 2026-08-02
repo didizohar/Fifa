@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "expo-router";
-import { StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Button } from "../../src/components/Button";
 import { Screen } from "../../src/components/Screen";
 import { TextField } from "../../src/components/TextField";
@@ -57,41 +57,43 @@ export default function SignupScreen() {
 
   return (
     <Screen avoidKeyboard>
-      <View style={styles.header}>
-        <Text style={styles.logo}>⚽️</Text>
-        <Text style={styles.title}>{t("auth.signupTitle")}</Text>
-        <Text style={styles.subtitle}>{t("auth.signupSubtitle")}</Text>
-      </View>
-      <View style={styles.form}>
-        <TextField
-          label={t("auth.emailLabel")}
-          placeholder={t("auth.emailPlaceholder")}
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          autoComplete="email"
-          keyboardType="email-address"
-          returnKeyType="next"
-        />
-        <TextField
-          label={t("auth.passwordLabel")}
-          placeholder={t("auth.passwordPlaceholderNew")}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          autoComplete="password-new"
-          returnKeyType="go"
-          onSubmitEditing={handleSignup}
-          error={error}
-        />
-        <Button label={t("auth.signUp")} onPress={handleSignup} loading={isSubmitting} disabled={isSubmitting} />
-      </View>
-      <Link href="/(auth)/login" style={styles.link}>
-        <Text style={styles.linkText}>
-          {t("auth.haveAccountPrompt")}
-          <Text style={styles.linkAccent}>{t("auth.signIn")}</Text>
-        </Text>
-      </Link>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <Text style={styles.logo}>⚽️</Text>
+          <Text style={styles.title}>{t("auth.signupTitle")}</Text>
+          <Text style={styles.subtitle}>{t("auth.signupSubtitle")}</Text>
+        </View>
+        <View style={styles.form}>
+          <TextField
+            label={t("auth.emailLabel")}
+            placeholder={t("auth.emailPlaceholder")}
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            autoComplete="email"
+            keyboardType="email-address"
+            returnKeyType="next"
+          />
+          <TextField
+            label={t("auth.passwordLabel")}
+            placeholder={t("auth.passwordPlaceholderNew")}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            autoComplete="password-new"
+            returnKeyType="go"
+            onSubmitEditing={handleSignup}
+            error={error}
+          />
+          <Button label={t("auth.signUp")} onPress={handleSignup} loading={isSubmitting} disabled={isSubmitting} />
+        </View>
+        <Link href="/(auth)/login" style={styles.link}>
+          <Text style={styles.linkText}>
+            {t("auth.haveAccountPrompt")}
+            <Text style={styles.linkAccent}>{t("auth.signIn")}</Text>
+          </Text>
+        </Link>
+      </ScrollView>
     </Screen>
   );
 }

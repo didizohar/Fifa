@@ -1,7 +1,7 @@
 import * as Linking from "expo-linking";
 import { Link } from "expo-router";
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Button } from "../../src/components/Button";
 import { Screen } from "../../src/components/Screen";
 import { TextField } from "../../src/components/TextField";
@@ -53,29 +53,31 @@ export default function ForgotPasswordScreen() {
 
   return (
     <Screen avoidKeyboard>
-      <View style={styles.header}>
-        <Text style={styles.logo}>🔑</Text>
-        <Text style={styles.title}>{t("auth.resetRequestTitle")}</Text>
-        <Text style={styles.subtitle}>{t("auth.resetRequestSubtitle")}</Text>
-      </View>
-      <View style={styles.form}>
-        <TextField
-          label={t("auth.emailLabel")}
-          placeholder={t("auth.emailPlaceholder")}
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          autoComplete="email"
-          keyboardType="email-address"
-          returnKeyType="go"
-          onSubmitEditing={handleSubmit}
-          error={error}
-        />
-        <Button label={t("auth.resetRequestButton")} onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
-      </View>
-      <Link href="/(auth)/login" style={styles.link}>
-        <Text style={styles.linkAccent}>{t("auth.backToSignIn")}</Text>
-      </Link>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <Text style={styles.logo}>🔑</Text>
+          <Text style={styles.title}>{t("auth.resetRequestTitle")}</Text>
+          <Text style={styles.subtitle}>{t("auth.resetRequestSubtitle")}</Text>
+        </View>
+        <View style={styles.form}>
+          <TextField
+            label={t("auth.emailLabel")}
+            placeholder={t("auth.emailPlaceholder")}
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            autoComplete="email"
+            keyboardType="email-address"
+            returnKeyType="go"
+            onSubmitEditing={handleSubmit}
+            error={error}
+          />
+          <Button label={t("auth.resetRequestButton")} onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
+        </View>
+        <Link href="/(auth)/login" style={styles.link}>
+          <Text style={styles.linkAccent}>{t("auth.backToSignIn")}</Text>
+        </Link>
+      </ScrollView>
     </Screen>
   );
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Redirect, useRouter } from "expo-router";
-import { StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Button } from "../../src/components/Button";
 import { Screen } from "../../src/components/Screen";
 import { TextField } from "../../src/components/TextField";
@@ -43,24 +43,26 @@ export default function JoinGroupScreen() {
 
   return (
     <Screen avoidKeyboard>
-      <View style={styles.header}>
-        <Text style={styles.title}>{t("group.joinTitle")}</Text>
-        <Text style={styles.subtitle}>{t("group.joinSubtitle")}</Text>
-      </View>
-      <View style={styles.form}>
-        <TextField
-          label={t("group.inviteCodeLabel")}
-          placeholder={t("group.inviteCodePlaceholder")}
-          value={inviteCode}
-          onChangeText={(text) => setInviteCode(text.toUpperCase())}
-          autoCapitalize="characters"
-          autoFocus
-          returnKeyType="go"
-          onSubmitEditing={handleJoin}
-          error={error}
-        />
-        <Button label={t("group.joinButton")} onPress={handleJoin} loading={isSubmitting} disabled={isSubmitting} />
-      </View>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <Text style={styles.title}>{t("group.joinTitle")}</Text>
+          <Text style={styles.subtitle}>{t("group.joinSubtitle")}</Text>
+        </View>
+        <View style={styles.form}>
+          <TextField
+            label={t("group.inviteCodeLabel")}
+            placeholder={t("group.inviteCodePlaceholder")}
+            value={inviteCode}
+            onChangeText={(text) => setInviteCode(text.toUpperCase())}
+            autoCapitalize="characters"
+            autoFocus
+            returnKeyType="go"
+            onSubmitEditing={handleJoin}
+            error={error}
+          />
+          <Button label={t("group.joinButton")} onPress={handleJoin} loading={isSubmitting} disabled={isSubmitting} />
+        </View>
+      </ScrollView>
     </Screen>
   );
 }

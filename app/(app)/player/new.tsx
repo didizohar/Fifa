@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useRouter } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Button } from "../../../src/components/Button";
 import { Screen } from "../../../src/components/Screen";
 import { TextField } from "../../../src/components/TextField";
@@ -42,7 +42,7 @@ export default function NewPlayerScreen() {
 
   return (
     <Screen avoidKeyboard>
-      <View style={styles.form}>
+      <ScrollView contentContainerStyle={styles.form} showsVerticalScrollIndicator={false}>
         <TextField label="Name" placeholder="Player name" value={displayName} onChangeText={setDisplayName} autoFocus error={error} />
         <TextField label="Nickname (optional)" placeholder="e.g. The Wall" value={nickname} onChangeText={setNickname} />
         <View style={styles.colorSection}>
@@ -62,7 +62,7 @@ export default function NewPlayerScreen() {
           </View>
         </View>
         <Button label="Add player" onPress={handleSubmit} loading={createPlayer.isPending} />
-      </View>
+      </ScrollView>
     </Screen>
   );
 }
