@@ -29,6 +29,7 @@ import { confirmAction, notify } from "../../src/lib/confirm";
 import { filterClubVersionsForRandomGeneration } from "../../src/lib/clubRepository";
 import { matchSideLabel } from "../../src/lib/format";
 import { useTranslation } from "../../src/lib/i18n";
+import { perfLog } from "../../src/lib/perfLog";
 import { type MatchPrefillRouteParams, validateMatchPrefill } from "../../src/lib/matchPrefill";
 import { EditMatchError } from "../../src/lib/matchService";
 import { toPickablePlayer, type PickablePlayer } from "../../src/lib/players";
@@ -66,6 +67,7 @@ function mergePickablePlayers(roster: PickablePlayer[], matchPlayers: PickablePl
 }
 
 export default function RecordMatchScreen() {
+  perfLog("record-match: render (component function called)");
   const router = useRouter();
   const { t } = useTranslation();
   const rawParams = useLocalSearchParams();
@@ -333,6 +335,7 @@ export default function RecordMatchScreen() {
   };
 
   const handleSubmit = async () => {
+    perfLog("record-match: Save/Submit tapped (handler start)");
     if (!currentGroup || isSubmitting) return;
 
     const validation = validateMatchForm(
@@ -409,6 +412,7 @@ export default function RecordMatchScreen() {
           },
         ],
       });
+      perfLog("record-match: mutateAsync resolved, about to router.replace");
       router.replace(`/match/${newMatchId}`);
     } catch (e) {
       setErrors([e instanceof Error ? e.message : "Failed to record match."]);
@@ -485,9 +489,9 @@ export default function RecordMatchScreen() {
           <Card style={styles.clubDrawCard}>
             <Text style={styles.sideTitle}>{t("rotation.drawClubsByStars")}</Text>
             <View style={styles.chipRow}>
-              <FilterChip label={t("rotation.starModeSameLevel")} active={starMode === "sameStar"} onPress={() => setStarMode("sameStar")} />
-              <FilterChip label={t("rotation.starModeSimilar")} active={starMode === "similarStrength"} onPress={() => setStarMode("similarStrength")} />
-              <FilterChip label={t("rotation.starModeAny")} active={starMode === "anyStrength"} onPress={() => setStarMode("anyStrength")} />
+              <FilterChip label={t("rotation.starModeSameLevel")} active={starMode === "sameStar"} onPress={() => { perfLog("record-match: star mode tapped (sameStar)"); setStarMode("sameStar"); }} />
+              <FilterChip label={t("rotation.starModeSimilar")} active={starMode === "similarStrength"} onPress={() => { perfLog("record-match: star mode tapped (similarStrength)"); setStarMode("similarStrength"); }} />
+              <FilterChip label={t("rotation.starModeAny")} active={starMode === "anyStrength"} onPress={() => { perfLog("record-match: star mode tapped (anyStrength)"); setStarMode("anyStrength"); }} />
             </View>
 
             {starMode === "sameStar" ? (
@@ -553,7 +557,7 @@ export default function RecordMatchScreen() {
               maxSelected={requiredCount}
             />
           )}
-          <ScoreStepper label="Score" value={side1Score} onChange={setSide1Score} />
+          <ScoreStepper label="Score" value={side1Score} onChange={(v) => { perfLog("record-match: side1 score tapped"); setSide1Score(v); }} />
         </Card>
 
         <Card style={styles.sideCard}>
@@ -570,7 +574,7 @@ export default function RecordMatchScreen() {
               maxSelected={requiredCount}
             />
           )}
-          <ScoreStepper label="Score" value={side2Score} onChange={setSide2Score} />
+          <ScoreStepper label="Score" value={side2Score} onChange={(v) => { perfLog("record-match: side2 score tapped"); setSide2Score(v); }} />
         </Card>
 
         <Card style={styles.optionsCard}>

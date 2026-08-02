@@ -19,6 +19,7 @@ import { useWinnersStaySessionHistory } from "../../src/hooks/useWinnersStaySess
 import { useTranslation } from "../../src/lib/i18n";
 import type { MatchSidePlayer } from "../../src/lib/matches";
 import { buildMatchPrefillParams } from "../../src/lib/matchPrefill";
+import { perfLog } from "../../src/lib/perfLog";
 import { toPickablePlayer } from "../../src/lib/players";
 import {
   acceptPendingRotation,
@@ -56,6 +57,7 @@ function formatDuration(ms: number): string {
 }
 
 export default function WinnersStayScreen() {
+  perfLog("winners-stay: render (component function called)");
   const { matchId } = useLocalSearchParams<{ matchId?: string }>();
   const router = useRouter();
   const { t } = useTranslation();
@@ -90,6 +92,7 @@ export default function WinnersStayScreen() {
     if (!matchId || !session || !matchQuery.data || matchQuery.data.match_type !== "doubles") return;
     if (!canAdvanceSession(session, matchId)) return;
 
+    perfLog("winners-stay: advance-session effect running");
     const [side1, side2] = matchQuery.data.sides;
     const result: MatchResult = side1.result === "win" ? "sideA" : side2.result === "win" ? "sideB" : "draw";
 
@@ -102,6 +105,7 @@ export default function WinnersStayScreen() {
       now: new Date(),
     });
     setSession(advanced);
+    perfLog("winners-stay: advance-session effect done, setSession called");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId, matchQuery.data, session?.id, session?.lastRecordedMatchId]);
 
@@ -372,9 +376,11 @@ export default function WinnersStayScreen() {
   const canUndo = session.previousSnapshot !== null;
 
   const handleAccept = () => {
+    perfLog("winners-stay: Confirm next match tapped (handleAccept start)");
     if (!session.pendingRotation?.opposingPair) return;
     const accepted = acceptPendingRotation(session, new Date());
     setSession(accepted);
+    perfLog("winners-stay: setSession(accepted) called, about to router.push");
     router.push({
       pathname: "/record-match",
       params: { ...buildMatchPrefillParams("doubles", [accepted.currentPairA.players, accepted.currentPairB!.players], null), source: "winnersStay" },
@@ -392,6 +398,7 @@ export default function WinnersStayScreen() {
   const handleResetSession = () => setSession(null);
 
   const handleRecordCurrentMatch = () => {
+    perfLog("winners-stay: Record Result tapped (handleRecordCurrentMatch start)");
     if (!session.currentPairB) return;
     router.push({
       pathname: "/record-match",
