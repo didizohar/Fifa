@@ -53,6 +53,20 @@ const STAR_MODES: ClubDrawStarMode[] = ["sameStar", "similarStrength", "anyStren
 
 const MIN_PLAYERS_TO_RECORD = 2;
 
+/** The untouched starting state of a brand-new match -- see the beforeRemove guard below. */
+const BLANK_CREATE_DRAFT: EditableMatchDraft = {
+  matchType: "singles",
+  side1: { clubVersionId: null, playerIds: [], score: 0 },
+  side2: { clubVersionId: null, playerIds: [], score: 0 },
+  isOvertime: false,
+  isPenalties: false,
+  penaltyScore1: null,
+  penaltyScore2: null,
+  notes: "",
+  dateInput: "",
+  timeInput: "",
+};
+
 function mergePickablePlayers(roster: PickablePlayer[], matchPlayers: PickablePlayer[]): PickablePlayer[] {
   const merged = [...roster];
   const knownIds = new Set(roster.map((p) => p.id));
@@ -288,11 +302,15 @@ export default function RecordMatchScreen() {
   // Hardware/gesture back, the header's back button, and router.back() all
   // funnel through this same "beforeRemove" navigation event -- guarding it
   // once here covers every exit path, not just the button on this screen.
+  // In create mode there's no "original" loaded from the server to diff
+  // against -- BLANK_CREATE_DRAFT stands in for the untouched starting
+  // state, so selecting players/a club, entering a score, or applying a
+  // draw prefill and then navigating away without saving prompts the same
+  // as it already did in edit mode instead of silently losing the entry.
   useEffect(() => {
-    if (!isEditMode) return undefined;
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
       if (skipUnsavedGuardRef.current) return;
-      const original = originalDraftRef.current;
+      const original = isEditMode ? originalDraftRef.current : BLANK_CREATE_DRAFT;
       if (!original || !compareMatchSnapshots(original, currentDraftRef.current).anyChanged) return;
       e.preventDefault();
       confirmAction(
