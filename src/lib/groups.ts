@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "./supabase";
 import type { GameVersion, GroupMembership } from "./types/database";
 
@@ -65,4 +66,48 @@ export async function joinGroupByInviteCode(inviteCode: string): Promise<string>
 
   if (error) throw new Error(`Failed to join group: ${error.message}`);
   return data as string;
+}
+
+/**
+ * True once `typed` (trimmed) exactly matches `actualName` (trimmed) -- the
+ * same "type the name to confirm" pattern as GitHub's repo-delete flow.
+ * Pulled out as its own pure function so the confirmation logic (case-
+ * sensitive, whitespace-insensitive) is unit-testable without a live
+ * mutation or a rendered screen.
+ */
+export function groupNameConfirmationMatches(actualName: string, typed: string): boolean {
+  return typed.trim() === actualName.trim() && typed.trim().length > 0;
+}
+
+/**
+ * Permanently deletes a group: every season, member, player, match, and
+ * custom club, plus (server-side, inside the same RPC) every avatar file
+ * in storage for that group -- see delete_group's own migration comment
+ * (20260805120000_delete_group.sql) for the full traced cascade. The RPC
+ * re-verifies confirmName server-side against the real group name, so a
+ * client can't bypass the confirmation UI by calling this directly.
+ */
+export async function deleteGroup(groupId: string, confirmName: string): Promise<void> {
+  const { error } = await supabase.rpc("delete_group", { p_group_id: groupId, p_confirm_name: confirmName });
+  if (error) throw new Error(error.message);
+}
+
+// Every per-group, device-local AsyncStorage key this app writes -- must
+// stay in sync with the storageKey() builder in each of these hooks. There
+// is no single source of truth to import from (each hook's storageKey is a
+// private local function, not part of its public API), so this list is
+// intentionally exhaustive and explicit rather than derived.
+const GROUP_SCOPED_STORAGE_KEY_PREFIXES = [
+  "fc-rival:clubFavorites:",
+  "fc-rival:leagueTableCardExpanded:",
+  "fc-rival:lastOpenedLeague:",
+  "fc-rival:includeNationalTeams:",
+  "fc-rival:recentlyUsedClubs:",
+  "fc-rival:winnersStaySession:",
+  "fc-rival:winnersStaySessionHistory:",
+] as const;
+
+/** Clears every device-local preference/cache scoped to a deleted group, so no stale local data survives the group itself. */
+export async function clearGroupLocalData(groupId: string): Promise<void> {
+  await AsyncStorage.multiRemove(GROUP_SCOPED_STORAGE_KEY_PREFIXES.map((prefix) => `${prefix}${groupId}`));
 }

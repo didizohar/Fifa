@@ -314,6 +314,14 @@ export default function LeagueManagementScreen() {
             </View>
           ) : null}
         </Card>
+
+        {canManageLeague ? (
+          <Card style={styles.dangerZoneCard}>
+            <Text style={styles.dangerZoneTitle}>{t("deleteGroup.entryButtonLabel")}</Text>
+            <Text style={styles.dangerZoneHint}>{t("deleteGroup.notReversible")}</Text>
+            <Button label={t("deleteGroup.entryButtonLabel")} variant="danger" onPress={() => router.push("/delete-group")} />
+          </Card>
+        ) : null}
       </ScrollView>
     </Screen>
   );
@@ -430,5 +438,17 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontWeight: "700",
     paddingStart: spacing.md,
+  },
+  dangerZoneCard: {
+    gap: spacing.sm,
+    borderColor: colors.danger,
+  },
+  dangerZoneTitle: {
+    ...typography.heading,
+    color: colors.danger,
+  },
+  dangerZoneHint: {
+    ...typography.small,
+    color: colors.textSecondary,
   },
 });

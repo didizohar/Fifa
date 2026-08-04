@@ -48,6 +48,10 @@ export default function AppLayout() {
       <Stack.Screen name="draw/clubs" options={{ headerShown: true, title: t("draw.drawClubs"), ...themedHeaderOptions }} />
       <Stack.Screen name="draw/matchup" options={{ headerShown: true, title: t("draw.fullMatchup"), ...themedHeaderOptions }} />
       <Stack.Screen name="league-management" options={{ headerShown: true, title: t("league.title"), ...themedHeaderOptions }} />
+      <Stack.Screen
+        name="delete-group"
+        options={{ headerShown: true, title: t("deleteGroup.screenTitle"), presentation: "modal", ...themedHeaderOptions }}
+      />
       <Stack.Screen name="league-table" options={{ headerShown: true, title: t("leagueTable.title"), ...themedHeaderOptions }} />
       <Stack.Screen name="monthly-summary" options={{ headerShown: true, title: t("monthlySummary.title"), ...themedHeaderOptions }} />
       <Stack.Screen name="trends" options={{ headerShown: true, title: t("trendsScreen.title"), ...themedHeaderOptions }} />
