@@ -26,6 +26,24 @@ export function purgeCachedSeasonReport(seasonId: string): void {
   archivedReportCache.delete(seasonId);
 }
 
+/**
+ * Drops every cached archived-season report -- used after a match edit
+ * succeeds. "Archived seasons are frozen" (see the cache's own docstring
+ * above) assumes their matches never change, but nothing actually enforces
+ * that: canEditMatch only checks role/creator permissions, not whether the
+ * match falls within an already-archived season's date window, and a
+ * match's season_id isn't itself editable, so there's no cheap way to know
+ * from inside the edit mutation exactly which season (if any) was
+ * affected. Clearing everything is the smallest safe fix -- worst case, one
+ * archived season recomputes its report once more than strictly necessary
+ * the next time it's viewed, which is the same "cheap but non-trivial"
+ * computation this cache exists to avoid repeating on every visit, not a
+ * network round-trip.
+ */
+export function clearAllCachedSeasonReports(): void {
+  archivedReportCache.clear();
+}
+
 /** Card-level summaries for every season in the group, newest first -- deliberately does NOT compute awards/statistics/club rankings for any season (see Season Details' lazy computation below), so listing many seasons stays cheap. */
 export function useSeasonHistoryList(groupId: string | null) {
   const seasonsQuery = useSeasons(groupId);
