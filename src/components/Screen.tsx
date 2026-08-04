@@ -21,21 +21,25 @@ interface ScreenProps {
 }
 
 export function Screen({ children, style, padded = true, avoidKeyboard = false }: ScreenProps) {
-  const content = (
-    <TouchableWithoutFeedback
-      onPress={() => {
-        if (__DEV__) console.log(`[PROFILE] Screen: outer TouchableWithoutFeedback onPress fired (Keyboard.dismiss) t=${Date.now()}`);
-        Keyboard.dismiss();
-      }}
-      accessible={false}
-    >
-      <View style={styles.webCenter}>
-        <View style={[styles.container, styles.webMaxWidth, padded && styles.padded, style]}>
-          <RenderProfiler id="Screen">{children}</RenderProfiler>
-        </View>
+  const inner = (
+    <View style={styles.webCenter}>
+      <View style={[styles.container, styles.webMaxWidth, padded && styles.padded, style]}>
+        <RenderProfiler id="Screen">{children}</RenderProfiler>
       </View>
-    </TouchableWithoutFeedback>
+    </View>
   );
+
+  // Tap-outside-to-dismiss-keyboard only has a purpose on screens that
+  // actually render a TextField -- same rationale as avoidKeyboard below,
+  // and previously the same "applies unconditionally to every screen"
+  // mistake, just for TouchableWithoutFeedback instead of
+  // KeyboardAvoidingView. TouchableWithoutFeedback uses RN's legacy
+  // responder system, which wrapping every screen's entire content
+  // (including every inner Pressable) in unconditionally risked a
+  // touch-responder negotiation conflict with modern Pressable/gesture
+  // handler components for the ~35 screens that never had a keyboard to
+  // dismiss in the first place.
+  const content = avoidKeyboard ? <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>{inner}</TouchableWithoutFeedback> : inner;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
