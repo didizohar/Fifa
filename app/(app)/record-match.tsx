@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Stack, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { Button } from "../../src/components/Button";
@@ -113,6 +113,11 @@ export default function RecordMatchScreen() {
   const { recentIds: recentClubIds, recordUsage: recordClubUsage } = useRecentlyUsedClubs(currentGroup?.id ?? null);
   const { includeNationalTeams, setIncludeNationalTeams } = useNationalTeamsPreference(currentGroup?.id ?? null);
   const [clubPickerSide, setClubPickerSide] = useState<1 | 2 | null>(null);
+  // useCallback so MatchSideCard's React.memo actually skips re-rendering
+  // the OTHER side when one side's club picker opens -- see MatchSideCard
+  // below for the full explanation.
+  const openSide1ClubPicker = useCallback(() => setClubPickerSide(1), []);
+  const openSide2ClubPicker = useCallback(() => setClubPickerSide(2), []);
 
   const [matchType, setMatchType] = useState<MatchType>("singles");
   const [side1ClubId, setSide1ClubId] = useState<string | null>(null);
@@ -250,6 +255,14 @@ export default function RecordMatchScreen() {
     () => mergePickablePlayers((players ?? []).map(toPickablePlayer), matchOwnPlayers),
     [players, matchOwnPlayers],
   );
+
+  // Memoized so MatchSideCard's React.memo actually skips re-rendering the
+  // untouched side when the other side's score changes -- an inline
+  // clubVersions?.find(...) at the JSX call site would return a new
+  // reference-equal-but-not-identical result every render regardless of
+  // whether side1ClubId/side2ClubId actually changed.
+  const side1Club = useMemo(() => clubVersions?.find((cv) => cv.id === side1ClubId) ?? null, [clubVersions, side1ClubId]);
+  const side2Club = useMemo(() => clubVersions?.find((cv) => cv.id === side2ClubId) ?? null, [clubVersions, side2ClubId]);
 
   const pairLabel = (playerIds: string[]): string =>
     matchSideLabel(playerIds.map((id) => pickablePlayers.find((p) => p.id === id)?.displayName ?? "?"));
@@ -550,46 +563,42 @@ export default function RecordMatchScreen() {
 
             {hasDrawnClubs && side1ClubId && side2ClubId ? (
               <View style={styles.clubDrawResultRow}>
-                <ClubDrawResult label={t("rotation.pairALabel")} playerNames={pairLabel(side1PlayerIds)} clubVersion={clubVersions?.find((cv) => cv.id === side1ClubId) ?? null} />
-                <ClubDrawResult label={t("rotation.pairBLabel")} playerNames={pairLabel(side2PlayerIds)} clubVersion={clubVersions?.find((cv) => cv.id === side2ClubId) ?? null} />
+                <ClubDrawResult label={t("rotation.pairALabel")} playerNames={pairLabel(side1PlayerIds)} clubVersion={side1Club} />
+                <ClubDrawResult label={t("rotation.pairBLabel")} playerNames={pairLabel(side2PlayerIds)} clubVersion={side2Club} />
               </View>
             ) : null}
           </Card>
         ) : null}
 
-        <Card style={styles.sideCard}>
-          <Text style={styles.sideTitle}>Side 1</Text>
-          {clubsLoading ? <Skeleton height={40} /> : (
-            <ClubSelectButton clubVersion={clubVersions?.find((cv) => cv.id === side1ClubId) ?? null} onPress={() => setClubPickerSide(1)} />
-          )}
-          {playersLoading ? <Skeleton height={80} /> : (
-            <PlayerPicker
-              players={pickablePlayers}
-              selectedIds={side1PlayerIds}
-              onToggle={toggleSide1Player}
-              disabledIds={side2PlayerIds}
-              maxSelected={requiredCount}
-            />
-          )}
-          <ScoreStepper label="Score" value={side1Score} onChange={setSide1Score} />
-        </Card>
+        <MatchSideCard
+          title="Side 1"
+          clubVersion={side1Club}
+          clubsLoading={clubsLoading}
+          onClubPress={openSide1ClubPicker}
+          playersLoading={playersLoading}
+          pickablePlayers={pickablePlayers}
+          selectedIds={side1PlayerIds}
+          onToggle={toggleSide1Player}
+          disabledIds={side2PlayerIds}
+          maxSelected={requiredCount}
+          score={side1Score}
+          onScoreChange={setSide1Score}
+        />
 
-        <Card style={styles.sideCard}>
-          <Text style={styles.sideTitle}>Side 2</Text>
-          {clubsLoading ? <Skeleton height={40} /> : (
-            <ClubSelectButton clubVersion={clubVersions?.find((cv) => cv.id === side2ClubId) ?? null} onPress={() => setClubPickerSide(2)} />
-          )}
-          {playersLoading ? <Skeleton height={80} /> : (
-            <PlayerPicker
-              players={pickablePlayers}
-              selectedIds={side2PlayerIds}
-              onToggle={toggleSide2Player}
-              disabledIds={side1PlayerIds}
-              maxSelected={requiredCount}
-            />
-          )}
-          <ScoreStepper label="Score" value={side2Score} onChange={setSide2Score} />
-        </Card>
+        <MatchSideCard
+          title="Side 2"
+          clubVersion={side2Club}
+          clubsLoading={clubsLoading}
+          onClubPress={openSide2ClubPicker}
+          playersLoading={playersLoading}
+          pickablePlayers={pickablePlayers}
+          selectedIds={side2PlayerIds}
+          onToggle={toggleSide2Player}
+          disabledIds={side1PlayerIds}
+          maxSelected={requiredCount}
+          score={side2Score}
+          onScoreChange={setSide2Score}
+        />
 
         <Card style={styles.optionsCard}>
           <View style={styles.switchRow}>
@@ -701,7 +710,7 @@ export default function RecordMatchScreen() {
 }
 
 /** Opens the production ClubPickerSheet -- shows the currently selected club (or a placeholder prompt) as a single tappable row. This is the only club-selection entry point in match setup; there is no other, older selector left in this screen. */
-function ClubSelectButton({ clubVersion, onPress }: { clubVersion: ClubVersion | null; onPress: () => void }) {
+const ClubSelectButton = memo(function ClubSelectButton({ clubVersion, onPress }: { clubVersion: ClubVersion | null; onPress: () => void }) {
   const { t } = useTranslation();
   return (
     <Pressable onPress={onPress} style={styles.clubSelectButton} accessibilityRole="button" accessibilityLabel={clubVersion?.club.name ?? t("clubPicker.title")}>
@@ -712,7 +721,62 @@ function ClubSelectButton({ clubVersion, onPress }: { clubVersion: ClubVersion |
       )}
     </Pressable>
   );
+});
+
+interface MatchSideCardProps {
+  title: string;
+  clubVersion: ClubVersion | null;
+  clubsLoading: boolean;
+  onClubPress: () => void;
+  playersLoading: boolean;
+  pickablePlayers: PickablePlayer[];
+  selectedIds: string[];
+  onToggle: (id: string) => void;
+  disabledIds: string[];
+  maxSelected: number;
+  score: number;
+  onScoreChange: (value: number) => void;
 }
+
+/**
+ * Memoized so changing one side's score (or opening its club picker) no
+ * longer re-renders the OTHER side's entire card -- ClubSelectButton did an
+ * unmemoized clubVersions.find() on every render of the whole screen, and
+ * neither it nor this card's Card/ScoreStepper were memoized at all, so a
+ * single ScoreStepper tap on Side 1 previously re-rendered Side 2's club
+ * lookup, club button, and score display too, even though nothing about
+ * Side 2 had changed. Every prop here is already stable/primitive at the
+ * call site (see side1Club/side2Club, openSide1ClubPicker/
+ * openSide2ClubPicker, toggleSide1Player/toggleSide2Player in the parent),
+ * so this memo actually takes effect.
+ */
+const MatchSideCard = memo(function MatchSideCard({
+  title,
+  clubVersion,
+  clubsLoading,
+  onClubPress,
+  playersLoading,
+  pickablePlayers,
+  selectedIds,
+  onToggle,
+  disabledIds,
+  maxSelected,
+  score,
+  onScoreChange,
+}: MatchSideCardProps) {
+  return (
+    <Card style={styles.sideCard}>
+      <Text style={styles.sideTitle}>{title}</Text>
+      {clubsLoading ? <Skeleton height={40} /> : <ClubSelectButton clubVersion={clubVersion} onPress={onClubPress} />}
+      {playersLoading ? (
+        <Skeleton height={80} />
+      ) : (
+        <PlayerPicker players={pickablePlayers} selectedIds={selectedIds} onToggle={onToggle} disabledIds={disabledIds} maxSelected={maxSelected} />
+      )}
+      <ScoreStepper label="Score" value={score} onChange={onScoreChange} />
+    </Card>
+  );
+});
 
 function ClubDrawResult({ label, playerNames, clubVersion }: { label: string; playerNames: string; clubVersion: ClubVersion | null }) {
   return (
