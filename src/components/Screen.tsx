@@ -1,7 +1,6 @@
 import { ReactNode } from "react";
 import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, TouchableWithoutFeedback, View, ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { RenderProfiler } from "../lib/renderProfiler";
 import { colors, spacing } from "../theme";
 
 interface ScreenProps {
@@ -23,9 +22,7 @@ interface ScreenProps {
 export function Screen({ children, style, padded = true, avoidKeyboard = false }: ScreenProps) {
   const inner = (
     <View style={styles.webCenter}>
-      <View style={[styles.container, styles.webMaxWidth, padded && styles.padded, style]}>
-        <RenderProfiler id="Screen">{children}</RenderProfiler>
-      </View>
+      <View style={[styles.container, styles.webMaxWidth, padded && styles.padded, style]}>{children}</View>
     </View>
   );
 
