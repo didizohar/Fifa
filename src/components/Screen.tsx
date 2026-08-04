@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, TouchableWithoutFeedback, View, ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { RenderProfiler } from "../lib/renderProfiler";
 import { colors, spacing } from "../theme";
 
 interface ScreenProps {
@@ -21,9 +22,17 @@ interface ScreenProps {
 
 export function Screen({ children, style, padded = true, avoidKeyboard = false }: ScreenProps) {
   const content = (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+    <TouchableWithoutFeedback
+      onPress={() => {
+        if (__DEV__) console.log(`[PROFILE] Screen: outer TouchableWithoutFeedback onPress fired (Keyboard.dismiss) t=${Date.now()}`);
+        Keyboard.dismiss();
+      }}
+      accessible={false}
+    >
       <View style={styles.webCenter}>
-        <View style={[styles.container, styles.webMaxWidth, padded && styles.padded, style]}>{children}</View>
+        <View style={[styles.container, styles.webMaxWidth, padded && styles.padded, style]}>
+          <RenderProfiler id="Screen">{children}</RenderProfiler>
+        </View>
       </View>
     </TouchableWithoutFeedback>
   );
