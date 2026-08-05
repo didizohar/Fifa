@@ -58,10 +58,16 @@ export default function DeleteGroupScreen() {
     try {
       await deleteGroupMutation.mutateAsync({ groupId: currentGroup.id, confirmName: confirmText });
       showToast(t("deleteGroup.successMessage"));
-      // No manual navigation -- GroupProvider's existing stale-currentGroupId
-      // fallback and RootNavigator's existing "no groups -> onboarding"
-      // guard handle this automatically once the groups list refetches,
-      // the same way signOut() already works elsewhere in this app.
+      // Explicit navigation, not just a reaction to the groups-list cache
+      // refetching -- unlike signOut() (driven directly by Supabase's own
+      // auth-state-change event, which doesn't depend on any network call
+      // of ours succeeding), this mutation's cache/local cleanup is only
+      // ever best-effort (see useDeleteGroup) and can legitimately fail
+      // without the deletion itself having failed. Leaving this screen
+      // must not depend on that cleanup having fully succeeded. Landing on
+      // "/" re-evaluates RootNavigator's guards fresh: onboarding if this
+      // was the user's last group, otherwise their next remaining one.
+      router.replace("/");
     } catch (e) {
       setError(e instanceof Error && e.message ? e.message : t("deleteGroup.genericError"));
     }
