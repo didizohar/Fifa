@@ -336,10 +336,14 @@ describe("Winners Stay rotation translation coverage", () => {
     "rotation.starLevelLabel",
     "rotation.notEnoughClubsAtLevel",
     "rotation.chooseAnotherLevel",
+    "rotation.notEnoughClubsOverall",
+    "rotation.noClubsAvailable",
     "rotation.backToHome",
     "rotation.duplicateClubWarning",
     "rotation.side1Label",
     "rotation.side2Label",
+    "rotation.side1PensLabel",
+    "rotation.side2PensLabel",
   ];
 
   const readPath = (dict: unknown, path: string) => path.split(".").reduce<unknown>((acc, part) => (acc as Record<string, unknown>)?.[part], dict);

@@ -521,11 +521,22 @@ export default function RecordMatchScreen() {
           </View>
 
           {starMode === "sameStar" ? (
-            <View style={styles.chipRow}>
-              {availableStarLevels.map((stars) => (
-                <Chip key={stars} label={t("draw.exactStarsLabel", { stars: String(stars) })} active={selectedStarLevel === stars} onPress={() => setSelectedStarLevel(stars)} />
-              ))}
-            </View>
+            clubsLoading ? (
+              <Skeleton height={36} />
+            ) : availableStarLevels.length === 0 ? (
+              <InfoBanner tone="warning" message={t("rotation.noClubsAvailable")} />
+            ) : (
+              <View style={styles.chipRow}>
+                {availableStarLevels.map((stars) => (
+                  <Chip
+                    key={stars}
+                    label={t("draw.exactStarsLabel", { stars: String(stars) })}
+                    active={selectedStarLevel === stars}
+                    onPress={() => setSelectedStarLevel(stars)}
+                  />
+                ))}
+              </View>
+            )
           ) : null}
 
           <View style={styles.switchRow}>
@@ -556,7 +567,16 @@ export default function RecordMatchScreen() {
             />
           </View>
 
-          {clubDrawFailed ? <InfoBanner tone="warning" message={`${t("rotation.notEnoughClubsAtLevel")} ${t("rotation.chooseAnotherLevel")}`} /> : null}
+          {clubDrawFailed ? (
+            <InfoBanner
+              tone="warning"
+              message={
+                starMode === "sameStar"
+                  ? `${t("rotation.notEnoughClubsAtLevel")} ${t("rotation.chooseAnotherLevel")}`
+                  : t("rotation.notEnoughClubsOverall")
+              }
+            />
+          ) : null}
 
           <Button label={hasDrawnClubs ? t("rotation.drawClubsAgain") : t("rotation.drawClubsByStars")} variant="secondary" onPress={handleDrawClubs} />
 
@@ -623,8 +643,8 @@ export default function RecordMatchScreen() {
           {!scoresLevel ? <Text style={styles.hint}>Only available when both sides have the same score.</Text> : null}
           {isPenalties && scoresLevel ? (
             <View style={styles.penaltyRow}>
-              <ScoreStepper label="Side 1 pens" value={penaltyScore1} onChange={setPenaltyScore1} max={20} />
-              <ScoreStepper label="Side 2 pens" value={penaltyScore2} onChange={setPenaltyScore2} max={20} />
+              <ScoreStepper label={t("rotation.side1PensLabel")} value={penaltyScore1} onChange={setPenaltyScore1} max={20} />
+              <ScoreStepper label={t("rotation.side2PensLabel")} value={penaltyScore2} onChange={setPenaltyScore2} max={20} />
             </View>
           ) : null}
         </Card>
