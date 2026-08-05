@@ -5,6 +5,7 @@ import { LayoutAnimation, Pressable, ScrollView, StyleSheet, Text, View } from "
 import { Avatar } from "../../../src/components/Avatar";
 import { Card } from "../../../src/components/Card";
 import { Chevron } from "../../../src/components/Chevron";
+import { Chip } from "../../../src/components/Chip";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
 import { ExportButton } from "../../../src/components/ExportButton";
@@ -270,18 +271,15 @@ export default function LeaderboardsScreen() {
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
         {categories.map((c) => (
-          <Pressable
+          <Chip
             key={c.id}
+            label={c.label}
+            active={category === c.id}
             onPress={() => {
               animateReorder();
               setCategory(c.id);
             }}
-            style={[styles.chip, category === c.id && styles.chipActive]}
-            accessibilityRole="button"
-            accessibilityState={{ selected: category === c.id }}
-          >
-            <Text style={[styles.chipLabel, category === c.id && styles.chipLabelActive]}>{c.label}</Text>
-          </Pressable>
+          />
         ))}
       </ScrollView>
 
@@ -475,25 +473,6 @@ const styles = StyleSheet.create({
   chipRow: {
     gap: spacing.sm,
     paddingBottom: spacing.sm,
-  },
-  chip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  chipActive: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accentSubtle,
-  },
-  chipLabel: {
-    ...typography.caption,
-  },
-  chipLabelActive: {
-    color: colors.accent,
-    fontWeight: "700",
   },
   subToggleRow: {
     paddingBottom: spacing.sm,

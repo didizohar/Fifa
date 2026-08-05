@@ -6,6 +6,13 @@ const themedHeaderOptions = {
   headerStyle: { backgroundColor: colors.background },
   headerTintColor: colors.textPrimary,
   headerShadowVisible: false,
+  // Without this, iOS falls back to the PREVIOUS screen's title for the back
+  // button label -- and since the (tabs) Stack.Screen below has no title of
+  // its own, that fallback is the literal route-group folder name "(tabs)",
+  // which was showing up verbatim in the header of every screen pushed
+  // directly from a tab (Insights, Trends, League Table, ...). Blank shows
+  // just the chevron, matching the rest of the app's back buttons.
+  headerBackTitle: "",
 };
 
 export default function AppLayout() {
