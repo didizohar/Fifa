@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { AppChipGroup, type ChipOption } from "../../src/components/AppChipGroup";
+import { AppStatCard, type StatCardTone } from "../../src/components/AppStatCard";
+import { Card } from "../../src/components/Card";
 import { EmptyState } from "../../src/components/EmptyState";
 import { PlayerPicker } from "../../src/components/PlayerPicker";
 import { Screen } from "../../src/components/Screen";
@@ -10,10 +12,11 @@ import { useGroup } from "../../src/hooks/useGroup";
 import { useGroupMatchHistory } from "../../src/hooks/useMatches";
 import { usePlayers } from "../../src/hooks/usePlayers";
 import { useTranslation } from "../../src/lib/i18n";
+import { describeMetricChange, metricChangeTone } from "../../src/lib/metricPresentation";
 import { ANALYTICS_RANGE_OPTIONS } from "../../src/lib/playerAnalyticsView";
 import { toPickablePlayer } from "../../src/lib/players";
 import type { AnalyticsRange } from "../../src/lib/analytics/types";
-import { calculateTrendSeriesForPlayers, type TrendMetricKey } from "../../src/lib/trends/trendSeries";
+import { calculateTrendSeriesForPlayers, type TrendMetricKey, type TrendSeries } from "../../src/lib/trends/trendSeries";
 import type { MatchSummary } from "../../src/lib/matches";
 import type { PlayerProfile } from "../../src/lib/types/database";
 import { colors, radius, spacing, typography } from "../../src/theme";
@@ -37,6 +40,49 @@ function formatMetricValue(metric: TrendMetricKey, value: number): string {
   if (metric === "winRate") return `${Math.round(value * 100)}%`;
   if (metric === "goalsPerMatch") return value.toFixed(1);
   return String(Math.round(value));
+}
+
+/** Same per-metric formatting as formatMetricValue, but for a signed delta (a summary card's trend line, e.g. "+12%" / "-1.3" / "+4"). */
+function formatMetricDelta(metric: TrendMetricKey, delta: number): string {
+  const sign = delta > 0 ? "+" : "";
+  if (metric === "winRate") return `${sign}${Math.round(delta * 100)}%`;
+  if (metric === "goalsPerMatch") return `${sign}${delta.toFixed(1)}`;
+  return `${sign}${Math.round(delta)}`;
+}
+
+interface PlayerSummary {
+  playerId: string;
+  playerName: string;
+  valueLabel: string;
+  trendLabel: string;
+  trendDirection: "up" | "down" | "flat";
+  tone: StatCardTone;
+}
+
+/**
+ * Derives a "current value + trend since the start of this range" summary
+ * per player, purely from the series this screen already computed --
+ * first vs. last point of the SAME data calculateTrendSeriesForPlayers
+ * returned, run through metricPresentation.ts's existing direction/tone
+ * helpers (also already used by TrendCard elsewhere). No new trend logic:
+ * this is presentation over data that's already there.
+ */
+function summarizePlayerSeries(series: TrendSeries[], metric: TrendMetricKey): PlayerSummary[] {
+  return series
+    .filter((s) => s.points.length > 0)
+    .map((s) => {
+      const current = s.points[s.points.length - 1]!.value;
+      const first = s.points[0]!.value;
+      const change = describeMetricChange(current, s.points.length > 1 ? first : null);
+      return {
+        playerId: s.playerId,
+        playerName: s.playerName,
+        valueLabel: formatMetricValue(metric, current),
+        trendLabel: change.absoluteChange === null ? "" : formatMetricDelta(metric, change.absoluteChange),
+        trendDirection: change.direction,
+        tone: metricChangeTone(change),
+      };
+    });
 }
 
 export default function TrendsScreen() {
@@ -73,6 +119,8 @@ export default function TrendsScreen() {
     [metric, effectivePlayers, allMatches, range],
   );
 
+  const summaries = useMemo(() => summarizePlayerSeries(series, metric), [series, metric]);
+
   // Deliberately not players.isLoading/matchHistory.isLoading:
   // TanStack Query v5 defines isLoading as `isPending && isFetching`, so a
   // *disabled* query (usePlayers/useGroupMatchHistory both gate on
@@ -106,45 +154,71 @@ export default function TrendsScreen() {
         <Text style={styles.subtitle}>{t("trendsScreen.subtitle")}</Text>
       </View>
 
-      <AppChipGroup
-        mode="single"
-        options={metricOptions}
-        value={metric}
-        onChange={setMetric}
-        accessibilityLabel={t("trendsScreen.metricFilterLabel")}
-        style={styles.chipRow}
-      />
-
-      <AppChipGroup
-        mode="single"
-        options={rangeOptions}
-        value={range}
-        onChange={setRange}
-        accessibilityLabel={t("trendsScreen.rangeFilterLabel")}
-        style={styles.chipRow}
-      />
+      <View style={styles.filtersGroup}>
+        <AppChipGroup
+          mode="single"
+          options={metricOptions}
+          value={metric}
+          onChange={setMetric}
+          accessibilityLabel={t("trendsScreen.metricFilterLabel")}
+          style={styles.chipRow}
+        />
+        <AppChipGroup
+          mode="single"
+          options={rangeOptions}
+          value={range}
+          onChange={setRange}
+          accessibilityLabel={t("trendsScreen.rangeFilterLabel")}
+          style={styles.chipRow}
+        />
+      </View>
 
       {isLoading ? (
         <SkeletonList count={3} />
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <Text style={styles.selectLabel}>{t("trendsScreen.selectPlayers")}</Text>
-          <PlayerPicker players={pickablePlayers} selectedIds={selectedPlayerIds} onToggle={togglePlayer} maxSelected={pickablePlayers.length} />
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{t("trendsScreen.selectPlayers")}</Text>
+            <PlayerPicker players={pickablePlayers} selectedIds={selectedPlayerIds} onToggle={togglePlayer} maxSelected={pickablePlayers.length} />
+          </View>
 
           {series.length === 0 ? (
             <EmptyState icon="📈" title={t("trendsScreen.emptyTitle")} message={t("trendsScreen.emptyMessage")} />
           ) : (
-            series.map((s) => (
-              <View key={s.playerId} style={styles.seriesCard}>
-                <Text style={styles.seriesName}>{s.playerName}</Text>
-                <TimelineChart
-                  points={s.points}
-                  formatValue={formatValue}
-                  emptyMessage={t("trendsScreen.noDataAvailable")}
-                  noDataLabel="–"
-                />
+            <>
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>{t("trendsScreen.summaryTitle")}</Text>
+                <View style={styles.summaryRow}>
+                  {summaries.map((s) => (
+                    <AppStatCard
+                      key={s.playerId}
+                      label={s.playerName}
+                      value={s.valueLabel}
+                      trend={s.trendLabel ? { direction: s.trendDirection, label: s.trendLabel } : undefined}
+                      tone={s.tone}
+                      style={styles.summaryCard}
+                    />
+                  ))}
+                </View>
               </View>
-            ))
+
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>{t("trendsScreen.chartsTitle")}</Text>
+                <View style={styles.chartsGroup}>
+                  {series.map((s) => (
+                    <Card key={s.playerId} style={styles.seriesCard}>
+                      <Text style={styles.seriesName}>{s.playerName}</Text>
+                      <TimelineChart
+                        points={s.points}
+                        formatValue={formatValue}
+                        emptyMessage={t("trendsScreen.noDataAvailable")}
+                        noDataLabel="–"
+                      />
+                    </Card>
+                  ))}
+                </View>
+              </View>
+            </>
           )}
         </ScrollView>
       )}
@@ -165,25 +239,38 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textSecondary,
   },
+  filtersGroup: {
+    gap: spacing.xs,
+  },
   chipRow: {
     gap: spacing.sm,
     paddingBottom: spacing.sm,
   },
   content: {
-    gap: spacing.md,
+    gap: spacing.xl,
+    paddingTop: spacing.md,
     paddingBottom: spacing.xxl,
   },
-  selectLabel: {
-    ...typography.caption,
-    fontWeight: "700",
+  section: {
+    gap: spacing.sm,
+  },
+  sectionTitle: {
+    ...typography.eyebrow,
+  },
+  summaryRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  summaryCard: {
+    flexGrow: 1,
+    flexBasis: 120,
+  },
+  chartsGroup: {
+    gap: spacing.md,
   },
   seriesCard: {
     gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    backgroundColor: colors.surface,
   },
   seriesName: {
     ...typography.bodyStrong,

@@ -1006,6 +1006,8 @@ const he = {
     metricMatchesPlayed: "משחקים ששוחקו",
     metricLeaguePoints: "נקודות ליגה",
     selectPlayers: "בחירת שחקנים",
+    summaryTitle: "סיכום",
+    chartsTitle: "גרפים",
     emptyTitle: "אין עדיין מספיק נתונים",
     emptyMessage: "שחקו עוד כמה משחקים כדי לראות את המגמה הזו.",
     noDataAvailable: "אין עדיין נתונים זמינים.",

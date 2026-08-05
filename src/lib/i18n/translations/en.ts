@@ -1009,6 +1009,8 @@ const en = {
     metricMatchesPlayed: "Matches Played",
     metricLeaguePoints: "League Points",
     selectPlayers: "Select players",
+    summaryTitle: "Summary",
+    chartsTitle: "Charts",
     emptyTitle: "Not enough data yet",
     emptyMessage: "Play a few more matches to see this trend.",
     noDataAvailable: "No data available yet.",
