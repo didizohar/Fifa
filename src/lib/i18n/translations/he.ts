@@ -60,6 +60,7 @@ const he = {
     quickActionTrends: "מגמות",
     quickActionInsights: "תובנות",
     quickActionDraw: "הגרלה",
+    quickActionDrawClubs: "הגרלת מועדונים",
     leagueSummary: "סיכום הליגה",
     statMatchesPlayed: "משחקים ששוחקו",
     statGoals: "שערים",

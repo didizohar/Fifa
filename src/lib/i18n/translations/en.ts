@@ -63,6 +63,7 @@ const en = {
     quickActionTrends: "Trends",
     quickActionInsights: "Insights",
     quickActionDraw: "Draw",
+    quickActionDrawClubs: "Draw Clubs",
     leagueSummary: "League Summary",
     statMatchesPlayed: "Matches Played",
     statGoals: "Goals",

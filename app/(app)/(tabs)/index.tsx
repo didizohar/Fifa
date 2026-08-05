@@ -245,6 +245,7 @@ export default function HomeScreen() {
             <ActionButton icon="analytics" label={t("home.quickActionTrends")} onPress={() => router.push("/trends")} />
             <ActionButton icon="calendar" label={t("home.quickActionMonthlySummary")} onPress={() => router.push("/monthly-summary")} />
             <ActionButton icon="bulb" label={t("home.quickActionInsights")} onPress={() => router.push("/insights")} />
+            <ActionButton icon="shirt" label={t("home.quickActionDrawClubs")} onPress={() => router.push("/draw/clubs")} />
           </View>
         </View>
 
