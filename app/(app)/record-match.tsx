@@ -739,7 +739,22 @@ export default function RecordMatchScreen() {
 
         <Button label={isEditMode ? t("editMatch.saveChanges") : t("editMatch.saveMatchAction")} onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
 
-        {isFromWinnersStay ? <Button label={t("rotation.backToHome")} variant="secondary" onPress={() => router.replace("/")} /> : null}
+        {isFromWinnersStay ? (
+          <Button
+            label={t("rotation.backToHome")}
+            variant="secondary"
+            // dismissAll (not replace) -- this screen was pushed on top of
+            // an active Winners Stay session, which itself may have
+            // several earlier Record Match instances stacked underneath it
+            // (one per round played). replace() only swaps this one screen
+            // for Home, leaving the whole hidden chain mounted -- each
+            // still holding live query subscriptions that keep re-rendering
+            // in the background on every player/match invalidation,
+            // degrading responsiveness more with every session cycled
+            // through. dismissAll() actually unmounts the whole chain.
+            onPress={() => router.dismissAll()}
+          />
+        ) : null}
           </>
         )}
       </ScrollView>

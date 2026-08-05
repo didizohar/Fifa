@@ -198,9 +198,18 @@ export default function WinnersStayScreen() {
       setSessionHistory(archiveCompletedSession(sessionHistory, session, new Date().toISOString()));
     }
     setSession(null);
-    // replace (not push/back) removes this screen from the stack entirely,
-    // so hardware/gesture back can't return to the now-cleared session.
-    router.replace("/");
+    // dismissAll (not replace) -- a session can rack up several pushed
+    // screens underneath this one (each accept/redraw/record pushes a new
+    // Record Match on top: see handleStartSession/handleAccept below), and
+    // replace() only swaps the CURRENT top-of-stack screen, leaving every
+    // earlier one mounted-but-hidden. Those hidden instances keep their own
+    // live query subscriptions and re-render on every player/match
+    // invalidation happening anywhere in the app for as long as they stay
+    // mounted -- invisible work that was making Record Match feel slower
+    // and slower each time you cycled through a session, since it never
+    // got cleaned up. dismissAll() pops all the way back to Home, actually
+    // unmounting the whole chain instead of leaving it buried in the stack.
+    router.dismissAll();
   };
 
   // Same archive-then-clear data steps as handleBackToHome, but stays on

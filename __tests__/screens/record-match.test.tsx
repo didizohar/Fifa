@@ -17,7 +17,7 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
 }));
 
 // --- expo-router ---------------------------------------------------------
-const mockRouter = { replace: jest.fn(), push: jest.fn(), back: jest.fn() };
+const mockRouter = { replace: jest.fn(), push: jest.fn(), back: jest.fn(), dismissAll: jest.fn() };
 let capturedBeforeRemove: ((e: { preventDefault: () => void; data: { action: unknown } }) => void) | null = null;
 const mockDispatch = jest.fn();
 const mockAddListener = jest.fn((event: string, cb: typeof capturedBeforeRemove extends infer T ? NonNullable<T> : never) => {
