@@ -1,8 +1,8 @@
 import { StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "../lib/i18n";
 import type { SideResult } from "../lib/types/database";
 import { colors, radius, spacing, typography } from "../theme";
 
-const LABEL: Record<SideResult, string> = { win: "W", loss: "L", draw: "D" };
 const COLOR: Record<SideResult, string> = { win: colors.win, loss: colors.loss, draw: colors.draw };
 
 interface FormStripProps {
@@ -11,15 +11,22 @@ interface FormStripProps {
 }
 
 export function FormStrip({ results }: FormStripProps) {
+  const { t } = useTranslation();
+  const label: Record<SideResult, string> = {
+    win: t("common.resultWinAbbr"),
+    loss: t("common.resultLossAbbr"),
+    draw: t("common.resultDrawAbbr"),
+  };
+
   if (results.length === 0) {
-    return <Text style={styles.empty}>No matches yet</Text>;
+    return <Text style={styles.empty}>{t("common.noMatchesYet")}</Text>;
   }
 
   return (
     <View style={styles.row}>
       {results.map((result, index) => (
         <View key={index} style={[styles.chip, { backgroundColor: `${COLOR[result]}26`, borderColor: COLOR[result] }]}>
-          <Text style={[styles.label, { color: COLOR[result] }]}>{LABEL[result]}</Text>
+          <Text style={[styles.label, { color: COLOR[result] }]}>{label[result]}</Text>
         </View>
       ))}
     </View>

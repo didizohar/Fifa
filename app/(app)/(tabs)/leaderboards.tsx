@@ -251,7 +251,7 @@ export default function LeaderboardsScreen() {
           >
             <Ionicons name="list" size={18} color={colors.accent} />
           </Pressable>
-          <ExportButton filename={`fc-rival-leaderboard-${category}.csv`} getCsv={getLeaderboardCsv} />
+          <ExportButton label={t("leaderboards.export")} filename={`fc-rival-leaderboard-${category}.csv`} getCsv={getLeaderboardCsv} />
           <Pressable
             onPress={() => {
               animateReorder();

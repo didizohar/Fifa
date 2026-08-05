@@ -17,7 +17,6 @@ import { canEditMatch } from "../../../src/lib/validation/editMatchForm";
 import { colors, radius, spacing, typography } from "../../../src/theme";
 
 const resultColor = { win: colors.win, loss: colors.loss, draw: colors.draw };
-const resultLabel = { win: "Win", loss: "Loss", draw: "Draw" };
 const resultTone: Record<MatchSideSummary["result"], BadgeTone> = { win: "win", loss: "loss", draw: "draw" };
 
 export default function MatchDetailScreen() {
@@ -27,6 +26,7 @@ export default function MatchDetailScreen() {
   const { user } = useAuth();
   const { currentRole } = useGroup();
   const { data: match, isLoading, isError, refetch } = useMatch(id);
+  const resultLabel = { win: t("common.resultWin"), loss: t("common.resultLoss"), draw: t("common.resultDraw") };
 
   if (isLoading) {
     return (
@@ -43,7 +43,7 @@ export default function MatchDetailScreen() {
   if (isError || !match) {
     return (
       <Screen>
-        <ErrorState message="Couldn't load this match. Check your connection and try again." onRetry={refetch} />
+        <ErrorState message={t("editMatch.matchDetailLoadError")} onRetry={refetch} />
       </Screen>
     );
   }
@@ -59,9 +59,9 @@ export default function MatchDetailScreen() {
     <Screen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.badges}>
-          <Badge label={match.match_type === "singles" ? "1 v 1" : "2 v 2"} tone="accent" />
-          {match.is_overtime ? <Badge label="OT" tone="neutral" /> : null}
-          {match.is_penalties ? <Badge label="PENS" tone="warning" /> : null}
+          <Badge label={match.match_type === "singles" ? t("common.matchTypeSinglesSpaced") : t("common.matchTypeDoublesSpaced")} tone="accent" />
+          {match.is_overtime ? <Badge label={t("common.overtimeAbbr")} tone="neutral" /> : null}
+          {match.is_penalties ? <Badge label={t("common.penaltiesAbbr")} tone="warning" /> : null}
           {wasEdited ? <Badge label={t("editMatch.editedBadge")} tone="neutral" /> : null}
           <Text style={styles.date}>{formatDateTime(match.played_at)}</Text>
         </View>
@@ -74,13 +74,13 @@ export default function MatchDetailScreen() {
           </View>
           {match.is_penalties && side1.penalty_score !== null && side2.penalty_score !== null ? (
             <Text style={styles.penaltyNote}>
-              Decided on penalties, {side1.penalty_score}-{side2.penalty_score}
+              {t("editMatch.decidedOnPenalties", { score: `${side1.penalty_score}-${side2.penalty_score}` })}
             </Text>
           ) : null}
         </Card>
 
-        <SideCard side={side1} onPlayerPress={(playerId) => router.push(`/player/${playerId}`)} />
-        <SideCard side={side2} onPlayerPress={(playerId) => router.push(`/player/${playerId}`)} />
+        <SideCard side={side1} onPlayerPress={(playerId) => router.push(`/player/${playerId}`)} resultLabel={resultLabel} />
+        <SideCard side={side2} onPlayerPress={(playerId) => router.push(`/player/${playerId}`)} resultLabel={resultLabel} />
 
         {canEdit ? (
           <Button
@@ -96,7 +96,7 @@ export default function MatchDetailScreen() {
 
         {match.notes ? (
           <Card>
-            <Text style={styles.notesLabel}>Notes</Text>
+            <Text style={styles.notesLabel}>{t("editMatch.notesLabel")}</Text>
             <Text style={styles.notesText}>{match.notes}</Text>
           </Card>
         ) : null}
@@ -106,21 +106,31 @@ export default function MatchDetailScreen() {
 }
 
 function ScoreboardSide({ side }: { side: MatchSideSummary }) {
+  const { t } = useTranslation();
   return (
     <View style={styles.scoreboardSide}>
       <Text style={styles.scoreboardClub} numberOfLines={1}>
-        {side.club?.name ?? "Unknown club"}
+        {side.club?.name ?? t("common.unknownClub")}
       </Text>
       <Text style={[styles.scoreboardScore, { color: resultColor[side.result] }]}>{side.score}</Text>
     </View>
   );
 }
 
-function SideCard({ side, onPlayerPress }: { side: MatchSideSummary; onPlayerPress: (id: string) => void }) {
+function SideCard({
+  side,
+  onPlayerPress,
+  resultLabel,
+}: {
+  side: MatchSideSummary;
+  onPlayerPress: (id: string) => void;
+  resultLabel: Record<MatchSideSummary["result"], string>;
+}) {
+  const { t } = useTranslation();
   return (
     <Card style={styles.sideCard}>
       <View style={styles.sideHeader}>
-        <Text style={styles.clubName}>{side.club?.name ?? "Unknown club"}</Text>
+        <Text style={styles.clubName}>{side.club?.name ?? t("common.unknownClub")}</Text>
         <Badge label={resultLabel[side.result]} tone={resultTone[side.result]} />
       </View>
       <View style={styles.playersRow}>

@@ -486,9 +486,9 @@ export default function RecordMatchScreen() {
         ) : tooFewPlayers ? (
           <EmptyState
             icon="🧑‍🤝‍🧑"
-            title="Not enough players yet"
-            message="A match needs at least two players in the group. Add one, then come back here."
-            actionLabel="Add player"
+            title={t("editMatch.tooFewPlayersTitle")}
+            message={t("editMatch.tooFewPlayersMessage")}
+            actionLabel={t("common.addPlayer")}
             onAction={() => router.push("/player/new")}
           />
         ) : (
@@ -508,8 +508,8 @@ export default function RecordMatchScreen() {
 
         <SegmentedControl
           options={[
-            { value: "singles" as const, label: "1 v 1" },
-            { value: "doubles" as const, label: "2 v 2" },
+            { value: "singles" as const, label: t("common.matchTypeSinglesSpaced") },
+            { value: "doubles" as const, label: t("common.matchTypeDoublesSpaced") },
           ]}
           value={matchType}
           onChange={changeMatchType}
@@ -698,7 +698,7 @@ export default function RecordMatchScreen() {
           </View>
         ) : null}
 
-        <Button label={isEditMode ? t("editMatch.saveChanges") : "Save match"} onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
+        <Button label={isEditMode ? t("editMatch.saveChanges") : t("editMatch.saveMatchAction")} onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
 
         {isFromWinnersStay ? <Button label={t("rotation.backToHome")} variant="secondary" onPress={() => router.replace("/")} /> : null}
           </>
@@ -784,6 +784,7 @@ const MatchSideCard = memo(function MatchSideCard({
   score,
   onScoreChange,
 }: MatchSideCardProps) {
+  const { t } = useTranslation();
   return (
     <Card style={styles.sideCard}>
       <Text style={styles.sideTitle}>{title}</Text>
@@ -793,7 +794,7 @@ const MatchSideCard = memo(function MatchSideCard({
       ) : (
         <PlayerPicker players={pickablePlayers} selectedIds={selectedIds} onToggle={onToggle} disabledIds={disabledIds} maxSelected={maxSelected} />
       )}
-      <ScoreStepper label="Score" value={score} onChange={onScoreChange} />
+      <ScoreStepper label={t("common.scoreLabel")} value={score} onChange={onScoreChange} />
     </Card>
   );
 });

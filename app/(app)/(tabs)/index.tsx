@@ -251,7 +251,7 @@ export default function HomeScreen() {
         {isLoading ? (
           <SkeletonList count={4} />
         ) : isError ? (
-          <ErrorState message="Couldn't load your dashboard. Check your connection and try again." onRetry={handleRefresh} />
+          <ErrorState message={t("home.loadError")} onRetry={handleRefresh} />
         ) : (
           <>
             <View style={styles.section}>
@@ -300,13 +300,13 @@ export default function HomeScreen() {
                   playedAtLabel={formatRelativeDate(latestMatch.played_at)}
                   side1={{
                     label: matchSideLabel(latestMatch.sides[0].players.map((p) => p.display_name)),
-                    clubName: latestMatch.sides[0].club?.name ?? "Unknown club",
+                    clubName: latestMatch.sides[0].club?.name ?? t("common.unknownClub"),
                     score: latestMatch.sides[0].score,
                     result: latestMatch.sides[0].result,
                   }}
                   side2={{
                     label: matchSideLabel(latestMatch.sides[1].players.map((p) => p.display_name)),
-                    clubName: latestMatch.sides[1].club?.name ?? "Unknown club",
+                    clubName: latestMatch.sides[1].club?.name ?? t("common.unknownClub"),
                     score: latestMatch.sides[1].score,
                     result: latestMatch.sides[1].result,
                   }}

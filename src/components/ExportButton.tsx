@@ -3,17 +3,20 @@ import { useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text } from "react-native";
 import { notify } from "../lib/confirm";
 import { exportCsv } from "../lib/exportFile";
+import { useTranslation } from "../lib/i18n";
 import { colors, radius, spacing, typography } from "../theme";
 
 interface ExportButtonProps {
-  label?: string;
+  /** Required (no hardcoded English fallback) so every call site is forced to pass a translated label. */
+  label: string;
   filename: string;
   /** Builds the CSV content lazily, only when the user actually taps export. */
   getCsv: () => string;
 }
 
 /** Small icon+label button that exports the given CSV via the native share sheet or a web download. */
-export function ExportButton({ label = "Export CSV", filename, getCsv }: ExportButtonProps) {
+export function ExportButton({ label, filename, getCsv }: ExportButtonProps) {
+  const { t } = useTranslation();
   const [isExporting, setIsExporting] = useState(false);
 
   const handlePress = async () => {
@@ -22,7 +25,7 @@ export function ExportButton({ label = "Export CSV", filename, getCsv }: ExportB
     try {
       await exportCsv(filename, getCsv());
     } catch (e) {
-      notify("Couldn't export CSV", e instanceof Error ? e.message : "Please try again.");
+      notify(t("common.exportCsvErrorTitle"), e instanceof Error ? e.message : t("playerProfile.genericRetryMessage"));
     } finally {
       setIsExporting(false);
     }

@@ -21,29 +21,31 @@ interface MatchRowProps {
 }
 
 const RESULT_COLOR = { win: colors.win, loss: colors.loss, draw: colors.draw };
-const RESULT_LABEL = { win: "W", loss: "L", draw: "D" };
 const RESULT_TONE: Record<MatchRowSide["result"], BadgeTone> = { win: "win", loss: "loss", draw: "draw" };
 
 export function MatchRow({ matchType, isPenalties, side1, side2, playedAtLabel, onPress }: MatchRowProps) {
+  const { t } = useTranslation();
+  const resultLabel = { win: t("common.resultWinAbbr"), loss: t("common.resultLossAbbr"), draw: t("common.resultDrawAbbr") };
+
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
       accessibilityRole={onPress ? "button" : undefined}
-      accessibilityLabel={`${side1.label}, ${side1.score}, ${side1.result} against ${side2.label}, ${side2.score}, ${playedAtLabel}`}
+      accessibilityLabel={`${side1.label}, ${side1.score}, ${side1.result} ${t("common.matchResultAgainst")} ${side2.label}, ${side2.score}, ${playedAtLabel}`}
     >
       <View style={styles.header}>
-        <Badge label={matchType === "singles" ? "1v1" : "2v2"} tone="accent" />
-        {isPenalties ? <Badge label="PENS" tone="warning" /> : null}
+        <Badge label={matchType === "singles" ? t("common.matchTypeSingles1v1") : t("common.matchTypeDoubles2v2")} tone="accent" />
+        {isPenalties ? <Badge label={t("common.penaltiesAbbr")} tone="warning" /> : null}
         <Text style={styles.date}>{playedAtLabel}</Text>
       </View>
-      <SideRow side={side1} />
-      <SideRow side={side2} />
+      <SideRow side={side1} resultLabel={resultLabel} />
+      <SideRow side={side2} resultLabel={resultLabel} />
     </Pressable>
   );
 }
 
-function SideRow({ side }: { side: MatchRowSide }) {
+function SideRow({ side, resultLabel }: { side: MatchRowSide; resultLabel: Record<MatchRowSide["result"], string> }) {
   const { isRTL } = useTranslation();
   return (
     <View style={styles.sideRow}>
@@ -56,7 +58,7 @@ function SideRow({ side }: { side: MatchRowSide }) {
           {side.clubName}
         </Text>
       </View>
-      <Badge label={RESULT_LABEL[side.result]} tone={RESULT_TONE[side.result]} />
+      <Badge label={resultLabel[side.result]} tone={RESULT_TONE[side.result]} />
       <Text
         style={[
           styles.score,
