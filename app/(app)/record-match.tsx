@@ -299,11 +299,17 @@ export default function RecordMatchScreen() {
     dateInput,
     timeInput,
   };
-  // Refreshed every render (not via an effect) so the beforeRemove listener
-  // below always reads the latest form state without needing to
-  // resubscribe on every keystroke.
-  const currentDraftRef = useRef(currentDraft);
-  currentDraftRef.current = currentDraft;
+  // In create mode there's no "original" loaded from the server to diff
+  // against -- BLANK_CREATE_DRAFT stands in for the untouched starting
+  // state. Derived directly from render state (not mirrored into a ref)
+  // so there is exactly one place that decides whether the form is dirty,
+  // and it's trivially inspectable/testable instead of living inside an
+  // event-listener closure.
+  const originalDraft = isEditMode ? originalDraftRef.current : BLANK_CREATE_DRAFT;
+  const isDirty = useMemo(
+    () => (originalDraft ? compareMatchSnapshots(originalDraft, currentDraft).anyChanged : false),
+    [originalDraft, currentDraft],
+  );
 
   const isLinkedToWinnersStay = isEditMode && !!matchId && isMatchLinkedToActiveWinnersStaySession(winnersStaySession.session, matchId);
 
@@ -316,16 +322,14 @@ export default function RecordMatchScreen() {
   // Hardware/gesture back, the header's back button, and router.back() all
   // funnel through this same "beforeRemove" navigation event -- guarding it
   // once here covers every exit path, not just the button on this screen.
-  // In create mode there's no "original" loaded from the server to diff
-  // against -- BLANK_CREATE_DRAFT stands in for the untouched starting
-  // state, so selecting players/a club, entering a score, or applying a
-  // draw prefill and then navigating away without saving prompts the same
-  // as it already did in edit mode instead of silently losing the entry.
+  // Depends on `isDirty` (a plain boolean) rather than reading a ref inside
+  // the closure -- React only re-runs this effect when the boolean's VALUE
+  // actually flips, so this still doesn't resubscribe on every keystroke
+  // (e.g. typing in Notes), but there is no window where the listener could
+  // read stale dirty state.
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
-      if (skipUnsavedGuardRef.current) return;
-      const original = isEditMode ? originalDraftRef.current : BLANK_CREATE_DRAFT;
-      if (!original || !compareMatchSnapshots(original, currentDraftRef.current).anyChanged) return;
+      if (skipUnsavedGuardRef.current || !isDirty) return;
       e.preventDefault();
       confirmAction(
         t("editMatch.unsavedTitle"),
@@ -336,8 +340,7 @@ export default function RecordMatchScreen() {
       );
     });
     return unsubscribe;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navigation, isEditMode]);
+  }, [navigation, isDirty, t]);
 
   const isSubmitting = isEditMode ? editMatch.isPending : recordMatch.isPending;
 
@@ -398,8 +401,7 @@ export default function RecordMatchScreen() {
       setErrors([]);
       setDateTimeError(null);
 
-      const original = originalDraftRef.current;
-      const changes = original ? compareMatchSnapshots(original, currentDraft) : null;
+      const changes = originalDraft ? compareMatchSnapshots(originalDraft, currentDraft) : null;
       if (changes && (changes.participantsChanged || changes.scoreOrResultChanged)) {
         confirmAction(t("editMatch.confirmTitle"), t("editMatch.confirmMessage"), t("editMatch.saveChanges"), () => saveEdit(validation), t("common.cancel"));
       } else {
