@@ -143,8 +143,9 @@ export default function RecordMatchScreen() {
   const originalDraftRef = useRef<EditableMatchDraft | null>(null);
   const skipUnsavedGuardRef = useRef(false);
 
-  // Winners Stay's "Draw Clubs by Stars" -- only ever touches side1ClubId/side2ClubId,
-  // never the players, pairings, score, or waiting queue.
+  // "Draw Clubs by Stars" -- only ever touches side1ClubId/side2ClubId, never
+  // the players, pairings, score, or waiting queue. Available for every
+  // match, not just ones started from Winners Stay.
   const [starMode, setStarMode] = useState<ClubDrawStarMode>("sameStar");
   const [selectedStarLevel, setSelectedStarLevel] = useState<number | null>(null);
   const [hasDrawnClubs, setHasDrawnClubs] = useState(false);
@@ -512,66 +513,63 @@ export default function RecordMatchScreen() {
           onChange={changeMatchType}
         />
 
-        {isFromWinnersStay && matchType === "doubles" ? (
-          <Card style={styles.clubDrawCard}>
-            <Text style={styles.sideTitle}>{t("rotation.drawClubsByStars")}</Text>
+        <Card style={styles.clubDrawCard}>
+          <Text style={styles.sideTitle}>{t("rotation.drawClubsByStars")}</Text>
+          <View style={styles.chipRow}>
+            <Chip label={t("draw.clubModeRandom")} active={starMode === "anyStrength"} onPress={() => setStarMode("anyStrength")} />
+            <Chip label={t("draw.clubModeExactStars")} active={starMode === "sameStar"} onPress={() => setStarMode("sameStar")} />
+          </View>
+
+          {starMode === "sameStar" ? (
             <View style={styles.chipRow}>
-              <Chip label={t("rotation.starModeSameLevel")} active={starMode === "sameStar"} onPress={() => setStarMode("sameStar")} />
-              <Chip label={t("rotation.starModeSimilar")} active={starMode === "similarStrength"} onPress={() => setStarMode("similarStrength")} />
-              <Chip label={t("rotation.starModeAny")} active={starMode === "anyStrength"} onPress={() => setStarMode("anyStrength")} />
+              {availableStarLevels.map((stars) => (
+                <Chip key={stars} label={t("draw.exactStarsLabel", { stars: String(stars) })} active={selectedStarLevel === stars} onPress={() => setSelectedStarLevel(stars)} />
+              ))}
             </View>
+          ) : null}
 
-            {starMode === "sameStar" ? (
-              <View style={styles.chipRow}>
-                {availableStarLevels.map((stars) => (
-                  <Chip key={stars} label={t("draw.exactStarsLabel", { stars: String(stars) })} active={selectedStarLevel === stars} onPress={() => setSelectedStarLevel(stars)} />
-                ))}
-              </View>
-            ) : null}
+          <View style={styles.switchRow}>
+            <Text style={styles.switchLabel}>{t("clubPicker.includeNationalTeams")}</Text>
+            <Switch
+              value={includeNationalTeams}
+              onValueChange={setIncludeNationalTeams}
+              trackColor={{ false: colors.border, true: colors.accentMuted }}
+              thumbColor={colors.textPrimary}
+            />
+          </View>
+          <View style={styles.switchRow}>
+            <Text style={styles.switchLabel}>{t("draw.includeCustomClubs")}</Text>
+            <Switch
+              value={drawIncludeCustomClubs}
+              onValueChange={setDrawIncludeCustomClubs}
+              trackColor={{ false: colors.border, true: colors.accentMuted }}
+              thumbColor={colors.textPrimary}
+            />
+          </View>
+          <View style={styles.switchRow}>
+            <Text style={styles.switchLabel}>{t("rotation.preventDuplicateClubs")}</Text>
+            <Switch
+              value={drawPreventDuplicates}
+              onValueChange={setDrawPreventDuplicates}
+              trackColor={{ false: colors.border, true: colors.accentMuted }}
+              thumbColor={colors.textPrimary}
+            />
+          </View>
 
-            <View style={styles.switchRow}>
-              <Text style={styles.switchLabel}>{t("clubPicker.includeNationalTeams")}</Text>
-              <Switch
-                value={includeNationalTeams}
-                onValueChange={setIncludeNationalTeams}
-                trackColor={{ false: colors.border, true: colors.accentMuted }}
-                thumbColor={colors.textPrimary}
-              />
+          {clubDrawFailed ? <InfoBanner tone="warning" message={`${t("rotation.notEnoughClubsAtLevel")} ${t("rotation.chooseAnotherLevel")}`} /> : null}
+
+          <Button label={hasDrawnClubs ? t("rotation.drawClubsAgain") : t("rotation.drawClubsByStars")} variant="secondary" onPress={handleDrawClubs} />
+
+          {hasDrawnClubs && side1ClubId && side2ClubId ? (
+            <View style={styles.clubDrawResultRow}>
+              <ClubDrawResult label={t("rotation.side1Label")} playerNames={pairLabel(side1PlayerIds)} clubVersion={side1Club} />
+              <ClubDrawResult label={t("rotation.side2Label")} playerNames={pairLabel(side2PlayerIds)} clubVersion={side2Club} />
             </View>
-            <View style={styles.switchRow}>
-              <Text style={styles.switchLabel}>{t("draw.includeCustomClubs")}</Text>
-              <Switch
-                value={drawIncludeCustomClubs}
-                onValueChange={setDrawIncludeCustomClubs}
-                trackColor={{ false: colors.border, true: colors.accentMuted }}
-                thumbColor={colors.textPrimary}
-              />
-            </View>
-            <View style={styles.switchRow}>
-              <Text style={styles.switchLabel}>{t("rotation.preventDuplicateClubs")}</Text>
-              <Switch
-                value={drawPreventDuplicates}
-                onValueChange={setDrawPreventDuplicates}
-                trackColor={{ false: colors.border, true: colors.accentMuted }}
-                thumbColor={colors.textPrimary}
-              />
-            </View>
-
-            {clubDrawFailed ? <InfoBanner tone="warning" message={`${t("rotation.notEnoughClubsAtLevel")} ${t("rotation.chooseAnotherLevel")}`} /> : null}
-
-            <Button label={hasDrawnClubs ? t("rotation.drawClubsAgain") : t("rotation.drawClubsByStars")} variant="secondary" onPress={handleDrawClubs} />
-
-            {hasDrawnClubs && side1ClubId && side2ClubId ? (
-              <View style={styles.clubDrawResultRow}>
-                <ClubDrawResult label={t("rotation.pairALabel")} playerNames={pairLabel(side1PlayerIds)} clubVersion={side1Club} />
-                <ClubDrawResult label={t("rotation.pairBLabel")} playerNames={pairLabel(side2PlayerIds)} clubVersion={side2Club} />
-              </View>
-            ) : null}
-          </Card>
-        ) : null}
+          ) : null}
+        </Card>
 
         <MatchSideCard
-          title="Side 1"
+          title={t("rotation.side1Label")}
           clubVersion={side1Club}
           clubsLoading={clubsLoading}
           onClubPress={openSide1ClubPicker}
@@ -586,7 +584,7 @@ export default function RecordMatchScreen() {
         />
 
         <MatchSideCard
-          title="Side 2"
+          title={t("rotation.side2Label")}
           clubVersion={side2Club}
           clubsLoading={clubsLoading}
           onClubPress={openSide2ClubPicker}
