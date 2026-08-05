@@ -287,18 +287,26 @@ export default function RecordMatchScreen() {
     setSide2PlayerIds((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
   }, []);
 
-  const currentDraft: EditableMatchDraft = {
-    matchType,
-    side1: { clubVersionId: side1ClubId, playerIds: side1PlayerIds, score: side1Score },
-    side2: { clubVersionId: side2ClubId, playerIds: side2PlayerIds, score: side2Score },
-    isOvertime,
-    isPenalties,
-    penaltyScore1: isPenalties ? penaltyScore1 : null,
-    penaltyScore2: isPenalties ? penaltyScore2 : null,
-    notes,
-    dateInput,
-    timeInput,
-  };
+  // Memoized on its actual primitive fields (not just wrapped in useMemo with
+  // no real deps) -- a plain object literal rebuilt every render would give
+  // isDirty's useMemo below a new reference on every keystroke/score tap,
+  // silently defeating it: compareMatchSnapshots would re-run on every single
+  // render instead of only when a tracked field actually changes.
+  const currentDraft: EditableMatchDraft = useMemo(
+    () => ({
+      matchType,
+      side1: { clubVersionId: side1ClubId, playerIds: side1PlayerIds, score: side1Score },
+      side2: { clubVersionId: side2ClubId, playerIds: side2PlayerIds, score: side2Score },
+      isOvertime,
+      isPenalties,
+      penaltyScore1: isPenalties ? penaltyScore1 : null,
+      penaltyScore2: isPenalties ? penaltyScore2 : null,
+      notes,
+      dateInput,
+      timeInput,
+    }),
+    [matchType, side1ClubId, side1PlayerIds, side1Score, side2ClubId, side2PlayerIds, side2Score, isOvertime, isPenalties, penaltyScore1, penaltyScore2, notes, dateInput, timeInput],
+  );
   // In create mode there's no "original" loaded from the server to diff
   // against -- BLANK_CREATE_DRAFT stands in for the untouched starting
   // state. Derived directly from render state (not mirrored into a ref)
@@ -622,7 +630,7 @@ export default function RecordMatchScreen() {
 
         <Card style={styles.optionsCard}>
           <View style={styles.switchRow}>
-            <Text style={styles.switchLabel}>Went to overtime</Text>
+            <Text style={styles.switchLabel}>{t("editMatch.wentToOvertime")}</Text>
             <Switch
               value={isOvertime}
               onValueChange={setIsOvertime}
@@ -632,7 +640,7 @@ export default function RecordMatchScreen() {
           </View>
           <View style={styles.switchRow}>
             <Text style={[styles.switchLabel, !scoresLevel && styles.switchLabelDisabled]}>
-              Decided by penalties
+              {t("editMatch.decidedByPenalties")}
             </Text>
             <Switch
               value={isPenalties && scoresLevel}
@@ -642,7 +650,7 @@ export default function RecordMatchScreen() {
               thumbColor={colors.textPrimary}
             />
           </View>
-          {!scoresLevel ? <Text style={styles.hint}>Only available when both sides have the same score.</Text> : null}
+          {!scoresLevel ? <Text style={styles.hint}>{t("editMatch.penaltiesOnlyWhenLevel")}</Text> : null}
           {isPenalties && scoresLevel ? (
             <View style={styles.penaltyRow}>
               <ScoreStepper label={t("rotation.side1PensLabel")} value={penaltyScore1} onChange={setPenaltyScore1} max={20} />

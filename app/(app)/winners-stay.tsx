@@ -56,7 +56,7 @@ function formatDuration(ms: number): string {
 }
 
 export default function WinnersStayScreen() {
-  const { matchId } = useLocalSearchParams<{ matchId?: string }>();
+  const { matchId, autoStart } = useLocalSearchParams<{ matchId?: string; autoStart?: string }>();
   const router = useRouter();
   const { t } = useTranslation();
   const { currentGroupId } = useGroup();
@@ -84,6 +84,40 @@ export default function WinnersStayScreen() {
     }
     return map;
   }, [roster.data, session]);
+
+  // Home's "Start Evening" quick action links here with ?autoStart=1 so tapping
+  // it drops straight into an active session with the full active roster,
+  // randomly paired -- no manual setup screen. Only fires once (hasAutoStartedRef),
+  // only when there's no session already in progress (never stomps an active
+  // session just because the param is still in the URL), and only when there
+  // are enough players to actually start one; otherwise this is a no-op and the
+  // normal manual setup screen below renders exactly as it did before.
+  const hasAutoStartedRef = useRef(false);
+  useEffect(() => {
+    if (hasAutoStartedRef.current || autoStart !== "1") return;
+    if (!isHydrated || !currentGroupId || !roster.data) return;
+    if (session && session.status !== "completed") return;
+    if (activePlayerIds.length < 4) return;
+
+    hasAutoStartedRef.current = true;
+    if (session && session.status === "completed") {
+      setSessionHistory(archiveCompletedSession(sessionHistory, session, new Date().toISOString()));
+    }
+    const pool = activePlayerIds.map((id) => playersById[id]).filter((p): p is RotationPlayer => !!p);
+    const { pairA, pairB, waiting } = drawRandomInitialPairs(pool);
+    const started = startWinnersStaySession({
+      id: newSessionId(),
+      groupId: currentGroupId,
+      pairA,
+      pairB,
+      waitingPlayers: waiting,
+      activePlayerIds,
+      now: new Date(),
+    });
+    setSession(started);
+    router.push({ pathname: "/record-match", params: { ...buildMatchPrefillParams("doubles", [pairA, pairB], null), source: "winnersStay" } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart, isHydrated, currentGroupId, roster.data, session, activePlayerIds, playersById, sessionHistory]);
 
   // Advance the session exactly once per new recorded match id.
   useEffect(() => {
@@ -365,6 +399,7 @@ export default function WinnersStayScreen() {
               disabled={selectedPoolIds.length < 4 || (pairMode === "manual" && (manualPairAIds.length !== 2 || manualPairBIds.length !== 2))}
               onPress={pairMode === "random" ? handleStartRandom : handleStartManual}
             />
+            <Button label={t("rotation.moreDrawOptions")} variant="ghost" size="sm" onPress={() => router.push("/draw")} />
           </Card>
         </ScrollView>
       </Screen>
