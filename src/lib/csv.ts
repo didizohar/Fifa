@@ -87,8 +87,8 @@ export function playerStatsToCsv(players: MatchSidePlayer[], matches: MatchSumma
   return toCsv(headers, rows);
 }
 
-export function leaderboardToCsv(rows: LeaderboardRow[]): string {
+export function leaderboardToCsv(rows: LeaderboardRow[], t: (key: string, params?: Record<string, string | number>) => string): string {
   const headers = ["Rank", "Player", "Value", "Detail"];
-  const csvRows = rows.map((row, index) => [index + 1, row.playerName, row.valueLabel, row.detail]);
+  const csvRows = rows.map((row, index) => [index + 1, row.playerName, row.valueLabel, t(row.detailKey, row.detailParams)]);
   return toCsv(headers, csvRows);
 }

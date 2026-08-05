@@ -86,7 +86,7 @@ describe("computeBestPartnershipAchievement", () => {
     );
     const achievement = computeBestPartnershipAchievement("p1", [...wins, ...losses]);
     expect(achievement).toMatchObject({ partnerId: "mate", partnerName: "mate" });
-    expect(achievement?.description).toContain("80%");
+    expect(achievement?.descriptionParams.percent).toBe(80);
   });
 
   it("unlocks at the TRUE first match the 70% threshold was crossed, not just the 10th match, when the win rate rises later", () => {

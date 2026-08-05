@@ -41,7 +41,7 @@ import { explainActivity, explainAttack, explainConsistency, explainDefence, exp
 import { calculatePlayerTrend } from "../../../../src/lib/trends/playerTrends";
 import type { AnalyticsRange, TimelinePoint } from "../../../../src/lib/analytics/types";
 import { confirmAction, notify } from "../../../../src/lib/confirm";
-import { formatRelativeDate, matchSideLabel } from "../../../../src/lib/format";
+import { formatRelativeDate, formatStreakLabel, matchSideLabel } from "../../../../src/lib/format";
 import { generateFunFacts, type FunFact } from "../../../../src/lib/facts";
 import { useTranslation } from "../../../../src/lib/i18n";
 import { generateInsights, type Insight } from "../../../../src/lib/insights";
@@ -328,7 +328,7 @@ export default function PlayerDetailScreen() {
     );
   };
 
-  const cardHeadline = heldRecords[0]?.label ?? (achievements.length > 0 ? achievements[achievements.length - 1]!.label : null);
+  const cardHeadline = heldRecords[0] ? t(heldRecords[0].labelKey) : achievements.length > 0 ? t(achievements[achievements.length - 1]!.labelKey) : null;
 
   const handleShareCareerCard = async () => {
     if (isSharing) return;
@@ -387,7 +387,7 @@ export default function PlayerDetailScreen() {
           <StatTile label={t("playerProfile.statMatchesPlayed")} value={stats.played} style={styles.tile} variant="elevated" />
           <StatTile
             label={t("playerProfile.statCurrentStreak")}
-            value={streaks.currentStreak.count > 0 ? `${streaks.currentStreak.count} ${streaks.currentStreak.result}` : "–"}
+            value={formatStreakLabel(t, streaks.currentStreak.result, streaks.currentStreak.count)}
             style={styles.tile}
             variant="elevated"
           />
@@ -461,7 +461,7 @@ export default function PlayerDetailScreen() {
                 <View style={styles.highlightsList}>
                   {personalHighlights.map((item) => (
                     <Text key={item.id} style={styles.highlightText}>
-                      • {item.text}
+                      • {t(item.textKey, item.textParams)}
                     </Text>
                   ))}
                 </View>
@@ -474,8 +474,8 @@ export default function PlayerDetailScreen() {
                 <View style={styles.highlightsList}>
                   {heldRecords.map((record) => (
                     <View key={record.id} style={styles.recordHeldRow}>
-                      <Text style={styles.recordHeldLabel}>{record.label}</Text>
-                      <Text style={styles.recordHeldValue}>{record.valueLabel}</Text>
+                      <Text style={styles.recordHeldLabel}>{t(record.labelKey)}</Text>
+                      <Text style={styles.recordHeldValue}>{t(record.valueLabelKey, record.valueLabelParams)}</Text>
                     </View>
                   ))}
                 </View>
@@ -490,10 +490,10 @@ export default function PlayerDetailScreen() {
                     <View key={achievement.id} style={styles.achievementRow}>
                       <Text style={styles.achievementIcon}>🏅</Text>
                       <View style={styles.achievementInfo}>
-                        <Text style={styles.achievementLabel}>{achievement.label}</Text>
-                        <Text style={styles.achievementDescription}>{achievement.description}</Text>
+                        <Text style={styles.achievementLabel}>{t(achievement.labelKey)}</Text>
+                        <Text style={styles.achievementDescription}>{t(achievement.descriptionKey, achievement.descriptionParams)}</Text>
                       </View>
-                      <Text style={styles.achievementDate}>{formatRelativeDate(achievement.unlockedAt)}</Text>
+                      <Text style={styles.achievementDate}>{formatRelativeDate(achievement.unlockedAt, t)}</Text>
                     </View>
                   ))}
                 </View>
@@ -580,9 +580,7 @@ export default function PlayerDetailScreen() {
                               : undefined
                         }
                       >
-                        {streaks.currentStreak.count > 0
-                          ? `${streaks.currentStreak.count} ${streaks.currentStreak.result}${streaks.currentStreak.count > 1 ? "s" : ""}`
-                          : "—"}
+                        {formatStreakLabel(t, streaks.currentStreak.result, streaks.currentStreak.count)}
                       </Text>
                     </Text>
                     <Text style={styles.streakText}>{t("playerProfile.bestWinStreakLabel", { count: streaks.longestWinStreak })}</Text>
@@ -819,7 +817,7 @@ export default function PlayerDetailScreen() {
                       />
                       <RecordStat
                         label={t("playerProfile.statStreak")}
-                        value={headToHead.currentStreak.count > 0 ? `${headToHead.currentStreak.count} ${headToHead.currentStreak.result}` : "–"}
+                        value={formatStreakLabel(t, headToHead.currentStreak.result, headToHead.currentStreak.count)}
                         color={headToHead.currentStreak.result === "win" ? colors.win : headToHead.currentStreak.result === "loss" ? colors.loss : undefined}
                       />
                     </View>
@@ -903,7 +901,7 @@ export default function PlayerDetailScreen() {
                       />
                       <StatTile
                         label={t("playerAnalytics.statCurrentStreak")}
-                        value={streaks.currentStreak.count > 0 ? `${streaks.currentStreak.count} ${streaks.currentStreak.result}` : t("playerAnalytics.streakNone")}
+                        value={streaks.currentStreak.count > 0 ? formatStreakLabel(t, streaks.currentStreak.result, streaks.currentStreak.count) : t("playerAnalytics.streakNone")}
                         style={styles.analyticsTile}
                       />
                     </View>

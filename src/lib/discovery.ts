@@ -8,24 +8,41 @@ import { computeMostBalancedRivalry, computeOldestRivalry, findSides } from "./s
 
 export type DiscoveryItemType = "fact" | "insight" | "record" | "memory";
 
+/** A function that resolves a translation key (+ optional interpolation params) to display text -- passed in rather than imported, since this module has no UI context of its own. */
+type TFunction = (key: string, params?: Record<string, string | number>) => string;
+
 export interface DiscoveryItem {
   id: string;
   type: DiscoveryItemType;
-  text: string;
+  /** Translation key + params -- the UI calls t(textKey, textParams); this module never produces English text directly. */
+  textKey: string;
+  textParams: Record<string, string | number>;
   /** Rough interestingness score used to rank items -- higher surfaces first. */
   score: number;
 }
 
-/** Records whose setAt falls within the last windowDays, framed as "just happened" news. */
-function recentlyBrokenRecordItems(roster: MatchSidePlayer[], matches: MatchSummary[], now: Date, windowDays = 14): DiscoveryItem[] {
+/**
+ * Records whose setAt falls within the last windowDays, framed as "just happened" news.
+ * A record's own label/value are themselves translation keys, so this needs `t` to
+ * pre-resolve them into plain strings before they can be interpolated into the
+ * composite "New record: ..." sentence (the flat {param} interpolation in
+ * LocaleProvider.resolve() can't itself resolve a nested key).
+ */
+function recentlyBrokenRecordItems(roster: MatchSidePlayer[], matches: MatchSummary[], now: Date, t: TFunction, windowDays = 14): DiscoveryItem[] {
   const cutoff = now.getTime() - windowDays * 86_400_000;
   return computeAllRecords(roster, matches)
     .filter((r) => new Date(r.setAt).getTime() >= cutoff)
-    .map((r) => ({ id: `record-${r.id}`, type: "record" as const, text: `New record: ${r.label} -- ${r.holderName} (${r.valueLabel}).`, score: 80 }));
+    .map((r) => ({
+      id: `record-${r.id}`,
+      type: "record" as const,
+      textKey: "discovery.newRecord",
+      textParams: { label: t(r.labelKey), holderName: r.holderName, value: t(r.valueLabelKey, r.valueLabelParams) },
+      score: 80,
+    }));
 }
 
 /** A match this player played on today's calendar date in a past year, if one exists -- the most recent such anniversary. */
-function todaysFootballMemory(playerId: string, matches: MatchSummary[], now: Date): DiscoveryItem[] {
+function todaysFootballMemory(playerId: string, matches: MatchSummary[], now: Date, t: TFunction): DiscoveryItem[] {
   const candidates = matches.filter((m) => {
     if (findSides(playerId, m) === null) return false;
     const d = new Date(m.played_at);
@@ -37,24 +54,38 @@ function todaysFootballMemory(playerId: string, matches: MatchSummary[], now: Da
   const sides = findSides(playerId, best)!;
   const yearsAgo = now.getFullYear() - new Date(best.played_at).getFullYear();
   const opponentName = matchSideLabel(sides.opponent.players.map((p) => p.display_name));
-  const resultWord = sides.own.result === "win" ? "beat" : sides.own.result === "loss" ? "lost to" : "drew with";
+  const resultKey = sides.own.result === "win" ? "discovery.resultWin" : sides.own.result === "loss" ? "discovery.resultLoss" : "discovery.resultDraw";
+  const timeText = yearsAgo === 1 ? t("discovery.memoryTimeLastYear") : t("discovery.memoryTimeYearsAgo", { years: yearsAgo });
 
   return [
     {
       id: `memory-${best.id}`,
       type: "memory",
-      text: `On this day ${yearsAgo === 1 ? "last year" : `${yearsAgo} years ago`}, you ${resultWord} ${opponentName} ${sides.own.score}-${sides.opponent.score}.`,
+      textKey: "discovery.memoryTemplate",
+      textParams: {
+        time: timeText,
+        result: t(resultKey),
+        opponent: opponentName,
+        ownScore: sides.own.score,
+        opponentScore: sides.opponent.score,
+      },
       score: 85,
     },
   ];
 }
 
 /** Achievements this player unlocked within the last windowDays -- the same "just happened" framing as recently broken records. */
-function recentlyUnlockedAchievementItems(playerId: string, matches: MatchSummary[], now: Date, windowDays = 14): DiscoveryItem[] {
+function recentlyUnlockedAchievementItems(playerId: string, matches: MatchSummary[], now: Date, t: TFunction, windowDays = 14): DiscoveryItem[] {
   const cutoff = now.getTime() - windowDays * 86_400_000;
   return computeAllAchievements(playerId, matches)
     .filter((a) => new Date(a.unlockedAt).getTime() >= cutoff)
-    .map((a) => ({ id: `achievement-${a.id}`, type: "record" as const, text: `Achievement unlocked: ${a.label} -- ${a.description}`, score: 82 }));
+    .map((a) => ({
+      id: `achievement-${a.id}`,
+      type: "record" as const,
+      textKey: "discovery.achievementUnlocked",
+      textParams: { label: t(a.labelKey), description: t(a.descriptionKey, a.descriptionParams) },
+      score: 82,
+    }));
 }
 
 /** Group-wide rivalry trivia: the closest-to-50/50 pairing and the longest-running one. Not specific to the viewing player -- these are curiosities about the whole group. */
@@ -66,7 +97,8 @@ function rivalryItems(roster: MatchSidePlayer[], matches: MatchSummary[]): Disco
     items.push({
       id: `rivalry-balanced-${balanced.playerIds.join(":")}`,
       type: "fact",
-      text: `${balanced.playerNames[0]} vs ${balanced.playerNames[1]} is the group's most balanced rivalry -- almost a dead-even split over ${balanced.played} matches.`,
+      textKey: "discovery.balancedRivalry",
+      textParams: { nameA: balanced.playerNames[0], nameB: balanced.playerNames[1], played: balanced.played },
       score: 55,
     });
   }
@@ -76,7 +108,8 @@ function rivalryItems(roster: MatchSidePlayer[], matches: MatchSummary[]): Disco
     items.push({
       id: `rivalry-oldest-${oldest.playerIds.join(":")}`,
       type: "fact",
-      text: `${oldest.playerNames[0]} vs ${oldest.playerNames[1]} is the group's longest-running rivalry, going back to their first match together.`,
+      textKey: "discovery.oldestRivalry",
+      textParams: { nameA: oldest.playerNames[0], nameB: oldest.playerNames[1] },
       score: 50,
     });
   }
@@ -85,14 +118,14 @@ function rivalryItems(roster: MatchSidePlayer[], matches: MatchSummary[]): Disco
 }
 
 /** Every honestly-derivable discovery item for this player right now: facts, trend insights, recently broken records/unlocked achievements, group rivalry trivia, and an on-this-day memory. */
-export function generateDiscoveryItems(playerId: string, roster: MatchSidePlayer[], matches: MatchSummary[], now: Date = new Date()): DiscoveryItem[] {
+export function generateDiscoveryItems(playerId: string, roster: MatchSidePlayer[], matches: MatchSummary[], t: TFunction, now: Date = new Date()): DiscoveryItem[] {
   return [
-    ...generateFunFacts(playerId, roster, matches).map((f) => ({ id: `fact-${f.id}`, type: "fact" as const, text: f.text, score: f.score })),
-    ...generateInsights(playerId, roster, matches).map((i) => ({ id: `insight-${i.id}`, type: "insight" as const, text: i.text, score: i.score })),
-    ...recentlyBrokenRecordItems(roster, matches, now),
-    ...recentlyUnlockedAchievementItems(playerId, matches, now),
+    ...generateFunFacts(playerId, roster, matches).map((f) => ({ id: `fact-${f.id}`, type: "fact" as const, textKey: f.textKey, textParams: f.textParams, score: f.score })),
+    ...generateInsights(playerId, roster, matches).map((i) => ({ id: `insight-${i.id}`, type: "insight" as const, textKey: i.textKey, textParams: i.textParams, score: i.score })),
+    ...recentlyBrokenRecordItems(roster, matches, now, t),
+    ...recentlyUnlockedAchievementItems(playerId, matches, now, t),
     ...rivalryItems(roster, matches),
-    ...todaysFootballMemory(playerId, matches, now),
+    ...todaysFootballMemory(playerId, matches, now, t),
   ];
 }
 
@@ -122,8 +155,8 @@ export function seededShuffle<T>(items: T[], seed: number): T[] {
  * interesting items don't always appear in the same order -- but the result
  * doesn't change on every re-render/navigation within the same day.
  */
-export function selectHomeHighlights(playerId: string, roster: MatchSidePlayer[], matches: MatchSummary[], now: Date = new Date(), count = 4): DiscoveryItem[] {
-  const items = generateDiscoveryItems(playerId, roster, matches, now);
+export function selectHomeHighlights(playerId: string, roster: MatchSidePlayer[], matches: MatchSummary[], t: TFunction, now: Date = new Date(), count = 4): DiscoveryItem[] {
+  const items = generateDiscoveryItems(playerId, roster, matches, t, now);
   return seededShuffle(items, dailySeed(now))
     .sort((a, b) => b.score - a.score)
     .slice(0, count);

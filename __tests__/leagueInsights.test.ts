@@ -45,7 +45,8 @@ describe("generateLeagueInsights", () => {
     ];
     const items = generateLeagueInsights(roster(["daniel", "x"]), matches, now);
     const hot = items.find((i) => i.id === "hot-form-daniel");
-    expect(hot?.text).toBe("daniel has won 8 of their last 10 matches.");
+    expect(hot?.textKey).toBe("leagueInsights.hotForm");
+    expect(hot?.textParams).toEqual({ name: "daniel", wins: 8, matches: 10 });
   });
 
   it("does not surface hot form for a player with fewer than 10 matches", () => {
@@ -59,7 +60,8 @@ describe("generateLeagueInsights", () => {
     const matches = [makeMatch({ playerIds: ["didi"], score: 1, result: "win" }, { playerIds: ["omer"], score: 0, result: "loss" }, new Date(2026, 4, 25).toISOString())];
     const items = generateLeagueInsights(roster(["didi", "omer"]), matches, now);
     const dormant = items.find((i) => i.id === "dormant-rivalry-didi-omer");
-    expect(dormant?.text).toBe("didi hasn't played against omer in 21 days.");
+    expect(dormant?.textKey).toBe("leagueInsights.dormantRivalry");
+    expect(dormant?.textParams).toEqual({ nameA: "didi", nameB: "omer", days: 21 });
   });
 
   it("does not surface a dormant rivalry for a pair who played recently", () => {
@@ -77,19 +79,19 @@ describe("generateLeagueInsights", () => {
     const now = new Date(2026, 5, 15);
     const matches = Array.from({ length: 4 }, (_, n) => makeMatch({ playerIds: ["a"], score: 2, result: "win" }, { playerIds: ["b"], score: 1, result: "loss" }, new Date(2026, 5, n + 1).toISOString()));
     const items = generateLeagueInsights(roster(["a", "b"]), matches, now);
-    expect(items.some((i) => i.text === "Most matches this month ended with one goal difference.")).toBe(true);
+    expect(items.some((i) => i.textKey === "leagueInsights.oneGoalMargin")).toBe(true);
   });
 
   it("does not surface the one-goal-margin insight when most matches had a bigger margin", () => {
     const now = new Date(2026, 5, 15);
     const matches = Array.from({ length: 4 }, (_, n) => makeMatch({ playerIds: ["a"], score: 5, result: "win" }, { playerIds: ["b"], score: 0, result: "loss" }, new Date(2026, 5, n + 1).toISOString()));
-    expect(generateLeagueInsights(roster(["a", "b"]), matches, now).some((i) => i.text.includes("one goal difference"))).toBe(false);
+    expect(generateLeagueInsights(roster(["a", "b"]), matches, now).some((i) => i.textKey === "leagueInsights.oneGoalMargin")).toBe(false);
   });
 
   it("does not surface the one-goal-margin insight below the minimum sample size", () => {
     const now = new Date(2026, 5, 15);
     const matches = [makeMatch({ playerIds: ["a"], score: 2, result: "win" }, { playerIds: ["b"], score: 1, result: "loss" }, new Date(2026, 5, 1).toISOString())];
-    expect(generateLeagueInsights(roster(["a", "b"]), matches, now).some((i) => i.text.includes("one goal difference"))).toBe(false);
+    expect(generateLeagueInsights(roster(["a", "b"]), matches, now).some((i) => i.textKey === "leagueInsights.oneGoalMargin")).toBe(false);
   });
 });
 

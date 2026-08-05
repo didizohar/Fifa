@@ -97,7 +97,7 @@ export default function SeasonDetailsScreen() {
               </Card>
               <Card style={styles.statsCard}>
                 <OverviewRow label={t("seasonHistory.longestMatchDay")} value={overview.longestMatchDay ? `${overview.longestMatchDay.dateLabel} (${overview.longestMatchDay.matchesPlayed})` : "–"} />
-                <OverviewRow label={t("seasonHistory.highestScoringMatch")} value={overview.highestScoringMatch ? `${overview.highestScoringMatch.holderName} (${overview.highestScoringMatch.valueLabel})` : "–"} />
+                <OverviewRow label={t("seasonHistory.highestScoringMatch")} value={overview.highestScoringMatch ? `${overview.highestScoringMatch.holderName} (${t(overview.highestScoringMatch.valueLabelKey, overview.highestScoringMatch.valueLabelParams)})` : "–"} />
                 <OverviewRow label={t("seasonHistory.mostPlayedClub")} value={overview.mostPlayedClub ? `${overview.mostPlayedClub.clubName} (${overview.mostPlayedClub.matchesPlayed})` : "–"} />
               </Card>
             </>
@@ -192,7 +192,7 @@ export default function SeasonDetailsScreen() {
                       key={match.id}
                       matchType={match.match_type}
                       isPenalties={match.is_penalties}
-                      playedAtLabel={formatRelativeDate(match.played_at)}
+                      playedAtLabel={formatRelativeDate(match.played_at, t)}
                       side1={{ label: matchSideLabel(s1.players.map((p) => p.display_name)), clubName: s1.club?.name ?? t("history.unknownClub"), score: s1.score, result: s1.result }}
                       side2={{ label: matchSideLabel(s2.players.map((p) => p.display_name)), clubName: s2.club?.name ?? t("history.unknownClub"), score: s2.score, result: s2.result }}
                       onPress={() => router.push(`/match/${match.id}`)}
@@ -232,7 +232,18 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function AwardCard({ icon, title, winner, noneLabel }: { icon: string; title: string; winner: { playerName: string; valueLabel: string; detail: string } | null; noneLabel: string }) {
+function AwardCard({
+  icon,
+  title,
+  winner,
+  noneLabel,
+}: {
+  icon: string;
+  title: string;
+  winner: { playerName: string; valueLabelKey: string; valueLabelParams: Record<string, string | number>; detailKey: string; detailParams: Record<string, string | number> } | null;
+  noneLabel: string;
+}) {
+  const { t } = useTranslation();
   return (
     <Card style={styles.awardCard} compact>
       <Text style={styles.awardIcon}>{icon}</Text>
@@ -243,7 +254,7 @@ function AwardCard({ icon, title, winner, noneLabel }: { icon: string; title: st
             {winner.playerName}
           </Text>
           <Text style={styles.awardDetail} numberOfLines={2}>
-            {winner.valueLabel} · {winner.detail}
+            {t(winner.valueLabelKey, winner.valueLabelParams)} · {t(winner.detailKey, winner.detailParams)}
           </Text>
         </>
       ) : (

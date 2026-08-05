@@ -149,8 +149,8 @@ describe("editing a match recomputes group records", () => {
   it("the Biggest Victory record moves from match 1 (margin 5) to the corrected match 3 (margin 6)", () => {
     const beforeRecord = computeAllRecords(ROSTER, BEFORE).find((r) => r.id === "biggest-victory");
     const afterRecord = computeAllRecords(ROSTER, AFTER).find((r) => r.id === "biggest-victory");
-    expect(beforeRecord).toMatchObject({ matchId: "m1", valueLabel: "5-0 vs p2 (+5)" });
-    expect(afterRecord).toMatchObject({ matchId: "m3", valueLabel: "6-0 vs p2 (+6)" });
+    expect(beforeRecord).toMatchObject({ matchId: "m1", valueLabelParams: { winnerScore: 5, loserScore: 0, loser: "p2", margin: 5 } });
+    expect(afterRecord).toMatchObject({ matchId: "m3", valueLabelParams: { winnerScore: 6, loserScore: 0, loser: "p2", margin: 6 } });
   });
 });
 
@@ -185,10 +185,10 @@ describe("editing a match recomputes the monthly report", () => {
 describe("editing a match is safely reflected in discovery/insights/trends (no crash, valid structure)", () => {
   it("discovery highlights and the insight of the day still generate from the corrected data", () => {
     const now = new Date(2026, 2, 4);
-    expect(() => generateDiscoveryItems("p1", ROSTER, AFTER, now)).not.toThrow();
+    expect(() => generateDiscoveryItems("p1", ROSTER, AFTER, (k: string) => k, now)).not.toThrow();
     expect(() => selectInsightOfTheDay(ROSTER, AFTER, now)).not.toThrow();
-    expect(Array.isArray(generateDiscoveryItems("p1", ROSTER, BEFORE, now))).toBe(true);
-    expect(Array.isArray(generateDiscoveryItems("p1", ROSTER, AFTER, now))).toBe(true);
+    expect(Array.isArray(generateDiscoveryItems("p1", ROSTER, BEFORE, (k: string) => k, now))).toBe(true);
+    expect(Array.isArray(generateDiscoveryItems("p1", ROSTER, AFTER, (k: string) => k, now))).toBe(true);
   });
 
   it("league trend summary still computes from the corrected data without throwing", () => {

@@ -5,7 +5,9 @@ import { computeDoublesPartnerships, computeHeadToHead, computeStreaks, findSide
 export interface FunFact {
   /** Stable id for this fact instance -- lets a caller dedupe or track "already shown". */
   id: string;
-  text: string;
+  /** Translation key + params -- the UI calls t(textKey, textParams); this module never produces English text directly. */
+  textKey: string;
+  textParams: Record<string, string | number>;
   /** Rough interestingness score for ranking when multiple facts are available -- higher surfaces first. Not a probability, just a sort key. */
   score: number;
 }
@@ -18,15 +20,14 @@ function currentStreakFacts(playerId: string, matches: MatchSummary[]): FunFact[
     return [
       {
         id: `streak-win-${count}`,
-        text: isCareerBest
-          ? `You're on a ${count}-match winning streak -- the longest of your career.`
-          : `You're on a ${count}-match winning streak.`,
+        textKey: isCareerBest ? "facts.winStreakCareerBest" : "facts.winStreak",
+        textParams: { count },
         score: isCareerBest ? 90 : 70,
       },
     ];
   }
   if (result === "loss" && count >= 3) {
-    return [{ id: `streak-loss-${count}`, text: `You've lost ${count} in a row.`, score: 50 }];
+    return [{ id: `streak-loss-${count}`, textKey: "facts.lossStreak", textParams: { count }, score: 50 }];
   }
   return [];
 }
@@ -57,7 +58,13 @@ function rivalryFacts(playerId: string, roster: MatchSidePlayer[], matches: Matc
   if (neverBeaten) {
     facts.push({
       id: `never-beaten-${neverBeaten.opponentId}`,
-      text: `You've never beaten ${neverBeaten.opponentName} (0-${neverBeaten.h2h.losses}-${neverBeaten.h2h.draws} in ${neverBeaten.h2h.played} matches).`,
+      textKey: "facts.neverBeaten",
+      textParams: {
+        name: neverBeaten.opponentName,
+        losses: neverBeaten.h2h.losses,
+        draws: neverBeaten.h2h.draws,
+        played: neverBeaten.h2h.played,
+      },
       score: 85,
     });
   }
@@ -66,7 +73,8 @@ function rivalryFacts(playerId: string, roster: MatchSidePlayer[], matches: Matc
   if (neverLostTo) {
     facts.push({
       id: `never-lost-to-${neverLostTo.opponentId}`,
-      text: `You've never lost to ${neverLostTo.opponentName} in ${neverLostTo.h2h.played} matches.`,
+      textKey: "facts.neverLostTo",
+      textParams: { name: neverLostTo.opponentName, played: neverLostTo.h2h.played },
       score: 80,
     });
   }
@@ -89,7 +97,12 @@ function personalRecordFacts(playerId: string, matches: MatchSummary[]): FunFact
   if (closestMargin <= 1) {
     facts.push({
       id: `closest-match-${closest.match.id}`,
-      text: `Your closest-ever match was a ${closest.sides.own.score}-${closest.sides.opponent.score} classic against ${matchSideLabel(closest.sides.opponent.players.map((p) => p.display_name))}.`,
+      textKey: "facts.closestMatch",
+      textParams: {
+        ownScore: closest.sides.own.score,
+        opponentScore: closest.sides.opponent.score,
+        opponent: matchSideLabel(closest.sides.opponent.players.map((p) => p.display_name)),
+      },
       score: 55,
     });
   }
@@ -103,7 +116,12 @@ function personalRecordFacts(playerId: string, matches: MatchSummary[]): FunFact
     if (margin >= 3) {
       facts.push({
         id: `biggest-win-${biggest.match.id}`,
-        text: `Your biggest-ever win was ${biggest.sides.own.score}-${biggest.sides.opponent.score} against ${matchSideLabel(biggest.sides.opponent.players.map((p) => p.display_name))}.`,
+        textKey: "facts.biggestWin",
+        textParams: {
+          ownScore: biggest.sides.own.score,
+          opponentScore: biggest.sides.opponent.score,
+          opponent: matchSideLabel(biggest.sides.opponent.players.map((p) => p.display_name)),
+        },
         score: 60,
       });
     }
@@ -123,7 +141,12 @@ function partnershipFacts(playerId: string, matches: MatchSummary[]): FunFact[] 
   if (!top) return [];
 
   const facts: FunFact[] = [
-    { id: `favorite-partner-${top.teammateId}`, text: `Your most frequent doubles partner is ${top.teammateName} (${top.played} matches together).`, score: 45 },
+    {
+      id: `favorite-partner-${top.teammateId}`,
+      textKey: "facts.favoritePartner",
+      textParams: { name: top.teammateName, played: top.played },
+      score: 45,
+    },
   ];
 
   const withPartner = matches.filter(
@@ -148,10 +171,8 @@ function partnershipFacts(playerId: string, matches: MatchSummary[]): FunFact[] 
     if (Math.abs(pctDiff) >= 15) {
       facts.push({
         id: `partner-goal-diff-${top.teammateId}`,
-        text:
-          pctDiff > 0
-            ? `Your side scores ${pctDiff}% more goals per match when you play with ${top.teammateName}.`
-            : `Your side scores ${Math.abs(pctDiff)}% fewer goals per match when you play with ${top.teammateName}.`,
+        textKey: pctDiff > 0 ? "facts.partnerGoalsMore" : "facts.partnerGoalsFewer",
+        textParams: { percent: Math.abs(pctDiff), name: top.teammateName },
         score: 65,
       });
     }

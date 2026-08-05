@@ -136,7 +136,7 @@ describe("computeMonthlySummary", () => {
       makeMatch({ playerIds: ["p1"], score: 9, result: "win" }, { playerIds: ["p2"], score: 9, result: "draw" }, new Date(2026, 1, 1).toISOString()),
     ];
     const summary = computeMonthlySummary(roster, matches, [], 2026, 2);
-    expect(summary.highestScoringMatch?.valueLabel).toContain("9 goals");
+    expect(summary.highestScoringMatch?.valueLabelParams.goals).toBe(9);
   });
 
   it("still exposes the existing monthly report's awards (player of month, top scorer, etc.) unchanged", () => {

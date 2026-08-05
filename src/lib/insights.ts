@@ -3,7 +3,9 @@ import { computeConsistency, computeDoublesPartnerships, computeFormTrend, compu
 
 export interface Insight {
   id: string;
-  text: string;
+  /** Translation key + params -- the UI calls t(textKey, textParams); this module never produces English text directly. */
+  textKey: string;
+  textParams: Record<string, string | number>;
   /** Rough interestingness score for ranking when multiple insights are available -- higher surfaces first. */
   score: number;
 }
@@ -11,8 +13,8 @@ export interface Insight {
 /** The bar for "clearly" better/worse rather than noise -- 15 percentage points. */
 const NOTABLE_GAP = 0.15;
 
-function pct(rate: number): string {
-  return `${Math.round(rate * 100)}%`;
+function pct(rate: number): number {
+  return Math.round(rate * 100);
 }
 
 function formTrendInsight(playerId: string, matches: MatchSummary[]): Insight[] {
@@ -22,7 +24,8 @@ function formTrendInsight(playerId: string, matches: MatchSummary[]): Insight[] 
     return [
       {
         id: "form-improving",
-        text: `You're improving -- you've won ${pct(recentWinRate)} of your last 5 matches, up from ${pct(previousWinRate)} the 5 before that.`,
+        textKey: "insights.formImproving",
+        textParams: { recent: pct(recentWinRate), previous: pct(previousWinRate) },
         score: 75,
       },
     ];
@@ -30,7 +33,8 @@ function formTrendInsight(playerId: string, matches: MatchSummary[]): Insight[] 
   return [
     {
       id: "form-declining",
-      text: `Your form has dipped -- you've won ${pct(recentWinRate)} of your last 5 matches, down from ${pct(previousWinRate)} the 5 before that.`,
+      textKey: "insights.formDeclining",
+      textParams: { recent: pct(recentWinRate), previous: pct(previousWinRate) },
       score: 60,
     },
   ];
@@ -43,10 +47,10 @@ function matchTypeInsight(playerId: string, matches: MatchSummary[]): Insight[] 
   const doublesRate = doubles.winRate ?? 0;
   const diff = doublesRate - singlesRate;
   if (diff >= NOTABLE_GAP) {
-    return [{ id: "better-in-doubles", text: `You perform much better in doubles than singles (${pct(doublesRate)} vs ${pct(singlesRate)} win rate).`, score: 65 }];
+    return [{ id: "better-in-doubles", textKey: "insights.betterInDoubles", textParams: { doubles: pct(doublesRate), singles: pct(singlesRate) }, score: 65 }];
   }
   if (-diff >= NOTABLE_GAP) {
-    return [{ id: "better-in-singles", text: `You perform much better in singles than doubles (${pct(singlesRate)} vs ${pct(doublesRate)} win rate).`, score: 65 }];
+    return [{ id: "better-in-singles", textKey: "insights.betterInSingles", textParams: { singles: pct(singlesRate), doubles: pct(doublesRate) }, score: 65 }];
   }
   return [];
 }
@@ -62,7 +66,8 @@ function partnershipInsight(playerId: string, matches: MatchSummary[]): Insight[
     return [
       {
         id: `strongest-partnership-${best.teammateId}`,
-        text: `Your strongest partnership is with ${best.teammateName} -- you win ${pct(best.winRate ?? 0)} of matches together, well above your ${pct(overallDoubles.winRate ?? 0)} doubles average.`,
+        textKey: "insights.strongestPartnership",
+        textParams: { name: best.teammateName, together: pct(best.winRate ?? 0), average: pct(overallDoubles.winRate ?? 0) },
         score: 70,
       },
     ];
@@ -80,7 +85,8 @@ function nemesisInsight(playerId: string, roster: MatchSidePlayer[], matches: Ma
     return [
       {
         id: `struggle-vs-${nemesis.opponentId}`,
-        text: `You struggle against ${nemesis.opponentName} -- just a ${pct(nemesis.headToHead.winRate ?? 0)} win rate across ${nemesis.headToHead.played} matches, your toughest matchup.`,
+        textKey: "insights.struggleVs",
+        textParams: { name: nemesis.opponentName, rate: pct(nemesis.headToHead.winRate ?? 0), played: nemesis.headToHead.played },
         score: 70,
       },
     ];
@@ -106,7 +112,8 @@ function consistencyTrendInsight(playerId: string, matches: MatchSummary[]): Ins
     return [
       {
         id: "consistency-improving",
-        text: "You've become more consistent recently -- your results swing less between blowouts and nail-biters than they used to.",
+        textKey: "insights.consistencyImproving",
+        textParams: {},
         score: 50,
       },
     ];
@@ -115,7 +122,8 @@ function consistencyTrendInsight(playerId: string, matches: MatchSummary[]): Ins
     return [
       {
         id: "consistency-declining",
-        text: "Your results have gotten less predictable recently -- bigger swings between big wins and big losses.",
+        textKey: "insights.consistencyDeclining",
+        textParams: {},
         score: 40,
       },
     ];

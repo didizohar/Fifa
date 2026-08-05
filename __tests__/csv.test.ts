@@ -81,9 +81,10 @@ describe("playerStatsToCsv", () => {
 describe("leaderboardToCsv", () => {
   it("numbers rows by position and includes the formatted value/detail", () => {
     const rows: LeaderboardRow[] = [
-      { playerId: "p1", playerName: "Alice", avatarUrl: null, color: "#000", value: 62, valueLabel: "62%", detail: "Win rate" },
-      { playerId: "p2", playerName: "Bob", avatarUrl: null, color: "#000", value: 55, valueLabel: "55%", detail: "Win rate" },
+      { playerId: "p1", playerName: "Alice", avatarUrl: null, color: "#000", value: 62, valueLabel: "62%", detailKey: "detail", detailParams: {} },
+      { playerId: "p2", playerName: "Bob", avatarUrl: null, color: "#000", value: 55, valueLabel: "55%", detailKey: "detail", detailParams: {} },
     ];
-    expect(leaderboardToCsv(rows)).toBe("Rank,Player,Value,Detail\r\n1,Alice,62%,Win rate\r\n2,Bob,55%,Win rate");
+    const t = () => "Win rate";
+    expect(leaderboardToCsv(rows, t)).toBe("Rank,Player,Value,Detail\r\n1,Alice,62%,Win rate\r\n2,Bob,55%,Win rate");
   });
 });

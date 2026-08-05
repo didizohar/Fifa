@@ -430,8 +430,8 @@ describe("computeWinRateLeaderboard", () => {
     ];
     const rows = computeWinRateLeaderboard(roster(["p1", "p2", "p3", "p4"]), matches, 3);
     expect(rows.map((r) => r.playerId)).toEqual(["p1", "p2"]);
-    expect(rows[0]).toMatchObject({ value: 1, valueLabel: "100%", detail: "3W-0L-0D" });
-    expect(rows[1]).toMatchObject({ value: 0, valueLabel: "0%", detail: "0W-3L-0D" });
+    expect(rows[0]).toMatchObject({ value: 1, valueLabel: "100%", detailKey: "leaderboards.detailRecordWLD", detailParams: { wins: 3, losses: 0, draws: 0 } });
+    expect(rows[1]).toMatchObject({ value: 0, valueLabel: "0%", detailKey: "leaderboards.detailRecordWLD", detailParams: { wins: 0, losses: 3, draws: 0 } });
   });
 
   it("defaults to a 5-match qualification threshold", () => {
@@ -555,7 +555,7 @@ describe("computeGoalsScoredLeaderboard", () => {
     ];
     const rows = computeGoalsScoredLeaderboard(roster(["p1", "p2"]), matches);
     expect(rows.map((r) => r.playerId)).toEqual(["p1", "p2"]);
-    expect(rows[0]).toMatchObject({ value: 6, valueLabel: "6", detail: "3.00 per match" });
+    expect(rows[0]).toMatchObject({ value: 6, valueLabel: "6", detailKey: "leaderboards.detailPerMatch", detailParams: { value: "3.00" } });
   });
 });
 
@@ -584,8 +584,8 @@ describe("computeMonthlyLeaderboard", () => {
     ];
     const rows = computeMonthlyLeaderboard(roster(["p1", "p2"]), matches, 2026, 2);
     expect(rows.map((r) => r.playerId)).toEqual(["p1", "p2"]);
-    expect(rows[0]).toMatchObject({ value: 1, valueLabel: "1 win" });
-    expect(rows[1]).toMatchObject({ value: 0, valueLabel: "0 wins" });
+    expect(rows[0]).toMatchObject({ value: 1, valueLabel: "1" });
+    expect(rows[1]).toMatchObject({ value: 0, valueLabel: "0" });
   });
 });
 
@@ -657,7 +657,7 @@ describe("computeCleanSheetsLeaderboard", () => {
     ];
     const rows = computeCleanSheetsLeaderboard(roster(["p1", "p2"]), matches);
     expect(rows.map((r) => r.playerId)).toEqual(["p1"]);
-    expect(rows[0]).toMatchObject({ value: 2, valueLabel: "2", detail: "in 3 matches" });
+    expect(rows[0]).toMatchObject({ value: 2, valueLabel: "2", detailKey: "leaderboards.detailInMatches", detailParams: { count: 3 } });
   });
 });
 

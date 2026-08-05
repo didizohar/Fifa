@@ -46,7 +46,7 @@ describe("generateFunFacts", () => {
     );
     const facts = generateFunFacts("p1", roster(["p1", "x"]), matches);
     const streakFact = facts.find((f) => f.id === "streak-win-3");
-    expect(streakFact?.text).toContain("longest of your career");
+    expect(streakFact?.textKey).toBe("facts.winStreakCareerBest");
   });
 
   it("does not report a streak for a career-best that's shorter than the qualifying threshold", () => {
@@ -99,7 +99,7 @@ describe("generateFunFacts", () => {
     expect(facts.some((f) => f.id === "favorite-partner-mate")).toBe(true);
   });
 
-  it("reports a goal-difference fact phrased as 'your side', not 'you', for doubles", () => {
+  it("reports a goal-difference fact using the 'your side' key, not a 'you' key, for doubles", () => {
     const withMate = [0, 1, 2].map((n) =>
       makeMatch({ playerIds: ["p1", "mate"], score: 4, result: "win" }, { playerIds: ["x", "y"], score: 1, result: "loss" }, { matchType: "doubles", playedAt: day(n) }),
     );
@@ -108,7 +108,6 @@ describe("generateFunFacts", () => {
     );
     const facts = generateFunFacts("p1", roster(["p1", "mate", "other", "x", "y"]), [...withMate, ...withoutMate]);
     const goalFact = facts.find((f) => f.id === "partner-goal-diff-mate");
-    expect(goalFact?.text).toContain("Your side scores");
-    expect(goalFact?.text).not.toMatch(/^You score/);
+    expect(goalFact?.textKey).toBe("facts.partnerGoalsMore");
   });
 });

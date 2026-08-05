@@ -65,7 +65,8 @@ describe("computeSessionInsights", () => {
       makeMatch({ playerIds: ["p1", "p2"], score: 5, result: "win" }, { playerIds: ["p3", "p4"], score: 4, result: "loss" }),
     ];
     const insights = computeSessionInsights(roster, matches);
-    expect(insights.highestScoringMatch?.valueLabel).toBe("9 goals (5-4)");
+    expect(insights.highestScoringMatch?.valueLabelKey).toBe("records.valueGoalsWithScore");
+    expect(insights.highestScoringMatch?.valueLabelParams).toEqual({ goals: 9, score: "5-4" });
   });
 
   it("names the pair with the best session record as the winner", () => {

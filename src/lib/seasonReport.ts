@@ -135,8 +135,11 @@ export function computeSeasonOverview(
 export interface SeasonAwardWinner {
   id: string;
   playerName: string;
-  valueLabel: string;
-  detail: string;
+  /** Translation keys + params -- the UI calls t(valueLabelKey, valueLabelParams) / t(detailKey, detailParams); this module never produces English text directly. */
+  valueLabelKey: string;
+  valueLabelParams: Record<string, string | number>;
+  detailKey: string;
+  detailParams: Record<string, string | number>;
 }
 
 export interface SeasonAwards {
@@ -153,7 +156,7 @@ export interface SeasonAwards {
 }
 
 function fromLeaderboardRow(row: LeaderboardRow): SeasonAwardWinner {
-  return { id: row.playerId, playerName: row.playerName, valueLabel: row.valueLabel, detail: row.detail };
+  return { id: row.playerId, playerName: row.playerName, valueLabelKey: "records.valueRaw", valueLabelParams: { value: row.valueLabel }, detailKey: row.detailKey, detailParams: row.detailParams };
 }
 
 /** First half vs second half of the season's matches (chronological, split by count not by date) -- works for a season of any length, unlike a fixed calendar-month comparison. Mirrors monthlyReport.ts's month-over-month "most improved" idea, applied to a season-relative boundary instead. */
@@ -181,8 +184,10 @@ function computeMostImprovedInSeason(roster: MatchSidePlayer[], seasonMatches: M
   return {
     id: best.player.id,
     playerName: best.player.display_name,
-    valueLabel: `+${Math.round(best.delta * 100)}pp`,
-    detail: `${Math.round(best.before * 100)}% → ${Math.round(best.after * 100)}%`,
+    valueLabelKey: "seasonReport.valueImprovedDelta",
+    valueLabelParams: { points: Math.round(best.delta * 100) },
+    detailKey: "seasonReport.detailWinRateBeforeAfter",
+    detailParams: { before: Math.round(best.before * 100), after: Math.round(best.after * 100) },
   };
 }
 
@@ -195,7 +200,14 @@ function computeMostConsistentInSeason(roster: MatchSidePlayer[], seasonMatches:
     if (!best || consistency.goalMarginStdDev < best.stdDev) best = { player, stdDev: consistency.goalMarginStdDev };
   }
   if (!best) return null;
-  return { id: best.player.id, playerName: best.player.display_name, valueLabel: best.stdDev.toFixed(2), detail: "Goal-margin std. dev. (lower is steadier)" };
+  return {
+    id: best.player.id,
+    playerName: best.player.display_name,
+    valueLabelKey: "records.valueRaw",
+    valueLabelParams: { value: best.stdDev.toFixed(2) },
+    detailKey: "seasonReport.detailConsistency",
+    detailParams: {},
+  };
 }
 
 /** Sorted "playerIdA:playerIdB" -- matches leagueStandings.ts's own pair-id convention, needed to look up a side's season win rate for surprise detection. */
@@ -244,8 +256,10 @@ function computeBiggestSurpriseInSeason(roster: MatchSidePlayer[], seasonMatches
   return {
     id: best.match.id,
     playerName: best.winnerName,
-    valueLabel: `beat ${best.loserName}`,
-    detail: `${Math.round(best.winnerRate * 100)}% win rate beat ${Math.round(best.loserRate * 100)}% win rate`,
+    valueLabelKey: "seasonReport.valueBeat",
+    valueLabelParams: { name: best.loserName },
+    detailKey: "seasonReport.detailSurpriseRates",
+    detailParams: { winnerRate: Math.round(best.winnerRate * 100), loserRate: Math.round(best.loserRate * 100) },
   };
 }
 
@@ -261,13 +275,31 @@ export function computeSeasonAwards(roster: MatchSidePlayer[], seasonMatches: Ma
   return {
     // Same computation as the season Champion (points leader) -- shown again
     // here, award-show style, alongside the other individual awards.
-    playerOfTheSeason: standings[0] ? { id: standings[0].id, playerName: standings[0].name, valueLabel: `${standings[0].points} pts`, detail: `${standings[0].wins}W-${standings[0].draws}D-${standings[0].losses}L` } : null,
+    playerOfTheSeason: standings[0]
+      ? {
+          id: standings[0].id,
+          playerName: standings[0].name,
+          valueLabelKey: "seasonReport.valuePoints",
+          valueLabelParams: { points: standings[0].points },
+          detailKey: "seasonReport.detailWDL",
+          detailParams: { wins: standings[0].wins, draws: standings[0].draws, losses: standings[0].losses },
+        }
+      : null,
     goldenBoot: goldenBootBoard[0] ? fromLeaderboardRow(goldenBootBoard[0]) : null,
     bestDefense: bestDefenseBoard[0] ? fromLeaderboardRow(bestDefenseBoard[0]) : null,
     bestWinRate: winRateBoard[0] ? fromLeaderboardRow(winRateBoard[0]) : null,
     mostImproved: computeMostImprovedInSeason(roster, seasonMatches),
     mostConsistent: computeMostConsistentInSeason(roster, seasonMatches),
-    bestDuo: bestDuo ? { id: bestDuo.playerIds.join(":"), playerName: bestDuo.playerNames.join(" & "), valueLabel: bestDuo.winRate !== null ? `${Math.round(bestDuo.winRate * 100)}%` : "-", detail: `${bestDuo.wins}W-${bestDuo.losses}L-${bestDuo.draws}D` } : null,
+    bestDuo: bestDuo
+      ? {
+          id: bestDuo.playerIds.join(":"),
+          playerName: bestDuo.playerNames.join(" & "),
+          valueLabelKey: "records.valueRaw",
+          valueLabelParams: { value: bestDuo.winRate !== null ? `${Math.round(bestDuo.winRate * 100)}%` : "-" },
+          detailKey: "leaderboards.detailRecordWLD",
+          detailParams: { wins: bestDuo.wins, losses: bestDuo.losses, draws: bestDuo.draws },
+        }
+      : null,
     biggestSurprise: computeBiggestSurpriseInSeason(roster, seasonMatches),
     longestWinStreak: winStreakBoard[0] ? fromLeaderboardRow(winStreakBoard[0]) : null,
     longestLosingStreak: lossStreakBoard[0] ? fromLeaderboardRow(lossStreakBoard[0]) : null,

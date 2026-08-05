@@ -30,7 +30,7 @@ import { type DiscoveryItemType, selectHomeHighlights } from "../../../src/lib/d
 import { useTranslation } from "../../../src/lib/i18n";
 import { selectInsightOfTheDay } from "../../../src/lib/leagueInsights";
 import { computeLeagueSummary } from "../../../src/lib/leagueStats";
-import { matchSideLabel, formatRelativeDate } from "../../../src/lib/format";
+import { matchSideLabel, formatRelativeDate, formatStreakLabel } from "../../../src/lib/format";
 import { describeMetricChange, metricChangeTone } from "../../../src/lib/metricPresentation";
 import { computeLastNStats, computePlayerStats, computeStreaks, computeWinRateRank } from "../../../src/lib/stats";
 import { explainActivity, explainConsistency, explainDirection, explainMomentum, type TrendExplanation } from "../../../src/lib/trends/explanations";
@@ -152,10 +152,10 @@ export default function HomeScreen() {
 
   const highlights = useMemo(() => {
     if (!myPlayer) return [];
-    return selectHomeHighlights(myPlayer.id, roster, allMatches, new Date(), HIGHLIGHTS_COUNT);
+    return selectHomeHighlights(myPlayer.id, roster, allMatches, t, new Date(), HIGHLIGHTS_COUNT);
     // "now" is intentionally the only non-listed input -- highlights only need to rotate day to day, not on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myPlayer, roster, allMatches]);
+  }, [myPlayer, roster, allMatches, t]);
 
   const handleRefresh = () => {
     players.refetch();
@@ -179,7 +179,7 @@ export default function HomeScreen() {
                   <Text style={styles.heroGreeting}>{currentGroup?.name}</Text>
                   <Text style={styles.heroName}>{t("home.greeting", { name: myPlayer.display_name })}</Text>
                 </View>
-                <Badge label={myRank ? `#${myRank.position} of ${myRank.of}` : "Not yet qualified"} tone={rankBadgeTone(myRank?.position ?? null)} />
+                <Badge label={myRank ? t("common.rankPosition", { position: myRank.position, of: myRank.of }) : t("common.notYetQualified")} tone={rankBadgeTone(myRank?.position ?? null)} />
               </View>
               <View style={styles.heroStatsRow}>
                 <View style={styles.heroStat}>
@@ -197,11 +197,7 @@ export default function HomeScreen() {
                 </View>
                 <View style={styles.heroStat}>
                   <Text style={styles.heroEyebrow}>{t("home.streak")}</Text>
-                  <Text style={styles.heroValue}>
-                    {myStreak && myStreak.currentStreak.count > 0
-                      ? `${myStreak.currentStreak.count} ${myStreak.currentStreak.result}`
-                      : "—"}
-                  </Text>
+                  <Text style={styles.heroValue}>{formatStreakLabel(t, myStreak?.currentStreak.result ?? null, myStreak?.currentStreak.count ?? 0)}</Text>
                 </View>
                 {myForm ? (
                   <View style={styles.heroStat}>
@@ -241,7 +237,7 @@ export default function HomeScreen() {
               {highlights.map((item) => (
                 <View key={item.id} style={styles.highlightCardRow}>
                   <Text style={styles.highlightIcon}>{DISCOVERY_ICON[item.type]}</Text>
-                  <Text style={styles.highlightText}>{item.text}</Text>
+                  <Text style={styles.highlightText}>{t(item.textKey, item.textParams)}</Text>
                 </View>
               ))}
             </View>
@@ -260,7 +256,7 @@ export default function HomeScreen() {
                 <View style={styles.insightIconBadge}>
                   <Text style={styles.insightIcon}>💡</Text>
                 </View>
-                <Text style={styles.insightText}>{insightOfTheDay?.text ?? t("home.noInsightYet")}</Text>
+                <Text style={styles.insightText}>{insightOfTheDay ? t(insightOfTheDay.textKey, insightOfTheDay.textParams) : t("home.noInsightYet")}</Text>
               </Card>
             </View>
 
@@ -297,7 +293,7 @@ export default function HomeScreen() {
                 <MatchRow
                   matchType={latestMatch.match_type}
                   isPenalties={latestMatch.is_penalties}
-                  playedAtLabel={formatRelativeDate(latestMatch.played_at)}
+                  playedAtLabel={formatRelativeDate(latestMatch.played_at, t)}
                   side1={{
                     label: matchSideLabel(latestMatch.sides[0].players.map((p) => p.display_name)),
                     clubName: latestMatch.sides[0].club?.name ?? t("common.unknownClub"),

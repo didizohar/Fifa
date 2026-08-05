@@ -230,11 +230,12 @@ export default function LeaderboardsScreen() {
         color: colors.accent,
         value: pair.winRate ?? 0,
         valueLabel: pair.winRate !== null ? `${Math.round(pair.winRate * 100)}%` : "-",
-        detail: `${pair.wins}W-${pair.losses}L-${pair.draws}D`,
+        detailKey: "leaderboards.detailRecordWLD",
+        detailParams: { wins: pair.wins, losses: pair.losses, draws: pair.draws },
       }));
-      return leaderboardToCsv(pairRows);
+      return leaderboardToCsv(pairRows, t);
     }
-    return leaderboardToCsv(displayRows);
+    return leaderboardToCsv(displayRows, t);
   };
 
   return (
@@ -405,7 +406,7 @@ export default function LeaderboardsScreen() {
                     avatarUrl={row.avatarUrl}
                     color={row.color}
                     value={row.valueLabel}
-                    detail={row.detail}
+                    detail={t(row.detailKey, row.detailParams)}
                     highlighted={row.playerId === myPlayerId}
                     movement={movement.get(row.playerId) ?? 0}
                     onPress={handlePressPlayer}

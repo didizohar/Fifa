@@ -52,7 +52,10 @@ describe("computeHighestScoringMatchRecord", () => {
       makeMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }, day(0)),
       makeMatch({ playerIds: ["p1"], score: 4, result: "win" }, { playerIds: ["p2"], score: 3, result: "loss" }, day(1)),
     ];
-    expect(computeHighestScoringMatchRecord(matches)).toMatchObject({ valueLabel: "7 goals (4-3)" });
+    expect(computeHighestScoringMatchRecord(matches)).toMatchObject({
+      valueLabelKey: "records.valueGoalsWithScore",
+      valueLabelParams: { goals: 7, score: "4-3" },
+    });
   });
 
   it("returns null with no matches", () => {
@@ -66,7 +69,10 @@ describe("computeClosestMatchRecord", () => {
       makeMatch({ playerIds: ["p1"], score: 5, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }, day(0)),
       makeMatch({ playerIds: ["p1"], score: 2, result: "win" }, { playerIds: ["p2"], score: 1, result: "loss" }, day(1)),
     ];
-    expect(computeClosestMatchRecord(matches)).toMatchObject({ valueLabel: "2-1 (margin of 1)" });
+    expect(computeClosestMatchRecord(matches)).toMatchObject({
+      valueLabelKey: "records.valueScoreWithMargin",
+      valueLabelParams: { score: "2-1", margin: 1 },
+    });
   });
 });
 
@@ -76,7 +82,11 @@ describe("computeBiggestVictoryRecord", () => {
       makeMatch({ playerIds: ["p1"], score: 1, result: "draw" }, { playerIds: ["p2"], score: 1, result: "draw" }, day(0)),
       makeMatch({ playerIds: ["p1"], score: 6, result: "win" }, { playerIds: ["p2"], score: 1, result: "loss" }, day(1)),
     ];
-    expect(computeBiggestVictoryRecord(matches)).toMatchObject({ holderName: "p1", valueLabel: "6-1 vs p2 (+5)" });
+    expect(computeBiggestVictoryRecord(matches)).toMatchObject({
+      holderName: "p1",
+      valueLabelKey: "records.valueVictoryMargin",
+      valueLabelParams: { winnerScore: 6, loserScore: 1, loser: "p2", margin: 5 },
+    });
   });
 
   it("returns null when every match is a draw", () => {
@@ -88,7 +98,11 @@ describe("computeBiggestVictoryRecord", () => {
 describe("computeMostGoalsInMatchRecord", () => {
   it("picks the single side with the most goals in one match", () => {
     const matches = [makeMatch({ playerIds: ["p1"], score: 8, result: "win" }, { playerIds: ["p2"], score: 2, result: "loss" })];
-    expect(computeMostGoalsInMatchRecord(matches)).toMatchObject({ holderName: "p1", valueLabel: "8 goals" });
+    expect(computeMostGoalsInMatchRecord(matches)).toMatchObject({
+      holderName: "p1",
+      valueLabelKey: "records.valueGoalsCount",
+      valueLabelParams: { goals: 8 },
+    });
   });
 });
 
@@ -102,7 +116,10 @@ describe("computeMostMatchesInOneDayRecord", () => {
       makeMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }, sameDayLater),
       makeMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }, otherDay),
     ];
-    expect(computeMostMatchesInOneDayRecord(matches)).toMatchObject({ valueLabel: "2 matches" });
+    expect(computeMostMatchesInOneDayRecord(matches)).toMatchObject({
+      valueLabelKey: "records.valueMatchesCount",
+      valueLabelParams: { count: 2 },
+    });
   });
 
   it("breaks an exact tie between two days deterministically (earliest day wins), regardless of input array order", () => {
@@ -135,12 +152,14 @@ describe("computeLongestWinStreakRecord / computeLongestLossStreakRecord", () =>
     const players = roster(["p1", "p2", "o1", "o2", "o3", "o4", "o5"]);
     expect(computeLongestWinStreakRecord(players, matches)).toMatchObject({
       holderName: "p1",
-      valueLabel: "3 wins in a row",
+      valueLabelKey: "records.valueWinsInARow",
+      valueLabelParams: { count: 3 },
       setAt: day(2),
     });
     expect(computeLongestLossStreakRecord(players, matches)).toMatchObject({
       holderName: "p2",
-      valueLabel: "2 losses in a row",
+      valueLabelKey: "records.valueLossesInARow",
+      valueLabelParams: { count: 2 },
       setAt: day(4),
     });
   });
@@ -152,7 +171,11 @@ describe("computeMostCleanSheetsRecord / computeHighestWinRateRecord", () => {
       makeMatch({ playerIds: ["p1"], score: 1, result: "win" }, { playerIds: ["p2"], score: 0, result: "loss" }, day(n)),
     );
     expect(computeMostCleanSheetsRecord(roster(["p1", "p2"]), matches)).toMatchObject({ holderName: "p1" });
-    expect(computeHighestWinRateRecord(roster(["p1", "p2"]), matches)).toMatchObject({ holderName: "p1", valueLabel: "100%" });
+    expect(computeHighestWinRateRecord(roster(["p1", "p2"]), matches)).toMatchObject({
+      holderName: "p1",
+      valueLabelKey: "records.valueRaw",
+      valueLabelParams: { value: "100%" },
+    });
   });
 
   it("returns null with no qualifying data", () => {

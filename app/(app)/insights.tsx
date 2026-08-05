@@ -29,15 +29,15 @@ export default function InsightsScreen() {
     { icon: "👑", title: t("insightsScreen.playerOfMonthTitle"), why: t("insightsScreen.playerOfMonthWhy"), value: summary.playerOfMonth?.playerName ?? null },
     { icon: "⚽", title: t("insightsScreen.topScorerTitle"), why: t("insightsScreen.topScorerWhy"), value: summary.topScorer ? `${summary.topScorer.playerName} (${summary.topScorer.value})` : null },
     { icon: "🧱", title: t("insightsScreen.bestDefenseTitle"), why: t("insightsScreen.bestDefenseWhy"), value: summary.bestDefense ? `${summary.bestDefense.playerName} (${summary.bestDefense.value})` : null },
-    { icon: "💥", title: t("insightsScreen.biggestVictoryTitle"), why: t("insightsScreen.biggestVictoryWhy"), value: summary.biggestVictory ? `${summary.biggestVictory.holderName} · ${summary.biggestVictory.valueLabel}` : null },
+    { icon: "💥", title: t("insightsScreen.biggestVictoryTitle"), why: t("insightsScreen.biggestVictoryWhy"), value: summary.biggestVictory ? `${summary.biggestVictory.holderName} · ${t(summary.biggestVictory.valueLabelKey, summary.biggestVictory.valueLabelParams)}` : null },
     {
       icon: "🤝",
       title: t("insightsScreen.mostFrequentRivalryTitle"),
       why: t("insightsScreen.mostFrequentRivalryWhy"),
       value: summary.mostFrequentRivalry ? `${summary.mostFrequentRivalry.playerAName} & ${summary.mostFrequentRivalry.playerBName} (${summary.mostFrequentRivalry.matchesPlayed})` : null,
     },
-    { icon: "🏆", title: t("insightsScreen.longestWinStreakTitle"), why: t("insightsScreen.longestWinStreakWhy"), value: summary.longestWinStreak ? `${summary.longestWinStreak.holderName} · ${summary.longestWinStreak.valueLabel}` : null },
-    { icon: "❄️", title: t("insightsScreen.longestLossStreakTitle"), why: t("insightsScreen.longestLossStreakWhy"), value: summary.longestLossStreak ? `${summary.longestLossStreak.holderName} · ${summary.longestLossStreak.valueLabel}` : null },
+    { icon: "🏆", title: t("insightsScreen.longestWinStreakTitle"), why: t("insightsScreen.longestWinStreakWhy"), value: summary.longestWinStreak ? `${summary.longestWinStreak.holderName} · ${t(summary.longestWinStreak.valueLabelKey, summary.longestWinStreak.valueLabelParams)}` : null },
+    { icon: "❄️", title: t("insightsScreen.longestLossStreakTitle"), why: t("insightsScreen.longestLossStreakWhy"), value: summary.longestLossStreak ? `${summary.longestLossStreak.holderName} · ${t(summary.longestLossStreak.valueLabelKey, summary.longestLossStreak.valueLabelParams)}` : null },
     { icon: "📈", title: t("insightsScreen.mostImprovedTitle"), why: t("insightsScreen.mostImprovedWhy"), value: summary.mostImprovedPlayer?.playerName ?? null },
   ];
 

@@ -3,29 +3,31 @@ import { computeDoublesPartnerships, computeGoalStats, computePlayerStats, compu
 
 export interface Achievement {
   id: string;
-  label: string;
-  description: string;
+  /** Translation keys for the title/description -- the UI calls t(labelKey)/t(descriptionKey, descriptionParams); this module never produces English text directly. */
+  labelKey: string;
+  descriptionKey: string;
+  descriptionParams: Record<string, string | number>;
   /** When this achievement was unlocked, reconstructed by replaying match history -- not persisted anywhere. */
   unlockedAt: string;
 }
 
 interface AchievementDef {
   id: string;
-  label: string;
-  description: string;
+  labelKey: string;
+  descriptionKey: string;
   isUnlocked: (stats: PlayerStats, goals: GoalStats, streaks: StreakStats) => boolean;
 }
 
 const ACHIEVEMENT_DEFS: AchievementDef[] = [
-  { id: "first-match", label: "First Match", description: "Played your first match.", isUnlocked: (s) => s.played >= 1 },
-  { id: "first-win", label: "First Victory", description: "Won your first match.", isUnlocked: (s) => s.wins >= 1 },
-  { id: "first-goal", label: "First Goal", description: "Scored your first goal.", isUnlocked: (_s, g) => g.goalsScored >= 1 },
-  { id: "hundred-matches", label: "100 Matches", description: "Played 100 matches.", isUnlocked: (s) => s.played >= 100 },
-  { id: "fifty-wins", label: "50 Wins", description: "Won 50 matches.", isUnlocked: (s) => s.wins >= 50 },
-  { id: "goal-machine", label: "Goal Machine", description: "Scored 100 goals.", isUnlocked: (_s, g) => g.goalsScored >= 100 },
-  { id: "wall", label: "Wall", description: "Kept 10 clean sheets.", isUnlocked: (_s, g) => g.cleanSheets >= 10 },
-  { id: "unstoppable", label: "Unstoppable", description: "Won 10 matches in a row.", isUnlocked: (_s, _g, st) => st.longestWinStreak >= 10 },
-  { id: "legend", label: "Legend", description: "Played 200 matches.", isUnlocked: (s) => s.played >= 200 },
+  { id: "first-match", labelKey: "achievements.firstMatchLabel", descriptionKey: "achievements.firstMatchDescription", isUnlocked: (s) => s.played >= 1 },
+  { id: "first-win", labelKey: "achievements.firstWinLabel", descriptionKey: "achievements.firstWinDescription", isUnlocked: (s) => s.wins >= 1 },
+  { id: "first-goal", labelKey: "achievements.firstGoalLabel", descriptionKey: "achievements.firstGoalDescription", isUnlocked: (_s, g) => g.goalsScored >= 1 },
+  { id: "hundred-matches", labelKey: "achievements.hundredMatchesLabel", descriptionKey: "achievements.hundredMatchesDescription", isUnlocked: (s) => s.played >= 100 },
+  { id: "fifty-wins", labelKey: "achievements.fiftyWinsLabel", descriptionKey: "achievements.fiftyWinsDescription", isUnlocked: (s) => s.wins >= 50 },
+  { id: "goal-machine", labelKey: "achievements.goalMachineLabel", descriptionKey: "achievements.goalMachineDescription", isUnlocked: (_s, g) => g.goalsScored >= 100 },
+  { id: "wall", labelKey: "achievements.wallLabel", descriptionKey: "achievements.wallDescription", isUnlocked: (_s, g) => g.cleanSheets >= 10 },
+  { id: "unstoppable", labelKey: "achievements.unstoppableLabel", descriptionKey: "achievements.unstoppableDescription", isUnlocked: (_s, _g, st) => st.longestWinStreak >= 10 },
+  { id: "legend", labelKey: "achievements.legendLabel", descriptionKey: "achievements.legendDescription", isUnlocked: (s) => s.played >= 200 },
 ];
 
 /**
@@ -63,7 +65,7 @@ export function computePlayerAchievements(playerId: string, matches: MatchSummar
         break;
       }
     }
-    achievements.push({ id: def.id, label: def.label, description: def.description, unlockedAt });
+    achievements.push({ id: def.id, labelKey: def.labelKey, descriptionKey: def.descriptionKey, descriptionParams: {}, unlockedAt });
   }
   return achievements;
 }
@@ -108,8 +110,9 @@ export function computeBestPartnershipAchievement(playerId: string, matches: Mat
 
   return {
     id: `best-partnership-${best.teammateId}`,
-    label: "Best Partnership",
-    description: `Won ${Math.round((best.winRate ?? 0) * 100)}% of matches with ${best.teammateName}.`,
+    labelKey: "achievements.bestPartnershipLabel",
+    descriptionKey: "achievements.bestPartnershipDescription",
+    descriptionParams: { percent: Math.round((best.winRate ?? 0) * 100), partnerName: best.teammateName },
     unlockedAt,
     partnerId: best.teammateId,
     partnerName: best.teammateName,

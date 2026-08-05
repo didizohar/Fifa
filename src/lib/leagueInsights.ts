@@ -4,7 +4,9 @@ import { MIN_SAMPLE_SIZE, computeLastNStats, findSides } from "./stats";
 
 export interface LeagueInsight {
   id: string;
-  text: string;
+  /** Translation key + params -- the UI calls t(textKey, textParams); this module never produces English text directly. */
+  textKey: string;
+  textParams: Record<string, string | number>;
   /** Rough interestingness score used to rank items -- higher surfaces first. */
   score: number;
 }
@@ -22,7 +24,8 @@ function hotFormInsights(roster: readonly MatchSidePlayer[], matches: readonly M
     if (form.length < HOT_FORM_WINDOW || stats.wins < HOT_FORM_MIN_WINS) continue;
     items.push({
       id: `hot-form-${player.id}`,
-      text: `${player.display_name} has won ${stats.wins} of their last ${form.length} matches.`,
+      textKey: "leagueInsights.hotForm",
+      textParams: { name: player.display_name, wins: stats.wins, matches: form.length },
       score: 70 + stats.wins,
     });
   }
@@ -48,7 +51,8 @@ function dormantRivalryInsights(roster: readonly MatchSidePlayer[], matches: rea
 
       items.push({
         id: `dormant-rivalry-${a.id}-${b.id}`,
-        text: `${a.display_name} hasn't played against ${b.display_name} in ${daysSince} days.`,
+        textKey: "leagueInsights.dormantRivalry",
+        textParams: { nameA: a.display_name, nameB: b.display_name, days: daysSince },
         score: 40 + Math.min(daysSince, 60),
       });
     }
@@ -70,7 +74,8 @@ function oneGoalMarginInsight(matches: readonly MatchSummary[], now: Date): Leag
   return [
     {
       id: `one-goal-margin-${now.getFullYear()}-${now.getMonth()}`,
-      text: "Most matches this month ended with one goal difference.",
+      textKey: "leagueInsights.oneGoalMargin",
+      textParams: {},
       score: 45,
     },
   ];

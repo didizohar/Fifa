@@ -276,7 +276,10 @@ export default function WinnersStayScreen() {
                     />
                   ) : null}
                   {sessionInsights.highestScoringMatch ? (
-                    <SummaryRow label={t("rotation.highestScoringMatch")} value={`${sessionInsights.highestScoringMatch.holderName} (${sessionInsights.highestScoringMatch.valueLabel})`} />
+                    <SummaryRow
+                      label={t("rotation.highestScoringMatch")}
+                      value={`${sessionInsights.highestScoringMatch.holderName} (${t(sessionInsights.highestScoringMatch.valueLabelKey, sessionInsights.highestScoringMatch.valueLabelParams)})`}
+                    />
                   ) : null}
                   {sessionInsights.bestClub ? (
                     <SummaryRow

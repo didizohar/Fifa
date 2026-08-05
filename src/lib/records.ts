@@ -5,11 +5,13 @@ import { computeCleanSheetsLeaderboard, computeWinRateLeaderboard, findSides } f
 export interface RecordEntry {
   /** Stable slug for this record kind, e.g. "highest-scoring-match". */
   id: string;
-  label: string;
+  /** Translation key for the record's title -- the UI calls t(labelKey); this module never produces English text directly. */
+  labelKey: string;
   holderName: string;
   /** Player ids this record belongs to -- empty for records with no single attributable player/side (e.g. most matches in a day). Use this for matching, never holderName (which can collide with a display name containing " & "). */
   holderIds: string[];
-  valueLabel: string;
+  valueLabelKey: string;
+  valueLabelParams: Record<string, string | number>;
   /** The match this record is tied to, if any -- lets a screen link straight to it. */
   matchId: string | null;
   /** When this record was set (or, for cumulative records, the holder's most recent contributing match) -- used to detect "recently broken". */
@@ -35,10 +37,11 @@ export function computeHighestScoringMatchRecord(matches: MatchSummary[]): Recor
   const [s1, s2] = best.sides;
   return {
     id: "highest-scoring-match",
-    label: "Highest-Scoring Match",
+    labelKey: "records.highestScoringMatch",
     holderName: `${sideLabel(s1)} vs ${sideLabel(s2)}`,
     holderIds: [...sideIds(s1), ...sideIds(s2)],
-    valueLabel: `${totalGoals(best)} goals (${s1.score}-${s2.score})`,
+    valueLabelKey: "records.valueGoalsWithScore",
+    valueLabelParams: { goals: totalGoals(best), score: `${s1.score}-${s2.score}` },
     matchId: best.id,
     setAt: best.played_at,
   };
@@ -52,10 +55,11 @@ export function computeClosestMatchRecord(matches: MatchSummary[]): RecordEntry 
   const [s1, s2] = best.sides;
   return {
     id: "closest-match",
-    label: "Closest Match",
+    labelKey: "records.closestMatch",
     holderName: `${sideLabel(s1)} vs ${sideLabel(s2)}`,
     holderIds: [...sideIds(s1), ...sideIds(s2)],
-    valueLabel: `${s1.score}-${s2.score} (margin of ${margin(best)})`,
+    valueLabelKey: "records.valueScoreWithMargin",
+    valueLabelParams: { score: `${s1.score}-${s2.score}`, margin: margin(best) },
     matchId: best.id,
     setAt: best.played_at,
   };
@@ -75,10 +79,16 @@ export function computeBiggestVictoryRecord(matches: MatchSummary[]): RecordEntr
   if (!best) return null;
   return {
     id: "biggest-victory",
-    label: "Biggest Victory",
+    labelKey: "records.biggestVictory",
     holderName: sideLabel(best.winner),
     holderIds: sideIds(best.winner),
-    valueLabel: `${best.winner.score}-${best.loser.score} vs ${sideLabel(best.loser)} (+${best.margin})`,
+    valueLabelKey: "records.valueVictoryMargin",
+    valueLabelParams: {
+      winnerScore: best.winner.score,
+      loserScore: best.loser.score,
+      loser: sideLabel(best.loser),
+      margin: best.margin,
+    },
     matchId: best.match.id,
     setAt: best.match.played_at,
   };
@@ -95,10 +105,11 @@ export function computeMostGoalsInMatchRecord(matches: MatchSummary[]): RecordEn
   if (!best) return null;
   return {
     id: "most-goals-in-match",
-    label: "Most Goals in a Match",
+    labelKey: "records.mostGoalsInMatch",
     holderName: sideLabel(best.side),
     holderIds: sideIds(best.side),
-    valueLabel: `${best.side.score} goals`,
+    valueLabelKey: "records.valueGoalsCount",
+    valueLabelParams: { goals: best.side.score },
     matchId: best.match.id,
     setAt: best.match.played_at,
   };
@@ -125,10 +136,11 @@ export function computeMostMatchesInOneDayRecord(matches: MatchSummary[]): Recor
   const earliest = bestList.reduce((min, m) => (m.played_at < min ? m.played_at : min), bestList[0]!.played_at);
   return {
     id: "most-matches-in-one-day",
-    label: "Most Matches in One Day",
+    labelKey: "records.mostMatchesInOneDay",
     holderName: MOST_MATCHES_IN_DAY_LABEL.format(new Date(bestDate)),
     holderIds: [],
-    valueLabel: bestList.length === 1 ? "1 match" : `${bestList.length} matches`,
+    valueLabelKey: bestList.length === 1 ? "records.valueOneMatch" : "records.valueMatchesCount",
+    valueLabelParams: { count: bestList.length },
     matchId: null,
     setAt: earliest,
   };
@@ -168,10 +180,11 @@ export function computeLongestWinStreakRecord(roster: MatchSidePlayer[], matches
   if (!best) return null;
   return {
     id: "longest-win-streak",
-    label: "Longest Winning Streak",
+    labelKey: "records.longestWinStreak",
     holderName: best.player.display_name,
     holderIds: [best.player.id],
-    valueLabel: best.length === 1 ? "1 win in a row" : `${best.length} wins in a row`,
+    valueLabelKey: best.length === 1 ? "records.valueOneWinInARow" : "records.valueWinsInARow",
+    valueLabelParams: { count: best.length },
     matchId: null,
     setAt: best.endedAt,
   };
@@ -187,10 +200,11 @@ export function computeLongestLossStreakRecord(roster: MatchSidePlayer[], matche
   if (!best) return null;
   return {
     id: "longest-loss-streak",
-    label: "Longest Losing Streak",
+    labelKey: "records.longestLossStreak",
     holderName: best.player.display_name,
     holderIds: [best.player.id],
-    valueLabel: best.length === 1 ? "1 loss in a row" : `${best.length} losses in a row`,
+    valueLabelKey: best.length === 1 ? "records.valueOneLossInARow" : "records.valueLossesInARow",
+    valueLabelParams: { count: best.length },
     matchId: null,
     setAt: best.endedAt,
   };
@@ -208,10 +222,12 @@ export function computeMostCleanSheetsRecord(roster: MatchSidePlayer[], matches:
   if (!top) return null;
   return {
     id: "most-clean-sheets",
-    label: "Most Clean Sheets",
+    labelKey: "records.mostCleanSheets",
     holderName: top.playerName,
     holderIds: [top.playerId],
-    valueLabel: top.valueLabel,
+    // top.valueLabel is already a bare number (see stats.ts) -- language-neutral, just passed through.
+    valueLabelKey: "records.valueRaw",
+    valueLabelParams: { value: top.valueLabel },
     matchId: null,
     setAt: mostRecentPlayedAt(top.playerId, matches),
   };
@@ -223,10 +239,12 @@ export function computeHighestWinRateRecord(roster: MatchSidePlayer[], matches: 
   if (!top) return null;
   return {
     id: "highest-win-rate",
-    label: "Highest Win Rate",
+    labelKey: "records.highestWinRate",
     holderName: top.playerName,
     holderIds: [top.playerId],
-    valueLabel: top.valueLabel,
+    // top.valueLabel is already a bare percentage (see stats.ts) -- language-neutral, just passed through.
+    valueLabelKey: "records.valueRaw",
+    valueLabelParams: { value: top.valueLabel },
     matchId: null,
     setAt: mostRecentPlayedAt(top.playerId, matches),
   };

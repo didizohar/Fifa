@@ -403,14 +403,15 @@ export interface LeaderboardRow {
   color: string;
   /** Raw metric this leaderboard is ranked by -- for sorting/testing, not display. */
   value: number;
-  /** Formatted primary metric, e.g. "1050", "62%", "5". */
+  /** Formatted primary metric, e.g. "1050", "62%", "5" -- language-neutral, so still a plain string. */
   valueLabel: string;
-  /** Secondary line, e.g. "12W-3L-1D". */
-  detail: string;
+  /** Secondary line's translation key + params, e.g. "12W-3L-1D" -- the UI calls t(detailKey, detailParams); this module never produces English text directly. */
+  detailKey: string;
+  detailParams: Record<string, string | number>;
 }
 
-function recordDetail(stats: PlayerStats): string {
-  return `${stats.wins}W-${stats.losses}L-${stats.draws}D`;
+function recordDetail(stats: PlayerStats): { detailKey: string; detailParams: Record<string, string | number> } {
+  return { detailKey: "leaderboards.detailRecordWLD", detailParams: { wins: stats.wins, losses: stats.losses, draws: stats.draws } };
 }
 
 /** Qualification threshold for the primary win-rate ranking -- below this, a small sample (e.g. 1-0) could misleadingly top the board. */
@@ -440,7 +441,7 @@ export function computeWinRateLeaderboard(players: MatchSidePlayer[], matches: M
       color: r.player.custom_color,
       value: r.stats.winRate ?? 0,
       valueLabel: `${Math.round((r.stats.winRate ?? 0) * 100)}%`,
-      detail: recordDetail(r.stats),
+      ...recordDetail(r.stats),
     }));
 }
 
@@ -507,7 +508,7 @@ export function computeMostMatchesLeaderboard(players: MatchSidePlayer[], matche
       color: r.player.custom_color,
       value: r.stats.played,
       valueLabel: `${r.stats.played}`,
-      detail: recordDetail(r.stats),
+      ...recordDetail(r.stats),
     }));
 }
 
@@ -523,7 +524,8 @@ export function computeLongestStreakLeaderboard(players: MatchSidePlayer[], matc
       color: r.player.custom_color,
       value: r.streaks.longestWinStreak,
       valueLabel: `${r.streaks.longestWinStreak}`,
-      detail: r.streaks.longestWinStreak === 1 ? "1 match" : `${r.streaks.longestWinStreak} matches`,
+      detailKey: r.streaks.longestWinStreak === 1 ? "leaderboards.detailOneMatch" : "leaderboards.detailMatchesCount",
+      detailParams: { count: r.streaks.longestWinStreak },
     }));
 }
 
@@ -539,7 +541,8 @@ export function computeLongestLossStreakLeaderboard(players: MatchSidePlayer[], 
       color: r.player.custom_color,
       value: r.streaks.longestLossStreak,
       valueLabel: `${r.streaks.longestLossStreak}`,
-      detail: r.streaks.longestLossStreak === 1 ? "1 match" : `${r.streaks.longestLossStreak} matches`,
+      detailKey: r.streaks.longestLossStreak === 1 ? "leaderboards.detailOneMatch" : "leaderboards.detailMatchesCount",
+      detailParams: { count: r.streaks.longestLossStreak },
     }));
 }
 
@@ -555,7 +558,8 @@ export function computeGoalsScoredLeaderboard(players: MatchSidePlayer[], matche
       color: r.player.custom_color,
       value: r.goals.goalsScored,
       valueLabel: `${r.goals.goalsScored}`,
-      detail: `${(r.goals.goalsPerMatch ?? 0).toFixed(2)} per match`,
+      detailKey: "leaderboards.detailPerMatch",
+      detailParams: { value: (r.goals.goalsPerMatch ?? 0).toFixed(2) },
     }));
 }
 
@@ -572,7 +576,8 @@ export function computeFewestConcededLeaderboard(players: MatchSidePlayer[], mat
       color: r.player.custom_color,
       value: r.goals.goalsConceded,
       valueLabel: `${r.goals.goalsConceded}`,
-      detail: `${(r.goals.goalsConceded / r.stats.played).toFixed(2)} per match`,
+      detailKey: "leaderboards.detailPerMatch",
+      detailParams: { value: (r.goals.goalsConceded / r.stats.played).toFixed(2) },
     }));
 }
 
@@ -590,7 +595,8 @@ export function computeGoalDifferenceLeaderboard(players: MatchSidePlayer[], mat
         color: r.player.custom_color,
         value: diff,
         valueLabel: diff > 0 ? `+${diff}` : `${diff}`,
-        detail: `${r.goals.goalsScored} for, ${r.goals.goalsConceded} against`,
+        detailKey: "leaderboards.detailForAgainst",
+        detailParams: { for: r.goals.goalsScored, against: r.goals.goalsConceded },
       };
     });
 }
@@ -607,7 +613,8 @@ export function computeCleanSheetsLeaderboard(players: MatchSidePlayer[], matche
       color: r.player.custom_color,
       value: r.goals.cleanSheets,
       valueLabel: `${r.goals.cleanSheets}`,
-      detail: `in ${r.stats.played} matches`,
+      detailKey: "leaderboards.detailInMatches",
+      detailParams: { count: r.stats.played },
     }));
 }
 
@@ -632,9 +639,14 @@ export function computeMonthlyLeaderboard(
       playerName: r.player.display_name,
       avatarUrl: r.player.avatar_url,
       color: r.player.custom_color,
+      // Bare number, not "N wins" -- matches every other leaderboard's
+      // minimalist valueLabel convention (e.g. computeMostMatchesLeaderboard's
+      // bare `played` count); the category header already says "wins", and
+      // this keeps valueLabel language-neutral like every sibling function.
       value: r.stats.wins,
-      valueLabel: r.stats.wins === 1 ? "1 win" : `${r.stats.wins} wins`,
-      detail: `${r.stats.played} played · ${Math.round((r.stats.winRate ?? 0) * 100)}% win`,
+      valueLabel: `${r.stats.wins}`,
+      detailKey: "leaderboards.detailPlayedWinPct",
+      detailParams: { played: r.stats.played, pct: Math.round((r.stats.winRate ?? 0) * 100) },
     }));
 }
 

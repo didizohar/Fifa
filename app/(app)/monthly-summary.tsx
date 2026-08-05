@@ -153,7 +153,7 @@ export default function MonthlySummaryScreen() {
           <AwardCard
             icon="🔥"
             title={t("monthlySummary.highestScoringMatch")}
-            value={summary.highestScoringMatch ? `${summary.highestScoringMatch.holderName} · ${summary.highestScoringMatch.valueLabel}` : null}
+            value={summary.highestScoringMatch ? `${summary.highestScoringMatch.holderName} · ${t(summary.highestScoringMatch.valueLabelKey, summary.highestScoringMatch.valueLabelParams)}` : null}
             noDataLabel={t("monthlySummary.noAwardYet")}
           />
           <AwardCard

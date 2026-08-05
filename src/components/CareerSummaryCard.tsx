@@ -1,5 +1,7 @@
 import { forwardRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "../lib/i18n";
+import { formatStreakLabel } from "../lib/format";
 import { colors, radius, spacing, typography } from "../theme";
 import { Avatar } from "./Avatar";
 
@@ -19,6 +21,7 @@ export interface CareerSummaryCardData {
 
 /** A fixed-size, self-contained card meant to be captured as a shareable image -- not a normal flexible-width screen element. */
 export const CareerSummaryCard = forwardRef<View, { data: CareerSummaryCardData }>(function CareerSummaryCard({ data }, ref) {
+  const { t } = useTranslation();
   return (
     <View ref={ref} collapsable={false} style={styles.card}>
       <Text style={styles.brand}>FC RIVAL</Text>
@@ -28,15 +31,15 @@ export const CareerSummaryCard = forwardRef<View, { data: CareerSummaryCardData 
       <View style={styles.statsRow}>
         <View style={styles.stat}>
           <Text style={styles.statValue}>{data.winRate !== null ? `${Math.round(data.winRate * 100)}%` : "–"}</Text>
-          <Text style={styles.statLabel}>Win Rate</Text>
+          <Text style={styles.statLabel}>{t("home.winRate")}</Text>
         </View>
         <View style={styles.stat}>
           <Text style={styles.statValue}>{data.played}</Text>
-          <Text style={styles.statLabel}>Played</Text>
+          <Text style={styles.statLabel}>{t("playerProfile.statMatchesPlayed")}</Text>
         </View>
         <View style={styles.stat}>
-          <Text style={styles.statValue}>{data.currentStreak.count > 0 ? `${data.currentStreak.count} ${data.currentStreak.result}` : "–"}</Text>
-          <Text style={styles.statLabel}>Streak</Text>
+          <Text style={styles.statValue}>{formatStreakLabel(t, data.currentStreak.result, data.currentStreak.count)}</Text>
+          <Text style={styles.statLabel}>{t("home.streak")}</Text>
         </View>
       </View>
       <Text style={styles.record}>

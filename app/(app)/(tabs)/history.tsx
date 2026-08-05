@@ -32,14 +32,14 @@ type HistoryListItem =
   | { type: "match"; match: MatchSummary; isLastInGroup: boolean };
 
 /** Inserts a day-header item before each new calendar day, so the timeline visually clusters by day instead of running as one continuous list. */
-function groupMatchesByDay(matches: MatchSummary[]): HistoryListItem[] {
+function groupMatchesByDay(matches: MatchSummary[], t: (key: string, params?: Record<string, string | number>) => string): HistoryListItem[] {
   const items: HistoryListItem[] = [];
   let lastDayKey: string | null = null;
 
   matches.forEach((match, index) => {
     const dayKey = new Date(match.played_at).toDateString();
     if (dayKey !== lastDayKey) {
-      items.push({ type: "header", label: formatDayLabel(match.played_at) });
+      items.push({ type: "header", label: formatDayLabel(match.played_at, t) });
       lastDayKey = dayKey;
     }
     const next = matches[index + 1];
@@ -65,7 +65,7 @@ export default function HistoryScreen() {
   const clubs = useMemo(() => distinctClubs(allMatches), [allMatches]);
   const filtered = useMemo(() => filterMatches(allMatches, filters), [allMatches, filters]);
   const filtersActive = hasActiveFilters(filters);
-  const listItems = useMemo(() => groupMatchesByDay(filtered), [filtered]);
+  const listItems = useMemo(() => groupMatchesByDay(filtered, t), [filtered, t]);
 
   const pickablePlayers = useMemo(() => (players.data ?? []).map(toPickablePlayer), [players.data]);
   const opponentChoices = useMemo(() => pickablePlayers.filter((p) => p.id !== filters.playerId), [pickablePlayers, filters.playerId]);
@@ -283,7 +283,7 @@ function HistoryRow({
         <MatchRow
           matchType={match.match_type}
           isPenalties={match.is_penalties}
-          playedAtLabel={formatRelativeDate(match.played_at)}
+          playedAtLabel={formatRelativeDate(match.played_at, t)}
           side1={{
             label: matchSideLabel(s1.players.map((p) => p.display_name)),
             clubName: s1.club?.name ?? t("history.unknownClub"),
