@@ -34,8 +34,15 @@ export function BarChart({ rows, maxValue }: BarChartProps) {
             <View style={styles.track}>
               <LinearGradient
                 colors={[colors.accentMuted, colors.accent]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
+                // The bar itself auto-anchors to the row's reading-start edge and
+                // grows toward reading-end (Yoga mirrors alignItems the same way
+                // it mirrors flexDirection). The gradient's x coordinates are
+                // absolute screen space, not logical, so they don't get that
+                // mirroring for free -- swap them under RTL to keep "muted at the
+                // anchor, full color at the growing tip" pointing the same
+                // semantic direction in both locales.
+                start={{ x: isRTL ? 1 : 0, y: 0 }}
+                end={{ x: isRTL ? 0 : 1, y: 0 }}
                 style={[styles.fill, { width: `${pct * 100}%` }]}
               />
             </View>
