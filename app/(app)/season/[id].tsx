@@ -5,7 +5,7 @@ import { Badge } from "../../../src/components/Badge";
 import { Card } from "../../../src/components/Card";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
-import { FilterChip } from "../../../src/components/FilterChip";
+import { Chip } from "../../../src/components/Chip";
 import { InfoBanner } from "../../../src/components/InfoBanner";
 import { MatchRow } from "../../../src/components/MatchRow";
 import { Screen } from "../../../src/components/Screen";
@@ -70,12 +70,12 @@ export default function SeasonDetailsScreen() {
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRow}>
-          <FilterChip label={t("seasonHistory.tabOverview")} active={tab === "overview"} onPress={() => setTab("overview")} />
-          <FilterChip label={t("seasonHistory.tabLeagueTable")} active={tab === "table"} onPress={() => setTab("table")} />
-          <FilterChip label={t("seasonHistory.tabAwards")} active={tab === "awards"} onPress={() => setTab("awards")} />
-          <FilterChip label={t("seasonHistory.tabStatistics")} active={tab === "statistics"} onPress={() => setTab("statistics")} />
-          <FilterChip label={t("seasonHistory.tabClubs")} active={tab === "clubs"} onPress={() => setTab("clubs")} />
-          <FilterChip label={t("seasonHistory.tabMatches")} active={tab === "matches"} onPress={() => setTab("matches")} />
+          <Chip label={t("seasonHistory.tabOverview")} active={tab === "overview"} onPress={() => setTab("overview")} />
+          <Chip label={t("seasonHistory.tabLeagueTable")} active={tab === "table"} onPress={() => setTab("table")} />
+          <Chip label={t("seasonHistory.tabAwards")} active={tab === "awards"} onPress={() => setTab("awards")} />
+          <Chip label={t("seasonHistory.tabStatistics")} active={tab === "statistics"} onPress={() => setTab("statistics")} />
+          <Chip label={t("seasonHistory.tabClubs")} active={tab === "clubs"} onPress={() => setTab("clubs")} />
+          <Chip label={t("seasonHistory.tabMatches")} active={tab === "matches"} onPress={() => setTab("matches")} />
         </ScrollView>
 
         <View style={styles.tabContent}>

@@ -8,7 +8,7 @@ import { Card } from "../../../src/components/Card";
 import { ClubBadge } from "../../../src/components/ClubBadge";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
-import { FilterChip } from "../../../src/components/FilterChip";
+import { Chip } from "../../../src/components/Chip";
 import { PlayerPicker } from "../../../src/components/PlayerPicker";
 import { ResultRevealCard } from "../../../src/components/ResultRevealCard";
 import { Screen } from "../../../src/components/Screen";
@@ -260,7 +260,7 @@ export default function ClubDrawScreen() {
             <Text style={styles.label}>{t("draw.gameVersion")}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
               {gameVersions.map((gv) => (
-                <FilterChip key={gv.id} label={gv.name} active={gameVersionId === gv.id} onPress={() => setGameVersionId(gv.id)} />
+                <Chip key={gv.id} label={gv.name} active={gameVersionId === gv.id} onPress={() => setGameVersionId(gv.id)} />
               ))}
             </ScrollView>
           </Card>
@@ -288,17 +288,17 @@ export default function ClubDrawScreen() {
         <Card style={styles.section}>
           <Text style={styles.label}>{t("draw.clubMode")}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-            <FilterChip label={t("draw.clubModeRandom")} active={mode === "random"} onPress={() => setMode("random")} />
-            <FilterChip label={t("draw.clubModeExactStars")} active={mode === "exactStars"} onPress={() => setMode("exactStars")} />
-            <FilterChip label={t("draw.clubModeStarRange")} active={mode === "starRange"} onPress={() => setMode("starRange")} />
-            <FilterChip label={t("draw.clubModeBalanced")} active={mode === "balanced"} onPress={() => setMode("balanced")} />
-            <FilterChip label={t("draw.clubModeHandicap")} active={mode === "handicap"} onPress={() => setMode("handicap")} />
+            <Chip label={t("draw.clubModeRandom")} active={mode === "random"} onPress={() => setMode("random")} />
+            <Chip label={t("draw.clubModeExactStars")} active={mode === "exactStars"} onPress={() => setMode("exactStars")} />
+            <Chip label={t("draw.clubModeStarRange")} active={mode === "starRange"} onPress={() => setMode("starRange")} />
+            <Chip label={t("draw.clubModeBalanced")} active={mode === "balanced"} onPress={() => setMode("balanced")} />
+            <Chip label={t("draw.clubModeHandicap")} active={mode === "handicap"} onPress={() => setMode("handicap")} />
           </ScrollView>
 
           {mode === "exactStars" ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
               {distinctStars.map((stars) => (
-                <FilterChip key={stars} label={t("draw.exactStarsLabel", { stars: String(stars) })} active={exactStars === stars} onPress={() => setExactStars(stars)} />
+                <Chip key={stars} label={t("draw.exactStarsLabel", { stars: String(stars) })} active={exactStars === stars} onPress={() => setExactStars(stars)} />
               ))}
             </ScrollView>
           ) : null}
@@ -308,13 +308,13 @@ export default function ClubDrawScreen() {
               <Text style={styles.rangeCaption}>{t("draw.rangeFrom")}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
                 {distinctStars.map((stars) => (
-                  <FilterChip key={stars} label={String(stars)} active={rangeMin === stars} onPress={() => setRangeMin(stars)} />
+                  <Chip key={stars} label={String(stars)} active={rangeMin === stars} onPress={() => setRangeMin(stars)} />
                 ))}
               </ScrollView>
               <Text style={styles.rangeCaption}>{t("draw.rangeTo")}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
                 {distinctStars.map((stars) => (
-                  <FilterChip key={stars} label={String(stars)} active={rangeMax === stars} onPress={() => setRangeMax(stars)} />
+                  <Chip key={stars} label={String(stars)} active={rangeMax === stars} onPress={() => setRangeMax(stars)} />
                 ))}
               </ScrollView>
             </View>

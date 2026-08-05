@@ -7,7 +7,7 @@ import { ClubBadge } from "../../src/components/ClubBadge";
 import { ClubPickerSheet } from "../../src/components/ClubPickerSheet";
 import { EmptyState } from "../../src/components/EmptyState";
 import { ErrorState } from "../../src/components/ErrorState";
-import { FilterChip } from "../../src/components/FilterChip";
+import { Chip } from "../../src/components/Chip";
 import { InfoBanner } from "../../src/components/InfoBanner";
 import { PlayerPicker } from "../../src/components/PlayerPicker";
 import { Screen } from "../../src/components/Screen";
@@ -516,15 +516,15 @@ export default function RecordMatchScreen() {
           <Card style={styles.clubDrawCard}>
             <Text style={styles.sideTitle}>{t("rotation.drawClubsByStars")}</Text>
             <View style={styles.chipRow}>
-              <FilterChip label={t("rotation.starModeSameLevel")} active={starMode === "sameStar"} onPress={() => setStarMode("sameStar")} />
-              <FilterChip label={t("rotation.starModeSimilar")} active={starMode === "similarStrength"} onPress={() => setStarMode("similarStrength")} />
-              <FilterChip label={t("rotation.starModeAny")} active={starMode === "anyStrength"} onPress={() => setStarMode("anyStrength")} />
+              <Chip label={t("rotation.starModeSameLevel")} active={starMode === "sameStar"} onPress={() => setStarMode("sameStar")} />
+              <Chip label={t("rotation.starModeSimilar")} active={starMode === "similarStrength"} onPress={() => setStarMode("similarStrength")} />
+              <Chip label={t("rotation.starModeAny")} active={starMode === "anyStrength"} onPress={() => setStarMode("anyStrength")} />
             </View>
 
             {starMode === "sameStar" ? (
               <View style={styles.chipRow}>
                 {availableStarLevels.map((stars) => (
-                  <FilterChip key={stars} label={t("draw.exactStarsLabel", { stars: String(stars) })} active={selectedStarLevel === stars} onPress={() => setSelectedStarLevel(stars)} />
+                  <Chip key={stars} label={t("draw.exactStarsLabel", { stars: String(stars) })} active={selectedStarLevel === stars} onPress={() => setSelectedStarLevel(stars)} />
                 ))}
               </View>
             ) : null}

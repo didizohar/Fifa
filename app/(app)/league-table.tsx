@@ -1,7 +1,7 @@
 import { memo, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { EmptyState } from "../../src/components/EmptyState";
-import { FilterChip } from "../../src/components/FilterChip";
+import { Chip } from "../../src/components/Chip";
 import { InfoTooltip } from "../../src/components/InfoTooltip";
 import { Screen } from "../../src/components/Screen";
 import { SegmentedControl } from "../../src/components/SegmentedControl";
@@ -108,12 +108,12 @@ export default function LeagueTableScreen() {
       </View>
 
       <View style={styles.filterRow}>
-        <FilterChip label={t("leagueTable.filterAllTime")} active={filterMode === "all"} onPress={() => setFilterMode("all")} />
-        <FilterChip label={t("leagueTable.filterCurrentMonth")} active={filterMode === "currentMonth"} onPress={() => setFilterMode("currentMonth")} />
-        <FilterChip label={t("leagueTable.filterPreviousMonth")} active={filterMode === "previousMonth"} onPress={() => setFilterMode("previousMonth")} />
-        <FilterChip label={t("leagueTable.filterCustom")} active={filterMode === "custom"} onPress={() => setFilterMode("custom")} />
+        <Chip label={t("leagueTable.filterAllTime")} active={filterMode === "all"} onPress={() => setFilterMode("all")} />
+        <Chip label={t("leagueTable.filterCurrentMonth")} active={filterMode === "currentMonth"} onPress={() => setFilterMode("currentMonth")} />
+        <Chip label={t("leagueTable.filterPreviousMonth")} active={filterMode === "previousMonth"} onPress={() => setFilterMode("previousMonth")} />
+        <Chip label={t("leagueTable.filterCustom")} active={filterMode === "custom"} onPress={() => setFilterMode("custom")} />
         {activeSeason ? (
-          <FilterChip label={t("leagueTable.filterActiveSeason", { name: activeSeason.name })} active={filterMode === "activeSeason"} onPress={() => setFilterMode("activeSeason")} />
+          <Chip label={t("leagueTable.filterActiveSeason", { name: activeSeason.name })} active={filterMode === "activeSeason"} onPress={() => setFilterMode("activeSeason")} />
         ) : null}
       </View>
 
@@ -146,11 +146,11 @@ export default function LeagueTableScreen() {
       ) : null}
 
       <View style={styles.filterRow}>
-        <FilterChip label={t("leagueTable.sortPoints")} active={sortMode === "points"} onPress={() => setSortMode("points")} />
-        <FilterChip label={t("leagueTable.sortWins")} active={sortMode === "wins"} onPress={() => setSortMode("wins")} />
-        <FilterChip label={t("leagueTable.sortGoals")} active={sortMode === "goals"} onPress={() => setSortMode("goals")} />
-        <FilterChip label={t("leagueTable.sortGoalDifference")} active={sortMode === "goalDifference"} onPress={() => setSortMode("goalDifference")} />
-        <FilterChip label={t("leagueTable.sortWinRate")} active={sortMode === "winRate"} onPress={() => setSortMode("winRate")} />
+        <Chip label={t("leagueTable.sortPoints")} active={sortMode === "points"} onPress={() => setSortMode("points")} />
+        <Chip label={t("leagueTable.sortWins")} active={sortMode === "wins"} onPress={() => setSortMode("wins")} />
+        <Chip label={t("leagueTable.sortGoals")} active={sortMode === "goals"} onPress={() => setSortMode("goals")} />
+        <Chip label={t("leagueTable.sortGoalDifference")} active={sortMode === "goalDifference"} onPress={() => setSortMode("goalDifference")} />
+        <Chip label={t("leagueTable.sortWinRate")} active={sortMode === "winRate"} onPress={() => setSortMode("winRate")} />
       </View>
 
       {isLoading ? (

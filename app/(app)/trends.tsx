@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { EmptyState } from "../../src/components/EmptyState";
-import { FilterChip } from "../../src/components/FilterChip";
+import { Chip } from "../../src/components/Chip";
 import { PlayerPicker } from "../../src/components/PlayerPicker";
 import { Screen } from "../../src/components/Screen";
 import { SkeletonList } from "../../src/components/Skeleton";
@@ -75,13 +75,13 @@ export default function TrendsScreen() {
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
         {METRIC_OPTIONS.map((opt) => (
-          <FilterChip key={opt.value} label={t(opt.labelKey)} active={metric === opt.value} onPress={() => setMetric(opt.value)} />
+          <Chip key={opt.value} label={t(opt.labelKey)} active={metric === opt.value} onPress={() => setMetric(opt.value)} />
         ))}
       </ScrollView>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
         {ANALYTICS_RANGE_OPTIONS.map((opt) => (
-          <FilterChip key={opt.value} label={t(opt.labelKey)} active={range === opt.value} onPress={() => setRange(opt.value)} />
+          <Chip key={opt.value} label={t(opt.labelKey)} active={range === opt.value} onPress={() => setRange(opt.value)} />
         ))}
       </ScrollView>
 

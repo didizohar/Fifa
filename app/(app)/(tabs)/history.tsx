@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { useMemo, useState, type ReactNode } from "react";
 import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Button } from "../../../src/components/Button";
+import { Chip } from "../../../src/components/Chip";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
 import { ExportButton } from "../../../src/components/ExportButton";
@@ -158,9 +159,9 @@ export default function HistoryScreen() {
           {clubs.length > 0 ? (
             <FilterSection label={t("history.filterClub")}>
               <View style={styles.chipWrap}>
-                <ClubChip label={t("history.allClubs")} active={filters.clubId === null} onPress={() => setFilters((f) => ({ ...f, clubId: null }))} />
+                <Chip label={t("history.allClubs")} active={filters.clubId === null} onPress={() => setFilters((f) => ({ ...f, clubId: null }))} />
                 {clubs.map((club) => (
-                  <ClubChip
+                  <Chip
                     key={club.id}
                     label={club.name}
                     active={filters.clubId === club.id}
@@ -183,7 +184,7 @@ export default function HistoryScreen() {
           <FilterSection label={t("history.filterDateRange")}>
             <View style={styles.chipWrap}>
               {dateRangeOptions.map((opt) => (
-                <ClubChip
+                <Chip
                   key={opt.value}
                   label={opt.label}
                   active={filters.dateRange === opt.value}
@@ -254,16 +255,6 @@ function FilterSection({ label, children }: { label: string; children: ReactNode
       <Text style={styles.filterSectionLabel}>{label}</Text>
       {children}
     </View>
-  );
-}
-
-function ClubChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} style={[styles.chip, active && styles.chipActive]} accessibilityRole="button" accessibilityState={{ selected: active }}>
-      <Text style={[styles.chipLabel, active && styles.chipLabelActive]} numberOfLines={1}>
-        {label}
-      </Text>
-    </Pressable>
   );
 }
 
@@ -407,26 +398,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm,
-  },
-  chip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceElevated,
-    maxWidth: 160,
-  },
-  chipActive: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accentSubtle,
-  },
-  chipLabel: {
-    ...typography.caption,
-  },
-  chipLabelActive: {
-    color: colors.accent,
-    fontWeight: "700",
   },
   listPadding: {
     paddingHorizontal: spacing.lg,

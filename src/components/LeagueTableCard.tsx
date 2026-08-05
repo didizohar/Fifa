@@ -8,7 +8,7 @@ import type { PlayerProfile, Season } from "../lib/types/database";
 import { colors, spacing, typography } from "../theme";
 import { Button } from "./Button";
 import { EmptyState } from "./EmptyState";
-import { FilterChip } from "./FilterChip";
+import { Chip } from "./Chip";
 import { RankingRow } from "./RankingRow";
 
 export type LeagueTableCardPeriod = "activeSeason" | "allTime" | "currentMonth";
@@ -105,9 +105,9 @@ export function LeagueTableCard({
       </View>
 
       <View style={styles.periodRow}>
-        <FilterChip label={t("home.leagueTableCardActiveSeason")} active={period === "activeSeason"} onPress={() => onChangePeriod("activeSeason")} />
-        <FilterChip label={t("home.leagueTableCardAllTime")} active={period === "allTime"} onPress={() => onChangePeriod("allTime")} />
-        <FilterChip label={t("home.leagueTableCardCurrentMonth")} active={period === "currentMonth"} onPress={() => onChangePeriod("currentMonth")} />
+        <Chip label={t("home.leagueTableCardActiveSeason")} active={period === "activeSeason"} onPress={() => onChangePeriod("activeSeason")} />
+        <Chip label={t("home.leagueTableCardAllTime")} active={period === "allTime"} onPress={() => onChangePeriod("allTime")} />
+        <Chip label={t("home.leagueTableCardCurrentMonth")} active={period === "currentMonth"} onPress={() => onChangePeriod("currentMonth")} />
       </View>
 
       {standings.length === 0 ? (
