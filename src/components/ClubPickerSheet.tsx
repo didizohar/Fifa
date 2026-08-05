@@ -240,7 +240,16 @@ export function ClubPickerSheet({
                 : t("clubPicker.addCustomClub");
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={closeAndReset} presentationStyle="pageSheet">
+    // fullScreen (not pageSheet) -- pageSheet's native interactive
+    // swipe-to-dismiss gesture was competing with this content's own
+    // FlatList scroll gesture (and each row's own Pressable), the exact
+    // same class of gesture-negotiation stall already root-caused and
+    // fixed for Record Match's own outer modal (see gestureEnabled: false
+    // in app/(app)/_layout.tsx). fullScreen has no such gesture, so there's
+    // nothing left to compete with the list -- closing now goes only
+    // through the explicit header buttons below (back / X), which were
+    // already there.
+    <Modal visible={visible} animationType="slide" onRequestClose={closeAndReset} presentationStyle="fullScreen">
       <View style={styles.sheet}>
         <View style={styles.header}>
           {mode !== "menu" ? (
