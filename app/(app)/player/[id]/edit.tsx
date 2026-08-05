@@ -47,18 +47,14 @@ export default function EditPlayerScreen() {
   if (isLoading || !player) {
     return (
       <Screen avoidKeyboard>
-        {isError ? (
-          <ErrorState message="Couldn't load this player's details. Check your connection and try again." onRetry={refetch} />
-        ) : (
-          <Skeleton height={200} />
-        )}
+        {isError ? <ErrorState message={t("players.editLoadError")} onRetry={refetch} /> : <Skeleton height={200} />}
       </Screen>
     );
   }
 
   const handleSubmit = async () => {
     if (displayName.trim().length < 2) {
-      setError("Name must be at least 2 characters.");
+      setError(t("players.nameTooShortError"));
       return;
     }
     setError(null);
@@ -69,17 +65,17 @@ export default function EditPlayerScreen() {
       });
       router.back();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update player.");
+      setError(e instanceof Error ? e.message : t("players.updatePlayerError"));
     }
   };
 
   return (
     <Screen avoidKeyboard>
       <ScrollView contentContainerStyle={styles.form} showsVerticalScrollIndicator={false}>
-        <TextField label="Name" value={displayName} onChangeText={setDisplayName} error={error} />
-        <TextField label="Nickname (optional)" value={nickname} onChangeText={setNickname} />
+        <TextField label={t("players.nameLabel")} value={displayName} onChangeText={setDisplayName} error={error} />
+        <TextField label={t("players.nicknameLabel")} value={nickname} onChangeText={setNickname} />
         <View style={styles.colorSection}>
-          <Text style={styles.colorLabel}>Color</Text>
+          <Text style={styles.colorLabel}>{t("players.colorLabel")}</Text>
           <View style={styles.swatchRow}>
             {COLOR_SWATCHES.map((swatch) => (
               <Pressable
@@ -88,7 +84,7 @@ export default function EditPlayerScreen() {
                 style={[styles.swatch, { backgroundColor: swatch }, color === swatch && styles.swatchSelected]}
                 hitSlop={4}
                 accessibilityRole="button"
-                accessibilityLabel={`Color ${swatch}`}
+                accessibilityLabel={t("players.colorSwatchA11y", { swatch })}
                 accessibilityState={{ selected: color === swatch }}
               />
             ))}
@@ -106,7 +102,7 @@ export default function EditPlayerScreen() {
             ) : null}
           </View>
         </View>
-        <Button label="Save changes" onPress={handleSubmit} loading={updatePlayer.isPending} />
+        <Button label={t("players.saveChangesAction")} onPress={handleSubmit} loading={updatePlayer.isPending} />
       </ScrollView>
     </Screen>
   );
@@ -142,8 +138,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   drawLevelHint: {
-    fontSize: 12,
-    color: colors.textMuted,
+    ...typography.small,
   },
   drawLevelRow: {
     flexDirection: "row",
@@ -152,7 +147,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   drawLevelClear: {
-    fontSize: 13,
+    ...typography.caption,
     color: colors.accent,
     fontWeight: "600",
   },

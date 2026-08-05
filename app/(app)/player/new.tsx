@@ -6,12 +6,14 @@ import { Screen } from "../../../src/components/Screen";
 import { TextField } from "../../../src/components/TextField";
 import { useGroup } from "../../../src/hooks/useGroup";
 import { useCreatePlayer } from "../../../src/hooks/usePlayerMutations";
+import { useTranslation } from "../../../src/lib/i18n";
 import { colors, radius, spacing, typography } from "../../../src/theme";
 
 const COLOR_SWATCHES = ["#3EE07A", "#60A5FA", "#F5C451", "#F87171", "#C084FC", "#F97316", "#22D3EE"];
 
 export default function NewPlayerScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { currentGroupId } = useGroup();
   const createPlayer = useCreatePlayer(currentGroupId);
 
@@ -23,7 +25,7 @@ export default function NewPlayerScreen() {
   const handleSubmit = async () => {
     if (!currentGroupId) return;
     if (displayName.trim().length < 2) {
-      setError("Name must be at least 2 characters.");
+      setError(t("players.nameTooShortError"));
       return;
     }
     setError(null);
@@ -36,17 +38,17 @@ export default function NewPlayerScreen() {
       });
       router.back();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to add player.");
+      setError(e instanceof Error ? e.message : t("players.addPlayerError"));
     }
   };
 
   return (
     <Screen avoidKeyboard>
       <ScrollView contentContainerStyle={styles.form} showsVerticalScrollIndicator={false}>
-        <TextField label="Name" placeholder="Player name" value={displayName} onChangeText={setDisplayName} autoFocus error={error} />
-        <TextField label="Nickname (optional)" placeholder="e.g. The Wall" value={nickname} onChangeText={setNickname} />
+        <TextField label={t("players.nameLabel")} placeholder={t("players.namePlaceholder")} value={displayName} onChangeText={setDisplayName} autoFocus error={error} />
+        <TextField label={t("players.nicknameLabel")} placeholder={t("players.nicknamePlaceholder")} value={nickname} onChangeText={setNickname} />
         <View style={styles.colorSection}>
-          <Text style={styles.colorLabel}>Color</Text>
+          <Text style={styles.colorLabel}>{t("players.colorLabel")}</Text>
           <View style={styles.swatchRow}>
             {COLOR_SWATCHES.map((swatch) => (
               <Pressable
@@ -55,13 +57,13 @@ export default function NewPlayerScreen() {
                 style={[styles.swatch, { backgroundColor: swatch }, color === swatch && styles.swatchSelected]}
                 hitSlop={4}
                 accessibilityRole="button"
-                accessibilityLabel={`Color ${swatch}`}
+                accessibilityLabel={t("players.colorSwatchA11y", { swatch })}
                 accessibilityState={{ selected: color === swatch }}
               />
             ))}
           </View>
         </View>
-        <Button label="Add player" onPress={handleSubmit} loading={createPlayer.isPending} />
+        <Button label={t("common.addPlayer")} onPress={handleSubmit} loading={createPlayer.isPending} />
       </ScrollView>
     </Screen>
   );

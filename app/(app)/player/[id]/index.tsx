@@ -86,11 +86,6 @@ const EMPTY_MATCHES: MatchSummary[] = [];
 const EMPTY_PLAYERS: PlayerProfile[] = [];
 
 type ProfileTab = "overview" | "charts" | "h2h" | "analytics";
-const BASE_TABS: { value: Exclude<ProfileTab, "analytics">; label: string }[] = [
-  { value: "overview", label: "Overview" },
-  { value: "charts", label: "Charts" },
-  { value: "h2h", label: "Head-to-Head" },
-];
 
 interface AnalyticsChartConfig {
   key: string;
@@ -101,14 +96,17 @@ interface AnalyticsChartConfig {
   isValueValid?: (point: TimelinePoint) => boolean;
 }
 
-function opponentLabel(playerId: string, match: MatchSummary): string {
+function opponentLabel(playerId: string, match: MatchSummary, unknownOpponentLabel: string): string {
   const sides = findSides(playerId, match);
-  if (!sides) return "Unknown opponent";
+  if (!sides) return unknownOpponentLabel;
   const names = matchSideLabel(sides.opponent.players.map((p) => p.display_name));
   return sides.opponent.club ? `${names} (${sides.opponent.club.name})` : names;
 }
 
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+// Sunday-first to match DAY_OF_WEEK's own 0=Sunday indexing (computeDayOfWeekPerformance).
+const DAY_SHORT_LABELS = Array.from({ length: 7 }, (_, day) =>
+  new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(new Date(2026, 0, 4 + day)),
+);
 const MONTH_SHORT_LABEL = new Intl.DateTimeFormat(undefined, { month: "short", year: "2-digit" });
 
 const VALID_TABS: ProfileTab[] = ["overview", "charts", "h2h", "analytics"];
@@ -136,7 +134,15 @@ export default function PlayerDetailScreen() {
   const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>("30d");
   const careerCardRef = useRef<View>(null);
 
-  const tabs = useMemo(() => [...BASE_TABS, { value: "analytics" as const, label: t("playerAnalytics.tabLabel") }], [t]);
+  const tabs = useMemo(
+    () => [
+      { value: "overview" as const, label: t("playerProfile.tabOverview") },
+      { value: "charts" as const, label: t("playerProfile.tabCharts") },
+      { value: "h2h" as const, label: t("playerProfile.tabHeadToHead") },
+      { value: "analytics" as const, label: t("playerAnalytics.tabLabel") },
+    ],
+    [t],
+  );
 
   const playerId = id ?? "";
   const matches = matchHistory.data ?? EMPTY_MATCHES;
@@ -288,7 +294,7 @@ export default function PlayerDetailScreen() {
   if (isError || !player) {
     return (
       <Screen>
-        <ErrorState message="Couldn't load this player's profile. Check your connection and try again." onRetry={refetch} />
+        <ErrorState message={t("playerProfile.loadError")} onRetry={refetch} />
       </Screen>
     );
   }
@@ -304,7 +310,7 @@ export default function PlayerDetailScreen() {
         await updatePlayer.mutateAsync({ playerId: player.id, patch: { avatar_url: picked.publicUrl } });
       }
     } catch (e) {
-      notify("Couldn't update avatar", e instanceof Error ? e.message : "Please try again.");
+      notify(t("playerProfile.avatarUpdateErrorTitle"), e instanceof Error ? e.message : t("playerProfile.genericRetryMessage"));
     } finally {
       setIsUploadingAvatar(false);
     }
@@ -312,9 +318,9 @@ export default function PlayerDetailScreen() {
 
   const handleArchive = () => {
     confirmAction(
-      "Archive player?",
-      `${player.display_name} will be hidden from the active roster. Match history is kept.`,
-      "Archive",
+      t("playerProfile.archiveConfirmTitle"),
+      t("playerProfile.archiveConfirmMessage", { name: player.display_name }),
+      t("playerProfile.archiveConfirmAction"),
       async () => {
         await archivePlayer.mutateAsync(player.id);
         router.back();
@@ -330,7 +336,7 @@ export default function PlayerDetailScreen() {
     try {
       await shareViewAsImage(careerCardRef, `${player.display_name}-fc-rival-career.png`);
     } catch (e) {
-      notify("Couldn't share career card", e instanceof Error ? e.message : "Please try again.");
+      notify(t("playerProfile.shareCareerCardErrorTitle"), e instanceof Error ? e.message : t("playerProfile.genericRetryMessage"));
     } finally {
       setIsSharing(false);
     }
@@ -344,16 +350,18 @@ export default function PlayerDetailScreen() {
             onPress={handleAvatarPress}
             disabled={!canManage || isUploadingAvatar}
             accessibilityRole={canManage ? "button" : undefined}
-            accessibilityLabel={canManage ? "Change photo" : undefined}
+            accessibilityLabel={canManage ? t("playerProfile.changePhoto") : undefined}
           >
             <Avatar uri={player.avatar_url} name={player.display_name} color={player.custom_color} size={104} />
-            {canManage ? <Text style={styles.changePhoto}>{isUploadingAvatar ? "Uploading…" : "Change photo"}</Text> : null}
+            {canManage ? (
+              <Text style={styles.changePhoto}>{isUploadingAvatar ? t("playerProfile.uploadingPhoto") : t("playerProfile.changePhoto")}</Text>
+            ) : null}
           </Pressable>
           <Text style={styles.name}>{player.display_name}</Text>
           {player.nickname ? <Text style={styles.nickname}>"{player.nickname}"</Text> : null}
           <View style={styles.heroBadgeRow}>
-            {rank ? <Badge label={`#${rank.position} of ${rank.of}`} tone={rankBadgeTone(rank.position)} /> : null}
-            {!player.is_active ? <Badge label="Archived" tone="warning" /> : null}
+            {rank ? <Badge label={t("playerProfile.rankPositionOf", { position: rank.position, of: rank.of })} tone={rankBadgeTone(rank.position)} /> : null}
+            {!player.is_active ? <Badge label={t("players.archivedBadge")} tone="warning" /> : null}
           </View>
 
           {matchHistory.isLoading ? (
@@ -364,16 +372,21 @@ export default function PlayerDetailScreen() {
         </LinearGradient>
 
         <View style={styles.tileGrid}>
-          <StatTile label="Rank" value={rank ? `#${rank.position} of ${rank.of}` : "Not yet qualified"} style={styles.tile} variant="elevated" />
           <StatTile
-            label="Win Rate"
+            label={t("playerProfile.statRank")}
+            value={rank ? t("playerProfile.rankPositionOf", { position: rank.position, of: rank.of }) : t("playerProfile.notYetQualified")}
+            style={styles.tile}
+            variant="elevated"
+          />
+          <StatTile
+            label={t("playerProfile.statWinRate")}
             value={stats.winRate !== null ? `${Math.round(stats.winRate * 100)}%` : "–"}
             style={styles.tile}
             variant="elevated"
           />
-          <StatTile label="Matches Played" value={stats.played} style={styles.tile} variant="elevated" />
+          <StatTile label={t("playerProfile.statMatchesPlayed")} value={stats.played} style={styles.tile} variant="elevated" />
           <StatTile
-            label="Current Streak"
+            label={t("playerProfile.statCurrentStreak")}
             value={streaks.currentStreak.count > 0 ? `${streaks.currentStreak.count} ${streaks.currentStreak.result}` : "–"}
             style={styles.tile}
             variant="elevated"
@@ -397,32 +410,45 @@ export default function PlayerDetailScreen() {
               </Card>
             ) : (
               <Card>
-                <Text style={styles.sectionTitle}>Player Snapshot</Text>
+                <Text style={styles.sectionTitle}>{t("playerProfile.snapshotTitle")}</Text>
                 <View style={styles.bestWorst}>
                   <View style={styles.bestWorstRow}>
-                    <Text style={styles.bestWorstLabel}>League position</Text>
+                    <Text style={styles.bestWorstLabel}>{t("playerProfile.leaguePositionLabel")}</Text>
                     <Text style={styles.bestWorstValue}>
-                      {leaguePosition ? `#${leaguePosition.position} of ${leaguePosition.of} (points)` : "Not yet qualified"}
+                      {leaguePosition
+                        ? t("playerProfile.leaguePositionValue", { position: leaguePosition.position, of: leaguePosition.of })
+                        : t("playerProfile.notYetQualified")}
                     </Text>
                   </View>
                   <View style={styles.bestWorstRow}>
-                    <Text style={styles.bestWorstLabel}>Avg. goals conceded</Text>
+                    <Text style={styles.bestWorstLabel}>{t("playerProfile.avgGoalsConcededLabel")}</Text>
                     <Text style={styles.bestWorstValue}>
-                      {goalStats.goalsConcededPerMatch !== null ? `${goalStats.goalsConcededPerMatch.toFixed(2)} per match` : "–"}
+                      {goalStats.goalsConcededPerMatch !== null
+                        ? t("playerProfile.perMatchValue", { value: goalStats.goalsConcededPerMatch.toFixed(2) })
+                        : "–"}
                     </Text>
                   </View>
                   <View style={styles.bestWorstRow}>
-                    <Text style={styles.bestWorstLabel}>Favorite club</Text>
+                    <Text style={styles.bestWorstLabel}>{t("playerProfile.favoriteClubLabel")}</Text>
                     <Text style={styles.bestWorstValue} numberOfLines={1}>
-                      {favoriteClub ? `${favoriteClub.clubName} (${favoriteClub.played} matches)` : "No matches yet"}
+                      {favoriteClub
+                        ? t("playerProfile.clubMatchesValue", { name: favoriteClub.clubName, count: favoriteClub.played })
+                        : t("playerProfile.noMatchesYet")}
                     </Text>
                   </View>
                   <View style={styles.bestWorstRow}>
-                    <Text style={styles.bestWorstLabel}>Most successful vs.</Text>
+                    <Text style={styles.bestWorstLabel}>{t("playerProfile.mostSuccessfulVsLabel")}</Text>
                     <Text style={styles.bestWorstValue} numberOfLines={1}>
                       {bestMatchup
-                        ? `${bestMatchup.opponentName} (${bestMatchup.headToHead.winRate !== null ? Math.round(bestMatchup.headToHead.winRate * 100) : 0}% win rate, ${bestMatchup.headToHead.wins}-${bestMatchup.headToHead.losses}-${bestMatchup.headToHead.draws} in ${bestMatchup.headToHead.played})`
-                        : `Not enough matches yet (min. ${MIN_SAMPLE_SIZE} vs. one opponent)`}
+                        ? t("playerProfile.matchupSummary", {
+                            name: bestMatchup.opponentName,
+                            winRate: bestMatchup.headToHead.winRate !== null ? Math.round(bestMatchup.headToHead.winRate * 100) : 0,
+                            wins: bestMatchup.headToHead.wins,
+                            losses: bestMatchup.headToHead.losses,
+                            draws: bestMatchup.headToHead.draws,
+                            played: bestMatchup.headToHead.played,
+                          })
+                        : t("playerProfile.notEnoughMatchupData", { count: MIN_SAMPLE_SIZE })}
                     </Text>
                   </View>
                 </View>
@@ -431,7 +457,7 @@ export default function PlayerDetailScreen() {
 
             {personalHighlights.length > 0 ? (
               <Card>
-                <Text style={styles.sectionTitle}>Highlights</Text>
+                <Text style={styles.sectionTitle}>{t("playerProfile.highlightsTitle")}</Text>
                 <View style={styles.highlightsList}>
                   {personalHighlights.map((item) => (
                     <Text key={item.id} style={styles.highlightText}>
@@ -444,7 +470,7 @@ export default function PlayerDetailScreen() {
 
             {heldRecords.length > 0 ? (
               <Card>
-                <Text style={styles.sectionTitle}>Records Held</Text>
+                <Text style={styles.sectionTitle}>{t("playerProfile.recordsHeldTitle")}</Text>
                 <View style={styles.highlightsList}>
                   {heldRecords.map((record) => (
                     <View key={record.id} style={styles.recordHeldRow}>
@@ -458,7 +484,7 @@ export default function PlayerDetailScreen() {
 
             {achievements.length > 0 ? (
               <Card>
-                <Text style={styles.sectionTitle}>Achievements</Text>
+                <Text style={styles.sectionTitle}>{t("playerProfile.achievementsTitle")}</Text>
                 <View style={styles.highlightsList}>
                   {achievements.map((achievement) => (
                     <View key={achievement.id} style={styles.achievementRow}>
@@ -476,31 +502,42 @@ export default function PlayerDetailScreen() {
 
             {favoriteOpponent || nemesis || favoritePartner ? (
               <Card>
-                <Text style={styles.sectionTitle}>Rivalries</Text>
+                <Text style={styles.sectionTitle}>{t("playerProfile.rivalriesTitle")}</Text>
                 <View style={styles.bestWorst}>
                   {favoriteOpponent ? (
                     <View style={styles.bestWorstRow}>
-                      <Text style={styles.bestWorstLabel}>Most-played opponent</Text>
+                      <Text style={styles.bestWorstLabel}>{t("playerProfile.mostPlayedOpponentLabel")}</Text>
                       <Text style={styles.bestWorstValue} numberOfLines={1}>
-                        {favoriteOpponent.opponentName} ({favoriteOpponent.headToHead.wins}-{favoriteOpponent.headToHead.losses}-
-                        {favoriteOpponent.headToHead.draws} in {favoriteOpponent.headToHead.played})
+                        {t("playerProfile.headToHeadSummary", {
+                          name: favoriteOpponent.opponentName,
+                          wins: favoriteOpponent.headToHead.wins,
+                          losses: favoriteOpponent.headToHead.losses,
+                          draws: favoriteOpponent.headToHead.draws,
+                          played: favoriteOpponent.headToHead.played,
+                        })}
                       </Text>
                     </View>
                   ) : null}
                   {nemesis ? (
                     <View style={styles.bestWorstRow}>
-                      <Text style={styles.bestWorstLabel}>Toughest matchup</Text>
+                      <Text style={styles.bestWorstLabel}>{t("playerProfile.toughestMatchupLabel")}</Text>
                       <Text style={styles.bestWorstValue} numberOfLines={1}>
-                        {nemesis.opponentName} ({nemesis.headToHead.winRate !== null ? Math.round(nemesis.headToHead.winRate * 100) : 0}% win rate,{" "}
-                        {nemesis.headToHead.wins}-{nemesis.headToHead.losses}-{nemesis.headToHead.draws} in {nemesis.headToHead.played})
+                        {t("playerProfile.toughestMatchupSummary", {
+                          name: nemesis.opponentName,
+                          winRate: nemesis.headToHead.winRate !== null ? Math.round(nemesis.headToHead.winRate * 100) : 0,
+                          wins: nemesis.headToHead.wins,
+                          losses: nemesis.headToHead.losses,
+                          draws: nemesis.headToHead.draws,
+                          played: nemesis.headToHead.played,
+                        })}
                       </Text>
                     </View>
                   ) : null}
                   {favoritePartner ? (
                     <View style={styles.bestWorstRow}>
-                      <Text style={styles.bestWorstLabel}>Favorite doubles partner</Text>
+                      <Text style={styles.bestWorstLabel}>{t("playerProfile.favoritePartnerLabel")}</Text>
                       <Text style={styles.bestWorstValue} numberOfLines={1}>
-                        {favoritePartner.teammateName} ({favoritePartner.played} matches together)
+                        {t("playerProfile.partnerMatchesValue", { name: favoritePartner.teammateName, count: favoritePartner.played })}
                       </Text>
                     </View>
                   ) : null}
@@ -509,31 +546,31 @@ export default function PlayerDetailScreen() {
             ) : null}
 
             <Card>
-              <Text style={styles.sectionTitle}>Career Record</Text>
+              <Text style={styles.sectionTitle}>{t("playerProfile.careerRecordTitle")}</Text>
               {matchHistory.isLoading ? (
                 <Skeleton height={40} />
               ) : (
                 <View style={styles.recordRow}>
-                  <RecordStat label="Played" value={stats.played} />
-                  <RecordStat label="Wins" value={stats.wins} color={colors.win} />
-                  <RecordStat label="Losses" value={stats.losses} color={colors.loss} />
-                  <RecordStat label="Draws" value={stats.draws} color={colors.draw} />
+                  <RecordStat label={t("playerProfile.statPlayed")} value={stats.played} />
+                  <RecordStat label={t("playerProfile.statWins")} value={stats.wins} color={colors.win} />
+                  <RecordStat label={t("playerProfile.statLosses")} value={stats.losses} color={colors.loss} />
+                  <RecordStat label={t("playerProfile.statDraws")} value={stats.draws} color={colors.draw} />
                 </View>
               )}
             </Card>
 
             <Card>
-              <Text style={styles.sectionTitle}>Form (last 10)</Text>
+              <Text style={styles.sectionTitle}>{t("playerProfile.formLast10Title")}</Text>
               {matchHistory.isLoading ? (
                 <Skeleton height={40} />
               ) : matchHistory.isError ? (
-                <Text style={styles.errorText}>Couldn't load match history.</Text>
+                <Text style={styles.errorText}>{t("playerProfile.matchHistoryLoadError")}</Text>
               ) : (
                 <>
                   <FormStrip results={last10.form.map((f) => f.result)} />
                   <View style={styles.streakRow}>
                     <Text style={styles.streakText}>
-                      Current streak:{" "}
+                      {t("playerProfile.currentStreakPrefix")}{" "}
                       <Text
                         style={
                           streaks.currentStreak.result === "win"
@@ -548,51 +585,60 @@ export default function PlayerDetailScreen() {
                           : "—"}
                       </Text>
                     </Text>
-                    <Text style={styles.streakText}>Best win streak: {streaks.longestWinStreak}</Text>
-                    <Text style={styles.streakText}>Worst losing streak: {streaks.longestLossStreak}</Text>
+                    <Text style={styles.streakText}>{t("playerProfile.bestWinStreakLabel", { count: streaks.longestWinStreak })}</Text>
+                    <Text style={styles.streakText}>{t("playerProfile.worstLossStreakLabel", { count: streaks.longestLossStreak })}</Text>
                   </View>
                 </>
               )}
             </Card>
 
             <Card>
-              <Text style={styles.sectionTitle}>Goals</Text>
+              <Text style={styles.sectionTitle}>{t("playerProfile.goalsTitle")}</Text>
               {matchHistory.isLoading ? (
                 <Skeleton height={40} />
               ) : (
                 <View style={styles.recordRow}>
-                  <RecordStat label="Scored" value={goalStats.goalsScored} />
-                  <RecordStat label="Conceded" value={goalStats.goalsConceded} />
-                  <RecordStat label="Per match" value={goalStats.goalsPerMatch !== null ? goalStats.goalsPerMatch.toFixed(2) : "–"} />
-                  <RecordStat label="Clean sheets" value={goalStats.cleanSheets} color={colors.accent} />
+                  <RecordStat label={t("playerProfile.statScored")} value={goalStats.goalsScored} />
+                  <RecordStat label={t("playerProfile.statConceded")} value={goalStats.goalsConceded} />
+                  <RecordStat
+                    label={t("playerProfile.statPerMatch")}
+                    value={goalStats.goalsPerMatch !== null ? goalStats.goalsPerMatch.toFixed(2) : "–"}
+                  />
+                  <RecordStat label={t("playerProfile.statCleanSheets")} value={goalStats.cleanSheets} color={colors.accent} />
                 </View>
               )}
             </Card>
 
             <Card>
-              <Text style={styles.sectionTitle}>Best & Worst</Text>
+              <Text style={styles.sectionTitle}>{t("playerProfile.bestWorstTitle")}</Text>
               {matchHistory.isLoading ? (
                 <Skeleton height={40} />
               ) : (
                 <View style={styles.bestWorst}>
                   <View style={styles.bestWorstRow}>
-                    <Text style={styles.bestWorstLabel}>Biggest win</Text>
+                    <Text style={styles.bestWorstLabel}>{t("playerProfile.biggestWinLabel")}</Text>
                     {biggestWin ? (
                       <Text style={styles.bestWorstValue} numberOfLines={1}>
-                        {biggestWin.ownScore}-{biggestWin.opponentScore} vs {opponentLabel(playerId, biggestWin.match)}
+                        {t("playerProfile.scoreVsOpponent", {
+                          score: `${biggestWin.ownScore}-${biggestWin.opponentScore}`,
+                          opponent: opponentLabel(playerId, biggestWin.match, t("playerProfile.unknownOpponent")),
+                        })}
                       </Text>
                     ) : (
-                      <Text style={styles.bestWorstEmpty}>No wins yet</Text>
+                      <Text style={styles.bestWorstEmpty}>{t("playerProfile.noWinsYet")}</Text>
                     )}
                   </View>
                   <View style={styles.bestWorstRow}>
-                    <Text style={styles.bestWorstLabel}>Biggest loss</Text>
+                    <Text style={styles.bestWorstLabel}>{t("playerProfile.biggestLossLabel")}</Text>
                     {biggestLoss ? (
                       <Text style={styles.bestWorstValue} numberOfLines={1}>
-                        {biggestLoss.ownScore}-{biggestLoss.opponentScore} vs {opponentLabel(playerId, biggestLoss.match)}
+                        {t("playerProfile.scoreVsOpponent", {
+                          score: `${biggestLoss.ownScore}-${biggestLoss.opponentScore}`,
+                          opponent: opponentLabel(playerId, biggestLoss.match, t("playerProfile.unknownOpponent")),
+                        })}
                       </Text>
                     ) : (
-                      <Text style={styles.bestWorstEmpty}>No losses yet</Text>
+                      <Text style={styles.bestWorstEmpty}>{t("playerProfile.noLossesYet")}</Text>
                     )}
                   </View>
                 </View>
@@ -604,17 +650,17 @@ export default function PlayerDetailScreen() {
         {tab === "charts" ? (
           <View style={styles.tabContent}>
             <Card>
-              <Text style={styles.sectionTitle}>Win Rate Progression</Text>
+              <Text style={styles.sectionTitle}>{t("playerProfile.winRateProgressionTitle")}</Text>
               {matchHistory.isLoading ? (
                 <Skeleton height={80} />
               ) : (
                 <View style={styles.progressionSection}>
                   <View>
-                    <Text style={styles.subLabel}>Singles</Text>
+                    <Text style={styles.subLabel}>{t("playerProfile.singlesLabel")}</Text>
                     <Sparkline values={singlesWinRateSeries} />
                   </View>
                   <View>
-                    <Text style={styles.subLabel}>Doubles</Text>
+                    <Text style={styles.subLabel}>{t("playerProfile.doublesLabel")}</Text>
                     <Sparkline values={doublesWinRateSeries} />
                   </View>
                 </View>
@@ -623,8 +669,8 @@ export default function PlayerDetailScreen() {
 
             {monthlyTrend.length >= 2 ? (
               <Card>
-                <Text style={styles.sectionTitle}>Monthly Performance</Text>
-                <Text style={styles.subLabel}>Bar height = matches played that month · label = win rate that month</Text>
+                <Text style={styles.sectionTitle}>{t("playerProfile.monthlyPerformanceTitle")}</Text>
+                <Text style={styles.subLabel}>{t("playerProfile.monthlyPerformanceHint")}</Text>
                 <BarChart
                   rows={monthlyTrend.slice(-6).map((m) => ({
                     label: MONTH_SHORT_LABEL.format(new Date(m.year, m.month, 1)),
@@ -637,12 +683,12 @@ export default function PlayerDetailScreen() {
 
             {dayOfWeekPerformance.some((d) => d.stats.played > 0) ? (
               <Card>
-                <Text style={styles.sectionTitle}>By Day of Week</Text>
+                <Text style={styles.sectionTitle}>{t("playerProfile.byDayOfWeekTitle")}</Text>
                 <BarChart
                   rows={dayOfWeekPerformance
                     .filter((d) => d.stats.played > 0)
                     .map((d) => ({
-                      label: DAY_NAMES[d.day]!,
+                      label: DAY_SHORT_LABELS[d.day]!,
                       value: d.stats.played,
                       valueLabel: `${d.stats.wins}-${d.stats.losses}-${d.stats.draws}`,
                     }))}
@@ -652,14 +698,14 @@ export default function PlayerDetailScreen() {
 
             {specialConditions.overtime.played > 0 || specialConditions.penalties.played > 0 ? (
               <Card>
-                <Text style={styles.sectionTitle}>Overtime &amp; Penalties</Text>
+                <Text style={styles.sectionTitle}>{t("playerProfile.overtimePenaltiesTitle")}</Text>
                 <View style={styles.recordRow}>
                   <RecordStat
-                    label="Overtime"
+                    label={t("playerProfile.statOvertime")}
                     value={specialConditions.overtime.played > 0 ? `${specialConditions.overtime.wins}-${specialConditions.overtime.losses}-${specialConditions.overtime.draws}` : "–"}
                   />
                   <RecordStat
-                    label="Penalties"
+                    label={t("playerProfile.statPenalties")}
                     value={specialConditions.penalties.played > 0 ? `${specialConditions.penalties.wins}-${specialConditions.penalties.losses}-${specialConditions.penalties.draws}` : "–"}
                   />
                 </View>
@@ -668,26 +714,26 @@ export default function PlayerDetailScreen() {
 
             {afterBreak.played > 0 ? (
               <Card>
-                <Text style={styles.sectionTitle}>After a Break</Text>
+                <Text style={styles.sectionTitle}>{t("playerProfile.afterBreakTitle")}</Text>
                 <View style={styles.recordRow}>
-                  <RecordStat label="Played" value={afterBreak.played} />
-                  <RecordStat label="Wins" value={afterBreak.wins} color={colors.win} />
-                  <RecordStat label="Losses" value={afterBreak.losses} color={colors.loss} />
+                  <RecordStat label={t("playerProfile.statPlayed")} value={afterBreak.played} />
+                  <RecordStat label={t("playerProfile.statWins")} value={afterBreak.wins} color={colors.win} />
+                  <RecordStat label={t("playerProfile.statLosses")} value={afterBreak.losses} color={colors.loss} />
                   <RecordStat
-                    label="Win Rate"
+                    label={t("playerProfile.statWinRate")}
                     value={afterBreak.winRate !== null ? `${Math.round(afterBreak.winRate * 100)}%` : "–"}
                     color={colors.accent}
                   />
                 </View>
-                <Text style={styles.insufficientData}>Matches played after a 7+ day gap since the previous one.</Text>
+                <Text style={styles.insufficientData}>{t("playerProfile.afterBreakHint")}</Text>
               </Card>
             ) : null}
 
             {clubPerformance.length > 0 ? (
               <Card>
-                <Text style={styles.sectionTitle}>By Club</Text>
+                <Text style={styles.sectionTitle}>{t("playerProfile.byClubTitle")}</Text>
                 {totalClubMatches < MIN_SAMPLE_SIZE ? (
-                  <Text style={styles.insufficientData}>Not enough matches yet</Text>
+                  <Text style={styles.insufficientData}>{t("playerProfile.notEnoughMatchesYet")}</Text>
                 ) : (
                   <BarChart
                     rows={clubPerformance.slice(0, 6).map((c) => ({
@@ -702,9 +748,9 @@ export default function PlayerDetailScreen() {
 
             {partnerships.length > 0 ? (
               <Card>
-                <Text style={styles.sectionTitle}>Doubles Partners</Text>
+                <Text style={styles.sectionTitle}>{t("playerProfile.doublesPartnersTitle")}</Text>
                 {totalPartnershipMatches < MIN_SAMPLE_SIZE ? (
-                  <Text style={styles.insufficientData}>Not enough matches yet</Text>
+                  <Text style={styles.insufficientData}>{t("playerProfile.notEnoughMatchesYet")}</Text>
                 ) : (
                   <BarChart
                     rows={partnerships.slice(0, 6).map((p) => ({
@@ -726,8 +772,8 @@ export default function PlayerDetailScreen() {
             afterBreak.played === 0 &&
             !matchHistory.isLoading ? (
               <Card>
-                <Text style={styles.emptyChartsTitle}>Not enough data yet</Text>
-                <Text style={styles.emptyChartsMessage}>Record a few more matches to see charts and breakdowns here.</Text>
+                <Text style={styles.emptyChartsTitle}>{t("playerProfile.notEnoughDataTitle")}</Text>
+                <Text style={styles.emptyChartsMessage}>{t("playerProfile.notEnoughDataMessage")}</Text>
               </Card>
             ) : null}
           </View>
@@ -737,59 +783,65 @@ export default function PlayerDetailScreen() {
           <View style={styles.tabContent}>
             {opponents.length > 0 ? (
               <Card>
-                <Text style={styles.sectionTitle}>Head-to-Head</Text>
+                <Text style={styles.sectionTitle}>{t("playerProfile.headToHeadTitle")}</Text>
                 <PlayerPicker
                   players={opponents}
                   selectedIds={headToHeadOpponentId ? [headToHeadOpponentId] : []}
                   onToggle={(opponentId) => setHeadToHeadOpponentId((prev) => (prev === opponentId ? null : opponentId))}
                   maxSelected={1}
                 />
-                {!headToHead ? <Text style={styles.h2hPrompt}>Pick an opponent above to see the head-to-head record.</Text> : null}
+                {!headToHead ? <Text style={styles.h2hPrompt}>{t("playerProfile.h2hPrompt")}</Text> : null}
                 {headToHead ? (
                   <View style={styles.h2hRow}>
                     <View style={styles.recordRow}>
-                      <RecordStat label="Played" value={headToHead.played} />
-                      <RecordStat label="Wins" value={headToHead.wins} color={colors.win} />
-                      <RecordStat label="Losses" value={headToHead.losses} color={colors.loss} />
-                      <RecordStat label="Draws" value={headToHead.draws} color={colors.draw} />
+                      <RecordStat label={t("playerProfile.statPlayed")} value={headToHead.played} />
+                      <RecordStat label={t("playerProfile.statWins")} value={headToHead.wins} color={colors.win} />
+                      <RecordStat label={t("playerProfile.statLosses")} value={headToHead.losses} color={colors.loss} />
+                      <RecordStat label={t("playerProfile.statDraws")} value={headToHead.draws} color={colors.draw} />
                     </View>
                     <View style={styles.recordRow}>
-                      <RecordStat label="Goals For" value={headToHead.goalsFor} />
-                      <RecordStat label="Goals Against" value={headToHead.goalsAgainst} />
+                      <RecordStat label={t("playerProfile.statGoalsFor")} value={headToHead.goalsFor} />
+                      <RecordStat label={t("playerProfile.statGoalsAgainst")} value={headToHead.goalsAgainst} />
                       <RecordStat
-                        label="Goal Diff"
+                        label={t("playerProfile.statGoalDiff")}
                         value={headToHead.goalDifference > 0 ? `+${headToHead.goalDifference}` : headToHead.goalDifference}
                         color={headToHead.goalDifference > 0 ? colors.win : headToHead.goalDifference < 0 ? colors.loss : undefined}
                       />
                     </View>
                     <View style={styles.recordRow}>
-                      <RecordStat label="Avg Scored" value={headToHead.averageScoreFor !== null ? headToHead.averageScoreFor.toFixed(2) : "–"} />
-                      <RecordStat label="Avg Conceded" value={headToHead.averageScoreAgainst !== null ? headToHead.averageScoreAgainst.toFixed(2) : "–"} />
                       <RecordStat
-                        label="Streak"
+                        label={t("playerProfile.statAvgScored")}
+                        value={headToHead.averageScoreFor !== null ? headToHead.averageScoreFor.toFixed(2) : "–"}
+                      />
+                      <RecordStat
+                        label={t("playerProfile.statAvgConceded")}
+                        value={headToHead.averageScoreAgainst !== null ? headToHead.averageScoreAgainst.toFixed(2) : "–"}
+                      />
+                      <RecordStat
+                        label={t("playerProfile.statStreak")}
                         value={headToHead.currentStreak.count > 0 ? `${headToHead.currentStreak.count} ${headToHead.currentStreak.result}` : "–"}
                         color={headToHead.currentStreak.result === "win" ? colors.win : headToHead.currentStreak.result === "loss" ? colors.loss : undefined}
                       />
                     </View>
                     <View style={styles.bestWorst}>
                       <View style={styles.bestWorstRow}>
-                        <Text style={styles.bestWorstLabel}>Largest victory</Text>
+                        <Text style={styles.bestWorstLabel}>{t("playerProfile.largestVictoryLabel")}</Text>
                         {headToHead.largestVictory ? (
                           <Text style={styles.bestWorstValue}>
                             {headToHead.largestVictory.ownScore}-{headToHead.largestVictory.opponentScore}
                           </Text>
                         ) : (
-                          <Text style={styles.bestWorstEmpty}>No wins yet</Text>
+                          <Text style={styles.bestWorstEmpty}>{t("playerProfile.noWinsYet")}</Text>
                         )}
                       </View>
                       <View style={styles.bestWorstRow}>
-                        <Text style={styles.bestWorstLabel}>Largest defeat</Text>
+                        <Text style={styles.bestWorstLabel}>{t("playerProfile.largestDefeatLabel")}</Text>
                         {headToHead.largestDefeat ? (
                           <Text style={styles.bestWorstValue}>
                             {headToHead.largestDefeat.ownScore}-{headToHead.largestDefeat.opponentScore}
                           </Text>
                         ) : (
-                          <Text style={styles.bestWorstEmpty}>No losses yet</Text>
+                          <Text style={styles.bestWorstEmpty}>{t("playerProfile.noLossesYet")}</Text>
                         )}
                       </View>
                     </View>
@@ -798,8 +850,8 @@ export default function PlayerDetailScreen() {
               </Card>
             ) : (
               <Card>
-                <Text style={styles.emptyChartsTitle}>No opponents yet</Text>
-                <Text style={styles.emptyChartsMessage}>Once {player.display_name} has played a match, opponents will show up here.</Text>
+                <Text style={styles.emptyChartsTitle}>{t("playerProfile.noOpponentsTitle")}</Text>
+                <Text style={styles.emptyChartsMessage}>{t("playerProfile.noOpponentsMessage", { name: player.display_name })}</Text>
               </Card>
             )}
           </View>
@@ -975,12 +1027,12 @@ export default function PlayerDetailScreen() {
         ) : null}
 
         <View style={styles.actions}>
-          <Button label="Share career card" variant="secondary" onPress={handleShareCareerCard} loading={isSharing} />
+          <Button label={t("playerProfile.shareCareerCardAction")} variant="secondary" onPress={handleShareCareerCard} loading={isSharing} />
           {canManage ? (
             <>
-              <Button label="Edit player" variant="secondary" onPress={() => router.push(`/player/${player.id}/edit`)} />
+              <Button label={t("common.editPlayer")} variant="secondary" onPress={() => router.push(`/player/${player.id}/edit`)} />
               {player.is_active ? (
-                <Button label="Archive player" variant="danger" onPress={handleArchive} loading={archivePlayer.isPending} />
+                <Button label={t("playerProfile.archivePlayerAction")} variant="danger" onPress={handleArchive} loading={archivePlayer.isPending} />
               ) : null}
             </>
           ) : null}
