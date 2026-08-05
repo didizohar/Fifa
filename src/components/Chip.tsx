@@ -14,10 +14,17 @@ interface ChipProps {
  * A single selectable pill -- the one shared shape for every filter/mode/
  * category selector in the app (League Table, Trends, Statistics, Draw
  * modes, History, Season tabs). Replaces two divergent predecessors that
- * both clipped text: FilterChip's forced `numberOfLines={1}`, and
- * History's own local ClubChip with a hardcoded `maxWidth: 160`. This
- * sizes itself to its label (padding, not a fixed width) and allows a
- * label to wrap to a second line before it would ever truncate.
+ * both clipped text: FilterChip's forced `numberOfLines={1}` on a
+ * fixed-width chip, and History's own local ClubChip with a hardcoded
+ * `maxWidth: 160`.
+ *
+ * Always single-line and always sized to its own label (no fixed/max
+ * width) -- an oversized chip can never truncate, it just can't exist:
+ * the label determines the chip's width, full stop. When a row of chips
+ * doesn't fit, the *container*'s `flexWrap: "wrap"` moves a whole chip to
+ * the next line, which reads as a clean, modern segmented-control-style
+ * layout; wrapping the *text* inside a single chip (an earlier version of
+ * this component allowed 2 lines) does not.
  */
 export function Chip({ label, active, onPress, disabled = false, style }: ChipProps) {
   return (
@@ -29,7 +36,7 @@ export function Chip({ label, active, onPress, disabled = false, style }: ChipPr
       accessibilityRole="button"
       accessibilityState={{ selected: active, disabled }}
     >
-      <Text style={[styles.label, active && styles.labelActive]} numberOfLines={2}>
+      <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
         {label}
       </Text>
     </AnimatedPressable>
@@ -38,7 +45,8 @@ export function Chip({ label, active, onPress, disabled = false, style }: ChipPr
 
 const styles = StyleSheet.create({
   chip: {
-    paddingHorizontal: spacing.sm + 2,
+    alignSelf: "flex-start",
+    paddingHorizontal: spacing.sm + 4,
     paddingVertical: spacing.xs + 2,
     borderRadius: radius.pill,
     borderWidth: 1,
