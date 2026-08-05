@@ -1,8 +1,11 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { colors } from "../../../src/theme";
+import { TabBarIcon } from "../../../src/components/TabBarIcon";
+import { useTranslation } from "../../../src/lib/i18n";
+import { colors, iconSize } from "../../../src/theme";
 
 export default function TabsLayout() {
+  const { t } = useTranslation();
+
   return (
     <Tabs
       screenOptions={{
@@ -13,41 +16,54 @@ export default function TabsLayout() {
           backgroundColor: colors.surface,
           borderTopColor: colors.borderSubtle,
         },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "600",
+        },
+        tabBarItemStyle: {
+          paddingTop: 4,
+        },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
-          tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} />,
+          title: t("nav.home"),
+          tabBarIcon: ({ color, focused }) => <TabBarIcon name="home" outlineName="home-outline" focused={focused} color={color} size={iconSize.xl} />,
         }}
       />
       <Tabs.Screen
         name="players"
         options={{
-          title: "Players",
-          tabBarIcon: ({ color, size }) => <Ionicons name="people" color={color} size={size} />,
+          title: t("nav.players"),
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name="people" outlineName="people-outline" focused={focused} color={color} size={iconSize.xl} />
+          ),
         }}
       />
       <Tabs.Screen
         name="leaderboards"
         options={{
-          title: "Leaderboards",
-          tabBarIcon: ({ color, size }) => <Ionicons name="trophy" color={color} size={size} />,
+          title: t("nav.leaderboards"),
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name="trophy" outlineName="trophy-outline" focused={focused} color={color} size={iconSize.xl} />
+          ),
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
-          title: "History",
-          tabBarIcon: ({ color, size }) => <Ionicons name="time" color={color} size={size} />,
+          title: t("nav.history"),
+          tabBarIcon: ({ color, focused }) => <TabBarIcon name="time" outlineName="time-outline" focused={focused} color={color} size={iconSize.xl} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: "Settings",
-          tabBarIcon: ({ color, size }) => <Ionicons name="settings-sharp" color={color} size={size} />,
+          title: t("nav.settings"),
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name="settings" outlineName="settings-outline" focused={focused} color={color} size={iconSize.xl} />
+          ),
         }}
       />
     </Tabs>
