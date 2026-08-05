@@ -7,7 +7,6 @@ import { ActionButton } from "../../../src/components/ActionButton";
 import { AnimatedNumber } from "../../../src/components/AnimatedNumber";
 import { Avatar } from "../../../src/components/Avatar";
 import { Badge, rankBadgeTone } from "../../../src/components/Badge";
-import { BarChart } from "../../../src/components/BarChart";
 import { Card } from "../../../src/components/Card";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
@@ -15,7 +14,7 @@ import { FadeIn } from "../../../src/components/FadeIn";
 import { FormStrip } from "../../../src/components/FormStrip";
 import { LeagueTableCard, type LeagueTableCardPeriod } from "../../../src/components/LeagueTableCard";
 import { MatchRow } from "../../../src/components/MatchRow";
-import { RankingRow } from "../../../src/components/RankingRow";
+import { QuickClubDrawCard } from "../../../src/components/QuickClubDrawCard";
 import { Screen } from "../../../src/components/Screen";
 import { SkeletonList } from "../../../src/components/Skeleton";
 import { StatTile } from "../../../src/components/StatTile";
@@ -30,10 +29,10 @@ import { useSeasons } from "../../../src/hooks/useSeasons";
 import { type DiscoveryItemType, selectHomeHighlights } from "../../../src/lib/discovery";
 import { useTranslation } from "../../../src/lib/i18n";
 import { selectInsightOfTheDay } from "../../../src/lib/leagueInsights";
-import { computeLeagueSummary, computeMatchesPerWeek } from "../../../src/lib/leagueStats";
+import { computeLeagueSummary } from "../../../src/lib/leagueStats";
 import { matchSideLabel, formatRelativeDate } from "../../../src/lib/format";
 import { describeMetricChange, metricChangeTone } from "../../../src/lib/metricPresentation";
-import { computeLastNStats, computePlayerStats, computeStreaks, computeWinRateLeaderboard, computeWinRateRank, WIN_RATE_MIN_PLAYED } from "../../../src/lib/stats";
+import { computeLastNStats, computePlayerStats, computeStreaks, computeWinRateRank } from "../../../src/lib/stats";
 import { explainActivity, explainConsistency, explainDirection, explainMomentum, type TrendExplanation } from "../../../src/lib/trends/explanations";
 import { calculateLeagueTrendSummary } from "../../../src/lib/trends/leagueTrends";
 import type { PlayerTrendMetrics } from "../../../src/lib/trends/types";
@@ -41,11 +40,8 @@ import type { MatchSummary } from "../../../src/lib/matches";
 import type { PlayerProfile } from "../../../src/lib/types/database";
 import { colors, radius, spacing, typography } from "../../../src/theme";
 
-const RANKINGS_PREVIEW = 5;
-const MATCHES_PREVIEW = 5;
-const TRENDING_PREVIEW = 5;
+const TRENDING_PREVIEW = 3;
 const HIGHLIGHTS_COUNT = 4;
-const ACTIVITY_WEEKS = 8;
 
 const DISCOVERY_ICON: Record<DiscoveryItemType, string> = { fact: "💡", insight: "📈", record: "🏆", memory: "📅" };
 
@@ -58,12 +54,11 @@ const EMPTY_MATCHES: MatchSummary[] = [];
 
 export default function HomeScreen() {
   const router = useRouter();
-  // Single stable reference shared by every RankingRow (Top Players) and
-  // LeagueTableCard row -- router itself is a stable object from
-  // expo-router, so this callback identity never changes, letting both
-  // memoized components actually skip re-rendering rows on unrelated
-  // state changes instead of every caller inline-binding a fresh closure
-  // per row per render.
+  // Stable reference shared by every LeagueTableCard row -- router itself
+  // is a stable object from expo-router, so this callback identity never
+  // changes, letting the memoized row component actually skip
+  // re-rendering on unrelated state changes instead of every caller
+  // inline-binding a fresh closure per row per render.
   const handlePressPlayer = useCallback((playerId: string) => router.push(`/player/${playerId}`), [router]);
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -82,11 +77,7 @@ export default function HomeScreen() {
   const isRefetching = players.isRefetching || fullHistory.isRefetching;
 
   const roster = players.data ?? EMPTY_PLAYERS;
-  // useGroupMatchHistory is already sorted played_at desc, same order fetchRecentMatches
-  // would use -- deriving the preview from it instead of a second capped query avoids an
-  // entirely redundant network round-trip for data we're already fetching in full.
   const allMatches = fullHistory.data ?? EMPTY_MATCHES;
-  const recentMatches = allMatches.slice(0, MATCHES_PREVIEW);
   const latestMatch = allMatches[0] ?? null;
   const myPlayer = roster.find((p) => p.linked_user_id === user?.id) ?? null;
 
@@ -94,21 +85,13 @@ export default function HomeScreen() {
   const myForm = useMemo(() => (myPlayer ? computeLastNStats(myPlayer.id, allMatches, 5) : null), [myPlayer, allMatches]);
   const myStats = useMemo(() => (myPlayer ? computePlayerStats(myPlayer.id, allMatches) : null), [myPlayer, allMatches]);
   const myRank = useMemo(() => (myPlayer ? computeWinRateRank(myPlayer.id, roster, allMatches) : null), [myPlayer, roster, allMatches]);
-  const winRateLeaders = useMemo(() => computeWinRateLeaderboard(roster, allMatches), [roster, allMatches]);
   const leagueSummary = useMemo(() => computeLeagueSummary(roster, allMatches), [roster, allMatches]);
-  const weeklyActivity = useMemo(
-    () => computeMatchesPerWeek(allMatches, new Date(), ACTIVITY_WEEKS),
-    // "now" is intentionally the only non-listed input -- week buckets only need to shift when a new
-    // calendar week starts, not on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allMatches],
-  );
 
   // Stage 7 M4 trends engine -- every dashboard trend card below reads
   // straight from this one memoized summary, never recalculating stats itself.
   const leagueTrendSummary = useMemo(
     () => calculateLeagueTrendSummary(roster, allMatches, new Date()),
-    // "now" is intentionally the only non-listed input, same rationale as weeklyActivity/insightOfTheDay above.
+    // "now" is intentionally the only non-listed input, same rationale as insightOfTheDay below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [roster, allMatches],
   );
@@ -249,6 +232,8 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        <QuickClubDrawCard groupId={groupId} gameVersionId={currentGroup?.default_game_version_id} />
+
         {highlights.length > 0 ? (
           <FadeIn>
             <View style={styles.highlightsSection}>
@@ -269,6 +254,16 @@ export default function HomeScreen() {
           <ErrorState message="Couldn't load your dashboard. Check your connection and try again." onRetry={handleRefresh} />
         ) : (
           <>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t("home.insightOfTheDay")}</Text>
+              <Card variant="elevated" style={styles.insightCard}>
+                <View style={styles.insightIconBadge}>
+                  <Text style={styles.insightIcon}>💡</Text>
+                </View>
+                <Text style={styles.insightText}>{insightOfTheDay?.text ?? t("home.noInsightYet")}</Text>
+              </Card>
+            </View>
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>{t("home.leagueSummary")}</Text>
               <View style={styles.statTileRow}>
@@ -321,7 +316,7 @@ export default function HomeScreen() {
             ) : null}
 
             <Section
-              title={t("home.trendingPlayers")}
+              title={t("home.trendsTitle")}
               seeAllLabel={t("home.seeAll")}
               onSeeAll={() => router.push("/leaderboards")}
               isEmpty={trendCards.length === 0}
@@ -386,101 +381,6 @@ export default function HomeScreen() {
                       )}
                     </View>
                   </Pressable>
-                );
-              })}
-            </Section>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{t("home.insightOfTheDay")}</Text>
-              <Card variant="elevated" style={styles.insightCard}>
-                <View style={styles.insightIconBadge}>
-                  <Text style={styles.insightIcon}>💡</Text>
-                </View>
-                <Text style={styles.insightText}>{insightOfTheDay?.text ?? t("home.noInsightYet")}</Text>
-              </Card>
-            </View>
-
-            <Section
-              title={t("home.topPlayers")}
-              seeAllLabel={t("home.seeAll")}
-              onSeeAll={() => router.push("/leaderboards")}
-              isEmpty={winRateLeaders.length === 0}
-              emptyProps={
-                roster.length === 0
-                  ? {
-                      icon: "🏆",
-                      title: t("home.noRankingsTitle"),
-                      message: t("home.noRankingsMessage"),
-                      actionLabel: t("common.addPlayer"),
-                      onAction: () => router.push("/player/new"),
-                    }
-                  : {
-                      icon: "🏆",
-                      title: t("home.notEnoughMatchesTitle"),
-                      message: t("home.notEnoughMatchesMessage", { count: String(WIN_RATE_MIN_PLAYED) }),
-                      actionLabel: t("home.recordAMatch"),
-                      onAction: () => router.push("/record-match"),
-                    }
-              }
-            >
-              {winRateLeaders.slice(0, RANKINGS_PREVIEW).map((row, index) => (
-                <RankingRow
-                  key={row.playerId}
-                  playerId={row.playerId}
-                  rank={index + 1}
-                  name={row.playerName}
-                  avatarUrl={row.avatarUrl}
-                  color={row.color}
-                  value={row.valueLabel}
-                  detail={row.detail}
-                  onPress={handlePressPlayer}
-                />
-              ))}
-            </Section>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{t("home.activity")}</Text>
-              <Card compact style={styles.activityCard}>
-                <Text style={styles.activityCaption}>{t("home.matchesPerWeek")}</Text>
-                <BarChart rows={weeklyActivity.map((w) => ({ label: w.weekLabel, value: w.count, valueLabel: String(w.count) }))} />
-              </Card>
-            </View>
-
-            <Section
-              title={t("home.recentMatches")}
-              seeAllLabel={t("home.seeAll")}
-              onSeeAll={() => router.push("/history")}
-              isEmpty={recentMatches.length === 0}
-              emptyProps={{
-                icon: "⚽️",
-                title: t("home.noMatchesTitle"),
-                message: t("home.noMatchesMessage"),
-                actionLabel: t("common.recordMatch"),
-                onAction: () => router.push("/record-match"),
-              }}
-            >
-              {recentMatches.map((match) => {
-                const [s1, s2] = match.sides;
-                return (
-                  <MatchRow
-                    key={match.id}
-                    matchType={match.match_type}
-                    isPenalties={match.is_penalties}
-                    playedAtLabel={formatRelativeDate(match.played_at)}
-                    side1={{
-                      label: matchSideLabel(s1.players.map((p) => p.display_name)),
-                      clubName: s1.club?.name ?? "Unknown club",
-                      score: s1.score,
-                      result: s1.result,
-                    }}
-                    side2={{
-                      label: matchSideLabel(s2.players.map((p) => p.display_name)),
-                      clubName: s2.club?.name ?? "Unknown club",
-                      score: s2.score,
-                      result: s2.result,
-                    }}
-                    onPress={() => router.push(`/match/${match.id}`)}
-                  />
                 );
               })}
             </Section>
@@ -628,13 +528,6 @@ const styles = StyleSheet.create({
     ...typography.bodyStrong,
     flex: 1,
     flexShrink: 1,
-  },
-  activityCard: {
-    gap: spacing.sm,
-  },
-  activityCaption: {
-    ...typography.small,
-    color: colors.textSecondary,
   },
   section: {
     gap: spacing.sm,
