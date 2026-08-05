@@ -24,7 +24,7 @@ const MEDALS = ["🥇", "🥈", "🥉"] as const;
 export default function SeasonDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, isRTL } = useTranslation();
   const { currentGroupId } = useGroup();
   const { season, roster, seasonMatches, report, isLoading, isError } = useSeasonReport(currentGroupId, id);
   const [tab, setTab] = useState<SeasonTab>("overview");
@@ -132,7 +132,7 @@ export default function SeasonDetailsScreen() {
                   statistics.winRateTrend.map((row) => (
                     <View key={row.playerId} style={styles.rankRow}>
                       <Text style={styles.rankName}>{row.playerName}</Text>
-                      <Text style={styles.rankValue}>
+                      <Text style={[styles.rankValue, { textAlign: isRTL ? "left" : "right" }]}>
                         {row.timeline
                           .filter((p) => p.matchesInBucket > 0)
                           .map((p) => `${p.label}: ${Math.round(p.value * 100)}%`)
@@ -163,7 +163,7 @@ export default function SeasonDetailsScreen() {
                       <Text style={styles.rankName} numberOfLines={1}>
                         {c.clubName}
                       </Text>
-                      <Text style={styles.rankValue}>
+                      <Text style={[styles.rankValue, { textAlign: isRTL ? "left" : "right" }]}>
                         {c.matchesPlayed} · {c.winRate !== null ? `${Math.round(c.winRate * 100)}%` : "–"} · {c.goalsFor}⚽
                       </Text>
                     </View>
@@ -209,13 +209,14 @@ export default function SeasonDetailsScreen() {
 }
 
 function OverviewRow({ label, value, icon }: { label: string; value: string; icon?: string }) {
+  const { isRTL } = useTranslation();
   return (
     <View style={styles.overviewRow}>
       <Text style={styles.overviewLabel}>
         {icon ? `${icon} ` : ""}
         {label}
       </Text>
-      <Text style={styles.overviewValue} numberOfLines={1}>
+      <Text style={[styles.overviewValue, { textAlign: isRTL ? "left" : "right" }]} numberOfLines={1}>
         {value}
       </Text>
     </View>
@@ -253,7 +254,7 @@ function AwardCard({ icon, title, winner, noneLabel }: { icon: string; title: st
 }
 
 function StatsListCard({ title, rows }: { title: string; rows: { label: string; value: string }[] }) {
-  const { t } = useTranslation();
+  const { t, isRTL } = useTranslation();
   return (
     <Card style={styles.statsCard}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -265,7 +266,7 @@ function StatsListCard({ title, rows }: { title: string; rows: { label: string; 
             <Text style={styles.rankName} numberOfLines={1}>
               {row.label}
             </Text>
-            <Text style={styles.rankValue}>{row.value}</Text>
+            <Text style={[styles.rankValue, { textAlign: isRTL ? "left" : "right" }]}>{row.value}</Text>
           </View>
         ))
       )}
@@ -377,7 +378,6 @@ const styles = StyleSheet.create({
   overviewValue: {
     ...typography.bodyStrong,
     flexShrink: 1,
-    textAlign: "right",
   },
   statGrid: {
     flexDirection: "row",
@@ -428,7 +428,6 @@ const styles = StyleSheet.create({
   rankValue: {
     ...typography.small,
     color: colors.textSecondary,
-    textAlign: "right",
   },
   awardGrid: {
     flexDirection: "row",

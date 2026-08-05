@@ -1,5 +1,6 @@
 import { FlatList, StyleSheet, Text, View } from "react-native";
 import type { ClubUsageStat } from "../lib/analytics/types";
+import { useTranslation } from "../lib/i18n";
 import { colors, radius, spacing, typography } from "../theme";
 import { BarChart } from "./BarChart";
 
@@ -38,6 +39,7 @@ export function ClubUsageList({ clubs, emptyMessage, playedLabel, goalsLabel }: 
 }
 
 function ClubRow({ club, playedLabel, goalsLabel }: { club: ClubUsageStat; playedLabel: string; goalsLabel: string }) {
+  const { isRTL } = useTranslation();
   const winRatePct = club.winRate !== null ? Math.round(club.winRate * 100) : null;
 
   return (
@@ -57,7 +59,7 @@ function ClubRow({ club, playedLabel, goalsLabel }: { club: ClubUsageStat; playe
           {goalsLabel} {club.goalsFor}-{club.goalsAgainst}
         </Text>
       </View>
-      <Text style={styles.winRate}>{winRatePct !== null ? `${winRatePct}%` : "–"}</Text>
+      <Text style={[styles.winRate, { textAlign: isRTL ? "left" : "right" }]}>{winRatePct !== null ? `${winRatePct}%` : "–"}</Text>
     </View>
   );
 }
@@ -97,7 +99,6 @@ const styles = StyleSheet.create({
     ...typography.bodyStrong,
     color: colors.accent,
     minWidth: 44,
-    textAlign: "right",
   },
   empty: {
     ...typography.caption,

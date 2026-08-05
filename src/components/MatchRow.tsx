@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "../lib/i18n";
 import { colors, radius, shadows, spacing, typography } from "../theme";
 import { Avatar } from "./Avatar";
 import { Badge, type BadgeTone } from "./Badge";
@@ -43,6 +44,7 @@ export function MatchRow({ matchType, isPenalties, side1, side2, playedAtLabel, 
 }
 
 function SideRow({ side }: { side: MatchRowSide }) {
+  const { isRTL } = useTranslation();
   return (
     <View style={styles.sideRow}>
       <Avatar name={side.clubName} size={28} />
@@ -55,7 +57,15 @@ function SideRow({ side }: { side: MatchRowSide }) {
         </Text>
       </View>
       <Badge label={RESULT_LABEL[side.result]} tone={RESULT_TONE[side.result]} />
-      <Text style={[styles.score, { color: RESULT_COLOR[side.result] }, side.result === "win" && styles.scoreWin]}>{side.score}</Text>
+      <Text
+        style={[
+          styles.score,
+          { color: RESULT_COLOR[side.result], textAlign: isRTL ? "left" : "right" },
+          side.result === "win" && styles.scoreWin,
+        ]}
+      >
+        {side.score}
+      </Text>
     </View>
   );
 }
@@ -103,7 +113,6 @@ const styles = StyleSheet.create({
   score: {
     ...typography.heading,
     minWidth: 26,
-    textAlign: "right",
   },
   scoreWin: {
     fontSize: 20,

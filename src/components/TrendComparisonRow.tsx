@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "../lib/i18n";
 import { colors, spacing, typography } from "../theme";
 
 interface TrendComparisonRowProps {
@@ -12,6 +13,7 @@ interface TrendComparisonRowProps {
 
 /** "{label}: {previous} -> {recent}" with a directional arrow -- the arrow is decoration only, the actual previous/recent numbers always render as text either way. */
 export function TrendComparisonRow({ label, previousLabel, recentLabel, improved }: TrendComparisonRowProps) {
+  const { isRTL } = useTranslation();
   const arrowColor = improved === true ? colors.win : improved === false ? colors.loss : colors.textSecondary;
   const arrowIcon = improved === true ? "arrow-up" : improved === false ? "arrow-down" : "remove";
 
@@ -27,7 +29,7 @@ export function TrendComparisonRow({ label, previousLabel, recentLabel, improved
       <View style={styles.valuesRow}>
         <Text style={styles.value}>{previousLabel}</Text>
         <Ionicons name={arrowIcon} size={14} color={arrowColor} />
-        <Text style={[styles.value, styles.valueRecent, { color: arrowColor }]}>{recentLabel}</Text>
+        <Text style={[styles.value, styles.valueRecent, { color: arrowColor, textAlign: isRTL ? "left" : "right" }]}>{recentLabel}</Text>
       </View>
     </View>
   );
@@ -54,6 +56,5 @@ const styles = StyleSheet.create({
   },
   valueRecent: {
     minWidth: 40,
-    textAlign: "right",
   },
 });

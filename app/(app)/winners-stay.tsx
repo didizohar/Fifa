@@ -538,10 +538,11 @@ function PairLine({ label, pair }: { label: string; pair: { players: [RotationPl
 }
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
+  const { isRTL } = useTranslation();
   return (
     <View style={styles.summaryRow}>
       <Text style={styles.body}>{label}</Text>
-      <Text style={styles.summaryValue} numberOfLines={2} ellipsizeMode="tail">
+      <Text style={[styles.summaryValue, { textAlign: isRTL ? "left" : "right" }]} numberOfLines={2} ellipsizeMode="tail">
         {value}
       </Text>
     </View>
@@ -677,6 +678,5 @@ const styles = StyleSheet.create({
     color: colors.accent,
     flex: 1,
     flexShrink: 1,
-    textAlign: "right",
   },
 });

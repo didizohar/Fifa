@@ -1,5 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "../lib/i18n";
 import { colors, radius, spacing, typography } from "../theme";
 
 export interface BarChartRow {
@@ -17,6 +18,7 @@ interface BarChartProps {
 
 /** Plain-View horizontal bar list -- no chart library dependency. */
 export function BarChart({ rows, maxValue }: BarChartProps) {
+  const { isRTL } = useTranslation();
   if (rows.length === 0) return null;
   const max = maxValue ?? Math.max(...rows.map((r) => r.value), 1);
 
@@ -37,7 +39,7 @@ export function BarChart({ rows, maxValue }: BarChartProps) {
                 style={[styles.fill, { width: `${pct * 100}%` }]}
               />
             </View>
-            <Text style={styles.value} numberOfLines={1}>
+            <Text style={[styles.value, { textAlign: isRTL ? "left" : "right" }]} numberOfLines={1}>
               {row.valueLabel ?? row.value}
             </Text>
           </View>
@@ -76,6 +78,5 @@ const styles = StyleSheet.create({
     ...typography.small,
     minWidth: 48,
     maxWidth: 72,
-    textAlign: "right",
   },
 });

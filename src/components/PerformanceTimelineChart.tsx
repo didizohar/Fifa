@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import type { PerformanceTimelineBucket } from "../lib/analytics/types";
+import { useTranslation } from "../lib/i18n";
 import { colors, radius, spacing, typography } from "../theme";
 
 interface PerformanceTimelineChartProps {
@@ -10,6 +11,7 @@ interface PerformanceTimelineChartProps {
 
 /** One stacked win/draw/loss bar per bucket -- same row layout as BarChart, three segments instead of one. Buckets with no matches render an explicit muted bar, never skipped. */
 export function PerformanceTimelineChart({ buckets, emptyMessage, noDataLabel }: PerformanceTimelineChartProps) {
+  const { isRTL } = useTranslation();
   const withMatches = buckets.filter((b) => b.matches > 0);
   if (buckets.length === 0 || withMatches.length === 0) {
     return <Text style={styles.empty}>{emptyMessage}</Text>;
@@ -40,7 +42,7 @@ export function PerformanceTimelineChart({ buckets, emptyMessage, noDataLabel }:
                 <View style={[styles.segment, { flex: 1, backgroundColor: colors.border }]} />
               )}
             </View>
-            <Text style={styles.value} numberOfLines={1}>
+            <Text style={[styles.value, { textAlign: isRTL ? "left" : "right" }]} numberOfLines={1}>
               {hasData ? `${bucket.wins}-${bucket.losses}-${bucket.draws}` : "–"}
             </Text>
           </View>
@@ -79,7 +81,6 @@ const styles = StyleSheet.create({
     ...typography.small,
     minWidth: 64,
     maxWidth: 90,
-    textAlign: "right",
   },
   empty: {
     ...typography.caption,

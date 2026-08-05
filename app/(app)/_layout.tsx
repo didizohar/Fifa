@@ -19,7 +19,7 @@ export default function AppLayout() {
         options={{
           presentation: "modal",
           headerShown: true,
-          title: "Record match",
+          title: t("common.recordMatch"),
           // A modal sheet's native interactive-dismiss pan gesture and the
           // content ScrollView's own pan gesture both want the same
           // vertical drag. Over the player-picker rows specifically, each
@@ -38,10 +38,10 @@ export default function AppLayout() {
           ...themedHeaderOptions,
         }}
       />
-      <Stack.Screen name="player/new" options={{ headerShown: true, title: "Add player", ...themedHeaderOptions }} />
-      <Stack.Screen name="player/[id]/index" options={{ headerShown: true, title: "Player", ...themedHeaderOptions }} />
-      <Stack.Screen name="player/[id]/edit" options={{ headerShown: true, title: "Edit player", ...themedHeaderOptions }} />
-      <Stack.Screen name="match/[id]" options={{ headerShown: true, title: "Match", ...themedHeaderOptions }} />
+      <Stack.Screen name="player/new" options={{ headerShown: true, title: t("common.addPlayer"), ...themedHeaderOptions }} />
+      <Stack.Screen name="player/[id]/index" options={{ headerShown: true, title: t("common.playerTitle"), ...themedHeaderOptions }} />
+      <Stack.Screen name="player/[id]/edit" options={{ headerShown: true, title: t("common.editPlayer"), ...themedHeaderOptions }} />
+      <Stack.Screen name="match/[id]" options={{ headerShown: true, title: t("common.matchTitle"), ...themedHeaderOptions }} />
       <Stack.Screen name="draw/index" options={{ headerShown: true, title: t("draw.title"), ...themedHeaderOptions }} />
       <Stack.Screen name="draw/players" options={{ headerShown: true, title: t("draw.randomPlayers"), ...themedHeaderOptions }} />
       <Stack.Screen name="draw/teams" options={{ headerShown: true, title: t("draw.createTeams"), ...themedHeaderOptions }} />
