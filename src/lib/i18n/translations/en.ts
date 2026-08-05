@@ -234,8 +234,8 @@ const en = {
     deleteConfirmTitle: "Delete \"{name}\"?",
     deleteConfirmMessage: "{count} match(es) were tagged to this league. They will NOT be deleted -- they'll simply no longer be grouped under this league. Your general match history is unaffected.",
     deleteFinalWarning: "This cannot be undone. Are you absolutely sure?",
-    deleteAction: "Delete League",
-    deleteAndDataAction: "Delete League and Data",
+    deleteAction: "Delete This League",
+    deleteAndDataAction: "Delete This League + Data",
     deleteDetailPlayers: "Players affected: {count}",
     deleteDetailMatches: "Matches tagged to this league: {count}",
     deleteDetailSeasons: "Total seasons this group has ever created: {count}",
@@ -250,6 +250,7 @@ const en = {
   deleteGroup: {
     entryButtonLabel: "Delete Group",
     screenTitle: "Delete Group",
+    dangerZoneHint: "Deletes everything -- not just one league. Every player, match, and season in this group, permanently.",
     warningTitle: "Permanently delete \"{name}\"?",
     warningIntro: "This cannot be undone. Deleting this group permanently removes:",
     itemGroup: "The group itself, and every member's access to it",

@@ -231,8 +231,8 @@ const he = {
     deleteConfirmTitle: "למחוק את \"{name}\"?",
     deleteConfirmMessage: "{count} משחקים סומנו לליגה זו. הם לא יימחקו -- הם פשוט לא יקובצו יותר תחת ליגה זו. היסטוריית המשחקים הכללית שלכם לא נפגעת.",
     deleteFinalWarning: "לא ניתן לבטל פעולה זו. האם אתם בטוחים לחלוטין?",
-    deleteAction: "מחיקת ליגה",
-    deleteAndDataAction: "מחיקת ליגה ונתונים",
+    deleteAction: "מחיקת הליגה הזו",
+    deleteAndDataAction: "מחיקת הליגה הזו + נתונים",
     deleteDetailPlayers: "שחקנים מושפעים: {count}",
     deleteDetailMatches: "משחקים המסומנים לליגה זו: {count}",
     deleteDetailSeasons: "סך כל העונות שהקבוצה יצרה אי פעם: {count}",
@@ -247,6 +247,7 @@ const he = {
   deleteGroup: {
     entryButtonLabel: "מחיקת קבוצה",
     screenTitle: "מחיקת קבוצה",
+    dangerZoneHint: "מוחק הכל -- לא רק ליגה אחת. כל שחקן, משחק ועונה בקבוצה זו, לצמיתות.",
     warningTitle: "למחוק לצמיתות את \"{name}\"?",
     warningIntro: "לא ניתן לבטל פעולה זו. מחיקת הקבוצה תסיר לצמיתות:",
     itemGroup: "את הקבוצה עצמה, וגישת כל החברים אליה",

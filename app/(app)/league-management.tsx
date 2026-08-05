@@ -318,7 +318,7 @@ export default function LeagueManagementScreen() {
         {canManageLeague ? (
           <Card style={styles.dangerZoneCard}>
             <Text style={styles.dangerZoneTitle}>{t("deleteGroup.entryButtonLabel")}</Text>
-            <Text style={styles.dangerZoneHint}>{t("deleteGroup.notReversible")}</Text>
+            <Text style={styles.dangerZoneHint}>{t("deleteGroup.dangerZoneHint")}</Text>
             <Button label={t("deleteGroup.entryButtonLabel")} variant="danger" onPress={() => router.push("/delete-group")} />
           </Card>
         ) : null}
