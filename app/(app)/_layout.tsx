@@ -1,4 +1,5 @@
 import { Stack } from "expo-router";
+import { HeaderBackButton } from "../../src/components/HeaderBackButton";
 import { useTranslation } from "../../src/lib/i18n";
 import { colors } from "../../src/theme";
 
@@ -6,13 +7,22 @@ const themedHeaderOptions = {
   headerStyle: { backgroundColor: colors.background },
   headerTintColor: colors.textPrimary,
   headerShadowVisible: false,
-  // Without this, iOS falls back to the PREVIOUS screen's title for the back
-  // button label -- and since the (tabs) Stack.Screen below has no title of
-  // its own, that fallback is the literal route-group folder name "(tabs)",
-  // which was showing up verbatim in the header of every screen pushed
-  // directly from a tab (Insights, Trends, League Table, ...). Blank shows
-  // just the chevron, matching the rest of the app's back buttons.
+  // Modal screens (record-match, delete-group) keep this: they have their
+  // own explicit Cancel/close affordances rather than a "back to X" label,
+  // since dismissing a modal isn't "going back" to a previous screen in the
+  // same sense a stack pop is.
   headerBackTitle: "",
+};
+
+// Every pushed (non-modal) screen: a custom header-left that shows "‹ Back
+// to <previous screen>" instead of the native default (which falls back to
+// blank/the raw route name whenever the screen beneath has no title of its
+// own -- e.g. "(tabs)"). See HeaderBackButton.tsx for why this needs to be
+// dynamic rather than a static per-screen string.
+const pushedHeaderOptions = {
+  ...themedHeaderOptions,
+  headerBackTitle: undefined,
+  headerLeft: () => <HeaderBackButton />,
 };
 
 export default function AppLayout() {
@@ -45,27 +55,27 @@ export default function AppLayout() {
           ...themedHeaderOptions,
         }}
       />
-      <Stack.Screen name="player/new" options={{ headerShown: true, title: t("common.addPlayer"), ...themedHeaderOptions }} />
-      <Stack.Screen name="player/[id]/index" options={{ headerShown: true, title: t("common.playerTitle"), ...themedHeaderOptions }} />
-      <Stack.Screen name="player/[id]/edit" options={{ headerShown: true, title: t("common.editPlayer"), ...themedHeaderOptions }} />
-      <Stack.Screen name="match/[id]" options={{ headerShown: true, title: t("common.matchTitle"), ...themedHeaderOptions }} />
-      <Stack.Screen name="draw/index" options={{ headerShown: true, title: t("draw.title"), ...themedHeaderOptions }} />
-      <Stack.Screen name="draw/players" options={{ headerShown: true, title: t("draw.randomPlayers"), ...themedHeaderOptions }} />
-      <Stack.Screen name="draw/teams" options={{ headerShown: true, title: t("draw.createTeams"), ...themedHeaderOptions }} />
-      <Stack.Screen name="draw/clubs" options={{ headerShown: true, title: t("draw.drawClubs"), ...themedHeaderOptions }} />
-      <Stack.Screen name="draw/matchup" options={{ headerShown: true, title: t("draw.fullMatchup"), ...themedHeaderOptions }} />
-      <Stack.Screen name="league-management" options={{ headerShown: true, title: t("league.title"), ...themedHeaderOptions }} />
+      <Stack.Screen name="player/new" options={{ headerShown: true, title: t("common.addPlayer"), ...pushedHeaderOptions }} />
+      <Stack.Screen name="player/[id]/index" options={{ headerShown: true, title: t("common.playerTitle"), ...pushedHeaderOptions }} />
+      <Stack.Screen name="player/[id]/edit" options={{ headerShown: true, title: t("common.editPlayer"), ...pushedHeaderOptions }} />
+      <Stack.Screen name="match/[id]" options={{ headerShown: true, title: t("common.matchTitle"), ...pushedHeaderOptions }} />
+      <Stack.Screen name="draw/index" options={{ headerShown: true, title: t("draw.title"), ...pushedHeaderOptions }} />
+      <Stack.Screen name="draw/players" options={{ headerShown: true, title: t("draw.randomPlayers"), ...pushedHeaderOptions }} />
+      <Stack.Screen name="draw/teams" options={{ headerShown: true, title: t("draw.createTeams"), ...pushedHeaderOptions }} />
+      <Stack.Screen name="draw/clubs" options={{ headerShown: true, title: t("draw.drawClubs"), ...pushedHeaderOptions }} />
+      <Stack.Screen name="draw/matchup" options={{ headerShown: true, title: t("draw.fullMatchup"), ...pushedHeaderOptions }} />
+      <Stack.Screen name="league-management" options={{ headerShown: true, title: t("league.title"), ...pushedHeaderOptions }} />
       <Stack.Screen
         name="delete-group"
         options={{ headerShown: true, title: t("deleteGroup.screenTitle"), presentation: "modal", ...themedHeaderOptions }}
       />
-      <Stack.Screen name="league-table" options={{ headerShown: true, title: t("leagueTable.title"), ...themedHeaderOptions }} />
-      <Stack.Screen name="monthly-summary" options={{ headerShown: true, title: t("monthlySummary.title"), ...themedHeaderOptions }} />
-      <Stack.Screen name="trends" options={{ headerShown: true, title: t("trendsScreen.title"), ...themedHeaderOptions }} />
-      <Stack.Screen name="insights" options={{ headerShown: true, title: t("insightsScreen.title"), ...themedHeaderOptions }} />
-      <Stack.Screen name="custom-clubs" options={{ headerShown: true, title: t("customClubs.title"), ...themedHeaderOptions }} />
-      <Stack.Screen name="season-history" options={{ headerShown: true, title: t("seasonHistory.title"), ...themedHeaderOptions }} />
-      <Stack.Screen name="season/[id]" options={{ headerShown: true, title: t("seasonHistory.detailsTitle"), ...themedHeaderOptions }} />
+      <Stack.Screen name="league-table" options={{ headerShown: true, title: t("leagueTable.title"), ...pushedHeaderOptions }} />
+      <Stack.Screen name="monthly-summary" options={{ headerShown: true, title: t("monthlySummary.title"), ...pushedHeaderOptions }} />
+      <Stack.Screen name="trends" options={{ headerShown: true, title: t("trendsScreen.title"), ...pushedHeaderOptions }} />
+      <Stack.Screen name="insights" options={{ headerShown: true, title: t("insightsScreen.title"), ...pushedHeaderOptions }} />
+      <Stack.Screen name="custom-clubs" options={{ headerShown: true, title: t("customClubs.title"), ...pushedHeaderOptions }} />
+      <Stack.Screen name="season-history" options={{ headerShown: true, title: t("seasonHistory.title"), ...pushedHeaderOptions }} />
+      <Stack.Screen name="season/[id]" options={{ headerShown: true, title: t("seasonHistory.detailsTitle"), ...pushedHeaderOptions }} />
     </Stack>
   );
 }

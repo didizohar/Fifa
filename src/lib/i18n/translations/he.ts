@@ -7,6 +7,7 @@ const he = {
     close: "סגור",
     retry: "נסה שוב",
     back: "חזרה",
+    backTo: "חזרה ל{screen}",
     unknownClub: "מועדון לא ידוע",
     unknownOpponent: "יריב לא ידוע",
     penaltiesAbbr: "פנדלים",

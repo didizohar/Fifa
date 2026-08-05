@@ -10,6 +10,7 @@ const en = {
     close: "Close",
     retry: "Try again",
     back: "Back",
+    backTo: "Back to {screen}",
     unknownClub: "Unknown club",
     unknownOpponent: "Unknown opponent",
     penaltiesAbbr: "PENS",
