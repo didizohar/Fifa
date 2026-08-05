@@ -142,6 +142,15 @@ export default function RecordMatchScreen() {
 
   const originalDraftRef = useRef<EditableMatchDraft | null>(null);
   const skipUnsavedGuardRef = useRef(false);
+  // Synchronous, closure-independent lock against a rapid double-tap (or two
+  // back-to-back presses in a test) both slipping into the actual save call.
+  // isSubmitting is only ever as fresh as the last completed render of this
+  // component; two calls issued before React has re-rendered would both see
+  // the same stale (false) value and both proceed. This ref is authoritative
+  // at the instant the save function actually runs, independent of render
+  // timing -- set immediately before the mutation, cleared in `finally`
+  // regardless of success/failure so a genuinely failed save can be retried.
+  const submitGuardRef = useRef(false);
 
   // "Draw Clubs by Stars" -- only ever touches side1ClubId/side2ClubId, never
   // the players, pairings, score, or waiting queue. Available for every
@@ -353,14 +362,22 @@ export default function RecordMatchScreen() {
   const isSubmitting = isEditMode ? editMatch.isPending : recordMatch.isPending;
 
   const saveEdit = async (computed: ComputedMatchResult) => {
-    if (!currentGroup || !matchId) return;
+    if (!currentGroup || !matchId || submitGuardRef.current) return;
     const payload = reconcileEditedMatchResult(matchId, currentGroup.id, currentDraft, computed);
     if (!payload) {
       setDateTimeError(t("editMatch.invalidDateTime"));
       return;
     }
+    submitGuardRef.current = true;
     try {
       await editMatch.mutateAsync(payload);
+      // Save succeeded -- this is a programmatic "leave" the user just
+      // asked for, not an accidental exit, so the unsaved-changes guard
+      // must not intercept the router.replace below. No reset afterward:
+      // replace() unmounts this screen (verified against this component's
+      // own effect-cleanup behavior), so there's no future render of this
+      // instance where a stale `true` could wrongly bypass a *real* future
+      // unsaved-exit attempt.
       skipUnsavedGuardRef.current = true;
       notify(t("editMatch.savedSuccessTitle"));
       router.replace(`/match/${matchId}`);
@@ -372,11 +389,13 @@ export default function RecordMatchScreen() {
       } else {
         setErrors([t("editMatch.networkError")]);
       }
+    } finally {
+      submitGuardRef.current = false;
     }
   };
 
   const handleSubmit = async () => {
-    if (!currentGroup || isSubmitting) return;
+    if (!currentGroup || isSubmitting || submitGuardRef.current) return;
 
     const validation = validateMatchForm(
       {
@@ -419,6 +438,7 @@ export default function RecordMatchScreen() {
     }
 
     setErrors([]);
+    submitGuardRef.current = true;
 
     try {
       const newMatchId = await recordMatch.mutateAsync({
@@ -451,9 +471,20 @@ export default function RecordMatchScreen() {
           },
         ],
       });
+      // Same reasoning as saveEdit above: this is the app navigating away
+      // after a save the user just asked for, not an accidental exit --
+      // the unsaved-changes guard must not intercept it. This is the exact
+      // line that was missing before: without it, isDirty was still true
+      // (a brand-new match's originalDraft is permanently BLANK_CREATE_DRAFT,
+      // so it never "catches up" to a filled-in form on its own), so
+      // router.replace's own beforeRemove event was blocked by the guard
+      // and the unsaved-changes dialog appeared immediately on every save.
+      skipUnsavedGuardRef.current = true;
       router.replace(`/match/${newMatchId}`);
     } catch (e) {
       setErrors([e instanceof Error ? e.message : "Failed to record match."]);
+    } finally {
+      submitGuardRef.current = false;
     }
   };
 
