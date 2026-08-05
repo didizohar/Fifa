@@ -1000,6 +1000,8 @@ const en = {
   trendsScreen: {
     title: "Trends Over Time",
     subtitle: "See how performance has changed",
+    metricFilterLabel: "Metric filter",
+    rangeFilterLabel: "Time range filter",
     metricWinRate: "Win Rate",
     metricWins: "Wins",
     metricGoalsPerMatch: "Goals / Match",

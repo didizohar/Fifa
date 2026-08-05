@@ -997,6 +997,8 @@ const he = {
   trendsScreen: {
     title: "מגמות לאורך זמן",
     subtitle: "צפו כיצד הביצועים השתנו",
+    metricFilterLabel: "סינון מדד",
+    rangeFilterLabel: "סינון טווח זמן",
     metricWinRate: "אחוז ניצחונות",
     metricWins: "ניצחונות",
     metricGoalsPerMatch: "שערים למשחק",

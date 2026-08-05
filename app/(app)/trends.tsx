@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { AppChipGroup, type ChipOption } from "../../src/components/AppChipGroup";
 import { EmptyState } from "../../src/components/EmptyState";
-import { Chip } from "../../src/components/Chip";
 import { PlayerPicker } from "../../src/components/PlayerPicker";
 import { Screen } from "../../src/components/Screen";
 import { SkeletonList } from "../../src/components/Skeleton";
@@ -49,6 +49,18 @@ export default function TrendsScreen() {
   const [range, setRange] = useState<AnalyticsRange>("30d");
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
 
+  // Memoized (not built fresh from METRIC_OPTIONS/ANALYTICS_RANGE_OPTIONS
+  // every render) so AppChipGroup's own React.memo -- a shallow prop
+  // comparison -- has a stable `options` reference to compare against.
+  const metricOptions = useMemo<ChipOption<TrendMetricKey>[]>(
+    () => METRIC_OPTIONS.map((opt) => ({ id: opt.value, label: t(opt.labelKey) })),
+    [t],
+  );
+  const rangeOptions = useMemo<ChipOption<AnalyticsRange>[]>(
+    () => ANALYTICS_RANGE_OPTIONS.map((opt) => ({ id: opt.value, label: t(opt.labelKey) })),
+    [t],
+  );
+
   const roster = players.data ?? EMPTY_PLAYERS;
   const allMatches = matchHistory.data ?? EMPTY_MATCHES;
   const pickablePlayers = useMemo(() => roster.map(toPickablePlayer), [roster]);
@@ -94,17 +106,23 @@ export default function TrendsScreen() {
         <Text style={styles.subtitle}>{t("trendsScreen.subtitle")}</Text>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-        {METRIC_OPTIONS.map((opt) => (
-          <Chip key={opt.value} label={t(opt.labelKey)} active={metric === opt.value} onPress={() => setMetric(opt.value)} />
-        ))}
-      </ScrollView>
+      <AppChipGroup
+        mode="single"
+        options={metricOptions}
+        value={metric}
+        onChange={setMetric}
+        accessibilityLabel={t("trendsScreen.metricFilterLabel")}
+        style={styles.chipRow}
+      />
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-        {ANALYTICS_RANGE_OPTIONS.map((opt) => (
-          <Chip key={opt.value} label={t(opt.labelKey)} active={range === opt.value} onPress={() => setRange(opt.value)} />
-        ))}
-      </ScrollView>
+      <AppChipGroup
+        mode="single"
+        options={rangeOptions}
+        value={range}
+        onChange={setRange}
+        accessibilityLabel={t("trendsScreen.rangeFilterLabel")}
+        style={styles.chipRow}
+      />
 
       {isLoading ? (
         <SkeletonList count={3} />
