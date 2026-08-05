@@ -10,7 +10,7 @@ interface InfoBannerProps {
 
 const TONE_STYLE: Record<InfoBannerTone, { bg: string; border: string; icon: string }> = {
   info: { bg: colors.accentSubtle, border: colors.accent, icon: "ℹ️" },
-  warning: { bg: "rgba(245, 196, 81, 0.14)", border: colors.warning, icon: "⚠️" },
+  warning: { bg: colors.warningSubtle, border: colors.warning, icon: "⚠️" },
 };
 
 /** Small inline notice -- "not enough data yet", "this player is archived", etc. Never the only signal (icon + text, no color-only meaning). */

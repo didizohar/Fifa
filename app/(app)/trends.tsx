@@ -14,7 +14,7 @@ import { ANALYTICS_RANGE_OPTIONS } from "../../src/lib/playerAnalyticsView";
 import { toPickablePlayer } from "../../src/lib/players";
 import type { AnalyticsRange } from "../../src/lib/analytics/types";
 import { calculateTrendSeriesForPlayers, type TrendMetricKey } from "../../src/lib/trends/trendSeries";
-import { colors, spacing, typography } from "../../src/theme";
+import { colors, radius, spacing, typography } from "../../src/theme";
 
 const METRIC_OPTIONS: { value: TrendMetricKey; labelKey: string }[] = [
   { value: "winRate", labelKey: "trendsScreen.metricWinRate" },
@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
   seriesCard: {
     gap: spacing.sm,
     padding: spacing.md,
-    borderRadius: 16,
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
     backgroundColor: colors.surface,
