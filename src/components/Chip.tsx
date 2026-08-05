@@ -1,3 +1,5 @@
+import { Ionicons } from "@expo/vector-icons";
+import type { ComponentProps } from "react";
 import { StyleSheet, Text, ViewStyle } from "react-native";
 import { colors, radius, spacing, typography } from "../theme";
 import { AnimatedPressable } from "./AnimatedPressable";
@@ -7,6 +9,15 @@ interface ChipProps {
   active: boolean;
   onPress: () => void;
   disabled?: boolean;
+  /** Rendered before the label on the row's logical start side. Plain flexDirection: "row" -- native RTL mirroring (I18nManager.forceRTL, already active app-wide) handles which physical side that is, no isRTL branching needed here. */
+  icon?: ComponentProps<typeof Ionicons>["name"];
+  /**
+   * Defaults to "button" -- exactly today's behavior, so every existing
+   * caller is unaffected. AppChipGroup passes "radio" (single-select) or
+   * "checkbox" (multi-select) per its own selection mode, which is the
+   * semantically correct role RN offers for those cases.
+   */
+  accessibilityRole?: "button" | "radio" | "checkbox";
   style?: ViewStyle;
 }
 
@@ -26,16 +37,26 @@ interface ChipProps {
  * layout; wrapping the *text* inside a single chip (an earlier version of
  * this component allowed 2 lines) does not.
  */
-export function Chip({ label, active, onPress, disabled = false, style }: ChipProps) {
+export function Chip({ label, active, onPress, disabled = false, icon, accessibilityRole = "button", style }: ChipProps) {
   return (
     <AnimatedPressable
       onPress={onPress}
       disabled={disabled}
       pressedScale={0.96}
+      // Compact visual pill stays exactly the size it already is -- the 44pt
+      // minimum touch target (Apple HIG / WCAG 2.5.5) comes entirely from
+      // this invisible hit-area expansion, never from inflating the chip
+      // itself. Left/right kept smaller than top/bottom so tightly-packed
+      // adjacent chips (row gap: spacing.sm) never get overlapping hit zones.
+      hitSlop={{ top: 8, bottom: 8, left: 2, right: 2 }}
       style={({ pressed }) => [styles.chip, active && styles.chipActive, disabled && styles.chipDisabled, pressed && !disabled && styles.chipPressed, style]}
-      accessibilityRole="button"
-      accessibilityState={{ selected: active, disabled }}
+      accessibilityRole={accessibilityRole}
+      // "checkbox" is the one role RN models with "checked" instead of
+      // "selected" -- "button" (the unchanged default) and "radio" both use
+      // the same accessibilityState shape as before.
+      accessibilityState={accessibilityRole === "checkbox" ? { checked: active, disabled } : { selected: active, disabled }}
     >
+      {icon ? <Ionicons name={icon} size={14} color={active ? colors.accent : colors.textSecondary} style={styles.icon} /> : null}
       <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
         {label}
       </Text>
@@ -45,6 +66,8 @@ export function Chip({ label, active, onPress, disabled = false, style }: ChipPr
 
 const styles = StyleSheet.create({
   chip: {
+    flexDirection: "row",
+    alignItems: "center",
     alignSelf: "flex-start",
     paddingHorizontal: spacing.sm + 4,
     paddingVertical: spacing.xs + 2,
@@ -52,6 +75,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
+  },
+  icon: {
+    marginEnd: 4,
   },
   chipActive: {
     borderColor: colors.accent,
