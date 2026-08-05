@@ -15,6 +15,8 @@ export const motion = {
     entrance: 350,
     /** Value transitions (counters, progress fills). */
     value: 500,
+    /** One half-cycle of a continuous loop (skeleton shimmer). */
+    pulse: 700,
   },
   easing: {
     press: Easing.out(Easing.quad),

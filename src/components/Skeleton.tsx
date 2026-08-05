@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Animated, StyleSheet, View, ViewStyle } from "react-native";
-import { colors, radius } from "../theme";
+import { colors, motion, radius } from "../theme";
 
 interface SkeletonProps {
   width?: number | `${number}%`;
@@ -15,8 +15,8 @@ export function Skeleton({ width = "100%", height = 16, borderRadius = radius.sm
   useEffect(() => {
     const animation = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: motion.duration.pulse, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.4, duration: motion.duration.pulse, useNativeDriver: true }),
       ]),
     );
     animation.start();

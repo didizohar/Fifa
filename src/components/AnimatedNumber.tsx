@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Easing, Text, TextStyle } from "react-native";
+import { Animated, Text, TextStyle } from "react-native";
+import { motion } from "../theme";
 
 interface AnimatedNumberProps {
   /** Non-numeric values (already-formatted strings like "62%" or "#3 of 12") render statically -- only real numbers animate. */
@@ -9,7 +10,7 @@ interface AnimatedNumberProps {
 }
 
 /** Counts up/down to a new numeric value instead of jumping -- e.g. an Elo rating or stat tile changing after a match. */
-export function AnimatedNumber({ value, style, duration = 500 }: AnimatedNumberProps) {
+export function AnimatedNumber({ value, style, duration = motion.duration.value }: AnimatedNumberProps) {
   const isNumeric = typeof value === "number";
   const animated = useRef(new Animated.Value(isNumeric ? value : 0)).current;
   const [display, setDisplay] = useState<number>(isNumeric ? value : 0);
@@ -20,7 +21,7 @@ export function AnimatedNumber({ value, style, duration = 500 }: AnimatedNumberP
     previous.current = value;
     const id = animated.addListener(({ value: v }) => setDisplay(Math.round(v)));
     // Gentle decelerate -- counts up quickly then settles into the final number, like an odometer rather than a linear ramp.
-    Animated.timing(animated, { toValue: value, duration, easing: Easing.out(Easing.quad), useNativeDriver: false }).start();
+    Animated.timing(animated, { toValue: value, duration, easing: motion.easing.value, useNativeDriver: false }).start();
     return () => animated.removeListener(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, isNumeric]);
