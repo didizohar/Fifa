@@ -2,6 +2,9 @@ jest.mock("../src/lib/supabase", () => ({
   supabase: {
     from: jest.fn(),
     rpc: jest.fn(),
+    storage: {
+      from: jest.fn(),
+    },
   },
 }));
 
@@ -11,11 +14,12 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../src/lib/supabase";
-import { clearGroupLocalData, createGroup, deleteGroup, groupNameConfirmationMatches } from "../src/lib/groups";
+import { clearGroupAvatars, clearGroupLocalData, createGroup, deleteGroup, groupNameConfirmationMatches } from "../src/lib/groups";
 
 const mockFrom = supabase.from as jest.Mock;
 const mockRpc = supabase.rpc as jest.Mock;
 const mockMultiRemove = AsyncStorage.multiRemove as jest.Mock;
+const mockStorageFrom = supabase.storage.from as jest.Mock;
 
 beforeEach(() => {
   mockFrom.mockReset();
@@ -148,5 +152,49 @@ describe("clearGroupLocalData", () => {
       "fc-rival:winnersStaySession:group-1",
       "fc-rival:winnersStaySessionHistory:group-1",
     ]);
+  });
+});
+
+describe("clearGroupAvatars", () => {
+  beforeEach(() => {
+    mockStorageFrom.mockReset();
+  });
+
+  it("does nothing (and never calls remove) when the group has no avatar folders", async () => {
+    const mockList = jest.fn().mockResolvedValue({ data: [], error: null });
+    const mockRemove = jest.fn().mockResolvedValue({ data: [], error: null });
+    mockStorageFrom.mockReturnValue({ list: mockList, remove: mockRemove });
+
+    await clearGroupAvatars("group-1");
+
+    expect(mockRemove).not.toHaveBeenCalled();
+  });
+
+  it("lists every player folder and removes every file found, through the Storage API", async () => {
+    const mockList = jest
+      .fn()
+      .mockResolvedValueOnce({ data: [{ name: "player-a" }, { name: "player-b" }], error: null })
+      .mockResolvedValueOnce({ data: [{ name: "111.jpg" }], error: null })
+      .mockResolvedValueOnce({ data: [{ name: "222.jpg" }, { name: "333.jpg" }], error: null });
+    const mockRemove = jest.fn().mockResolvedValue({ data: [], error: null });
+    mockStorageFrom.mockReturnValue({ list: mockList, remove: mockRemove });
+
+    await clearGroupAvatars("group-1");
+
+    expect(mockList).toHaveBeenNthCalledWith(1, "group-1");
+    expect(mockList).toHaveBeenNthCalledWith(2, "group-1/player-a");
+    expect(mockList).toHaveBeenNthCalledWith(3, "group-1/player-b");
+    expect(mockRemove).toHaveBeenCalledWith(["group-1/player-a/111.jpg", "group-1/player-b/222.jpg", "group-1/player-b/333.jpg"]);
+  });
+
+  it("throws if the Storage API remove call itself fails", async () => {
+    const mockList = jest
+      .fn()
+      .mockResolvedValueOnce({ data: [{ name: "player-a" }], error: null })
+      .mockResolvedValueOnce({ data: [{ name: "111.jpg" }], error: null });
+    const mockRemove = jest.fn().mockResolvedValue({ data: null, error: { message: "network error" } });
+    mockStorageFrom.mockReturnValue({ list: mockList, remove: mockRemove });
+
+    await expect(clearGroupAvatars("group-1")).rejects.toThrow(/network error/);
   });
 });

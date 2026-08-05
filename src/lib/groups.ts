@@ -92,6 +92,42 @@ export async function deleteGroup(groupId: string, confirmName: string): Promise
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Lists every avatar file under a group's storage prefix. Avatars live at
+ * {groupId}/{playerId}/{filename} -- two levels deep -- and the Storage API's
+ * `.list()` only returns one level at a time, so this lists the group's
+ * player-id "folders" first, then each of those, to get real file paths.
+ */
+async function listGroupAvatarPaths(groupId: string): Promise<string[]> {
+  const { data: playerFolders, error } = await supabase.storage.from("avatars").list(groupId);
+  if (error || !playerFolders || playerFolders.length === 0) return [];
+
+  const perFolder = await Promise.all(
+    playerFolders.map(async (folder) => {
+      const { data: files } = await supabase.storage.from("avatars").list(`${groupId}/${folder.name}`);
+      return (files ?? []).map((file) => `${groupId}/${folder.name}/${file.name}`);
+    }),
+  );
+  return perFolder.flat();
+}
+
+/**
+ * Deletes every avatar file for a group through the real Storage API --
+ * NOT a SQL DELETE against storage.objects, which Supabase rejects outright
+ * ("Direct deletion from storage tables is not allowed. Use the Storage API
+ * instead.") and which, even if it were allowed, would only remove the
+ * metadata row and leave the actual file behind in the underlying object
+ * store. Safe to call after delete_group has already succeeded: storage
+ * isn't touched by that RPC's DB cascade at all, so the files are still
+ * there to find and remove.
+ */
+export async function clearGroupAvatars(groupId: string): Promise<void> {
+  const paths = await listGroupAvatarPaths(groupId);
+  if (paths.length === 0) return;
+  const { error } = await supabase.storage.from("avatars").remove(paths);
+  if (error) throw new Error(error.message);
+}
+
 // Every per-group, device-local AsyncStorage key this app writes -- must
 // stay in sync with the storageKey() builder in each of these hooks. There
 // is no single source of truth to import from (each hook's storageKey is a

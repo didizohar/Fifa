@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { clearGroupLocalData, deleteGroup } from "../lib/groups";
+import { clearGroupAvatars, clearGroupLocalData, deleteGroup } from "../lib/groups";
 import { groupKeys } from "../lib/queryClient";
 
 /**
@@ -46,6 +46,15 @@ export function useDeleteGroup(userId: string | undefined) {
         await clearGroupLocalData(groupId);
       } catch (e) {
         if (__DEV__) console.warn("Delete Group: clearGroupLocalData failed (group was still deleted)", e);
+      }
+      try {
+        // Real Storage API, not a SQL delete against storage.objects --
+        // see clearGroupAvatars' own doc comment. Storage isn't touched by
+        // delete_group's DB cascade, so the files are still there to find
+        // and remove even though the group's DB rows are already gone.
+        await clearGroupAvatars(groupId);
+      } catch (e) {
+        if (__DEV__) console.warn("Delete Group: clearGroupAvatars failed (group was still deleted)", e);
       }
       try {
         await queryClient.invalidateQueries({ queryKey: groupKeys.mine(userId) });

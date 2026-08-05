@@ -14,7 +14,15 @@ import { ANALYTICS_RANGE_OPTIONS } from "../../src/lib/playerAnalyticsView";
 import { toPickablePlayer } from "../../src/lib/players";
 import type { AnalyticsRange } from "../../src/lib/analytics/types";
 import { calculateTrendSeriesForPlayers, type TrendMetricKey } from "../../src/lib/trends/trendSeries";
+import type { MatchSummary } from "../../src/lib/matches";
+import type { PlayerProfile } from "../../src/lib/types/database";
 import { colors, radius, spacing, typography } from "../../src/theme";
+
+// Stable references so `data ?? []` doesn't allocate a fresh empty array on
+// every render while a query has no data yet -- see index.tsx for the same
+// pattern and rationale.
+const EMPTY_PLAYERS: PlayerProfile[] = [];
+const EMPTY_MATCHES: MatchSummary[] = [];
 
 const METRIC_OPTIONS: { value: TrendMetricKey; labelKey: string }[] = [
   { value: "winRate", labelKey: "trendsScreen.metricWinRate" },
@@ -41,8 +49,8 @@ export default function TrendsScreen() {
   const [range, setRange] = useState<AnalyticsRange>("30d");
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
 
-  const roster = players.data ?? [];
-  const allMatches = matchHistory.data ?? [];
+  const roster = players.data ?? EMPTY_PLAYERS;
+  const allMatches = matchHistory.data ?? EMPTY_MATCHES;
   const pickablePlayers = useMemo(() => roster.map(toPickablePlayer), [roster]);
 
   const selectedPlayers = useMemo(() => roster.filter((p) => selectedPlayerIds.includes(p.id)), [roster, selectedPlayerIds]);
@@ -53,7 +61,20 @@ export default function TrendsScreen() {
     [metric, effectivePlayers, allMatches, range],
   );
 
-  const isLoading = players.isLoading || matchHistory.isLoading;
+  // Deliberately not players.isLoading/matchHistory.isLoading:
+  // TanStack Query v5 defines isLoading as `isPending && isFetching`, so a
+  // *disabled* query (usePlayers/useGroupMatchHistory both gate on
+  // `enabled: !!groupId`) reports isLoading:false while it still has no
+  // data at all -- e.g. the brief window right after this screen mounts
+  // but before GroupProvider's own async hydration has resolved
+  // currentGroupId. That false-negative rendered this screen's "loaded"
+  // branch with empty players/matches (title + chips, nothing useful
+  // below) until some unrelated state change forced a fresh render after
+  // the real data had already arrived. Checking for "no data and no error
+  // yet" instead keeps the skeleton up for the entire window where we
+  // genuinely don't have anything to show, regardless of the query's
+  // internal fetching/enabled state.
+  const isLoading = (!players.data && !players.isError) || (!matchHistory.data && !matchHistory.isError);
 
   // Both useCallback'd so PlayerPicker and (more importantly) every
   // TimelineChart below -- each renders one Pressable per data point, up to
