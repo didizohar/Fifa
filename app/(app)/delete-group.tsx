@@ -9,6 +9,7 @@ import { TextField } from "../../src/components/TextField";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useDeleteGroup } from "../../src/hooks/useDeleteGroup";
 import { useGroup } from "../../src/hooks/useGroup";
+import { useToast } from "../../src/lib/context/ToastProvider";
 import { groupNameConfirmationMatches } from "../../src/lib/groups";
 import { useTranslation } from "../../src/lib/i18n";
 import { colors, radius, spacing, typography } from "../../src/theme";
@@ -28,6 +29,7 @@ export default function DeleteGroupScreen() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { currentGroup, currentRole } = useGroup();
+  const { showToast } = useToast();
   const [confirmText, setConfirmText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const deleteGroupMutation = useDeleteGroup(user?.id);
@@ -55,6 +57,7 @@ export default function DeleteGroupScreen() {
     setError(null);
     try {
       await deleteGroupMutation.mutateAsync({ groupId: currentGroup.id, confirmName: confirmText });
+      showToast(t("deleteGroup.successMessage"));
       // No manual navigation -- GroupProvider's existing stale-currentGroupId
       // fallback and RootNavigator's existing "no groups -> onboarding"
       // guard handle this automatically once the groups list refetches,
