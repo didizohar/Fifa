@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Switch, Text, View } from "react-native";
 import { Avatar } from "../../../src/components/Avatar";
@@ -81,9 +81,7 @@ export default function PlayersScreen() {
           contentContainerStyle={styles.listPadding}
           refreshControl={<RefreshControl tintColor={colors.accent} refreshing={isRefetching} onRefresh={refetch} />}
           ItemSeparatorComponent={ListSeparator}
-          renderItem={({ item }) => (
-            <PlayerRow player={item} stats={statsById.get(item.id) ?? null} onPress={() => router.push(`/player/${item.id}`)} />
-          )}
+          renderItem={({ item }) => <PlayerRow player={item} stats={statsById.get(item.id) ?? null} />}
           ListEmptyComponent={
             <EmptyState
               icon="🧑‍🤝‍🧑"
@@ -99,12 +97,13 @@ export default function PlayersScreen() {
   );
 }
 
-function PlayerRow({ player, stats, onPress }: { player: PlayerProfile; stats: PlayerStats | null; onPress: () => void }) {
+const PlayerRow = memo(function PlayerRow({ player, stats }: { player: PlayerProfile; stats: PlayerStats | null }) {
   const { t } = useTranslation();
+  const router = useRouter();
   const winRateLabel = stats && stats.winRate !== null ? `${Math.round(stats.winRate * 100)}%` : "–";
   return (
     <Pressable
-      onPress={onPress}
+      onPress={() => router.push(`/player/${player.id}`)}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       accessibilityRole="button"
       accessibilityLabel={t("players.rowA11yLabel", { name: player.display_name, winRate: winRateLabel, played: stats?.played ?? 0 })}
@@ -127,7 +126,7 @@ function PlayerRow({ player, stats, onPress }: { player: PlayerProfile; stats: P
       </View>
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   header: {
