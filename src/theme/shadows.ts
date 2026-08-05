@@ -19,18 +19,23 @@ function shadow(opacity: number, radius: number, elevation: number) {
   });
 }
 
+// Opacity here is tuned per-theme, not just per-level: the same 0.18-0.32
+// range that reads as a barely-there accent against a near-black backdrop
+// (the previous dark theme) reads as a harsh, muddy smudge against white.
+// Light-UI soft shadows use much lower opacity and lean on a bigger blur
+// radius for softness instead.
 export const shadows = {
-  sm: shadow(0.18, 6, 2),
-  md: shadow(0.24, 12, 5),
-  lg: shadow(0.32, 20, 10),
+  sm: shadow(0.05, 6, 2),
+  md: shadow(0.08, 14, 4),
+  lg: shadow(0.1, 24, 8),
   glow: Platform.select({
-    web: { boxShadow: `0px 0px 16px rgba(62, 224, 122, 0.35)` },
+    web: { boxShadow: `0px 4px 20px rgba(37, 99, 235, 0.22)` },
     default: {
       shadowColor: colors.accent,
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.45,
-      shadowRadius: 12,
-      elevation: 8,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.22,
+      shadowRadius: 16,
+      elevation: 6,
     },
   }),
 } as const;

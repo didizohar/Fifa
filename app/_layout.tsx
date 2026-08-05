@@ -60,7 +60,7 @@ export default function RootLayout() {
           <AuthProvider>
             <GroupProvider>
               <ToastProvider>
-                <StatusBar style="light" />
+                <StatusBar style="dark" />
                 <RootNavigator />
               </ToastProvider>
             </GroupProvider>
