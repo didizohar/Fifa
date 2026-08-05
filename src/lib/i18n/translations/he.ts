@@ -810,6 +810,7 @@ const he = {
     sortDescending: "מיון יורד",
     bestFirst: "הטוב ביותר קודם",
     worstFirst: "הגרוע ביותר קודם",
+    categoryFilterLabel: "סינון קטגוריית טבלת שיאים",
     categoryWinRate: "אחוז ניצחונות",
     categoryMostMatches: "הכי הרבה משחקים",
     categoryWinStreak: "רצף ניצחונות",

@@ -813,6 +813,7 @@ const en = {
     sortDescending: "Sort descending",
     bestFirst: "Best first",
     worstFirst: "Worst first",
+    categoryFilterLabel: "Leaderboard category filter",
     categoryWinRate: "Win Rate",
     categoryMostMatches: "Most Matches",
     categoryWinStreak: "Win Streak",

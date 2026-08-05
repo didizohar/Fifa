@@ -2,10 +2,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutAnimation, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { AppChipGroup } from "../../../src/components/AppChipGroup";
 import { Avatar } from "../../../src/components/Avatar";
 import { Card } from "../../../src/components/Card";
 import { Chevron } from "../../../src/components/Chevron";
-import { Chip } from "../../../src/components/Chip";
 import { EmptyState } from "../../../src/components/EmptyState";
 import { ErrorState } from "../../../src/components/ErrorState";
 import { ExportButton } from "../../../src/components/ExportButton";
@@ -269,19 +269,17 @@ export default function LeaderboardsScreen() {
         </View>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-        {categories.map((c) => (
-          <Chip
-            key={c.id}
-            label={c.label}
-            active={category === c.id}
-            onPress={() => {
-              animateReorder();
-              setCategory(c.id);
-            }}
-          />
-        ))}
-      </ScrollView>
+      <AppChipGroup
+        mode="single"
+        options={categories}
+        value={category}
+        onChange={(id) => {
+          animateReorder();
+          setCategory(id);
+        }}
+        accessibilityLabel={t("leaderboards.categoryFilterLabel")}
+        style={styles.chipRow}
+      />
 
       {showMatchTypeFilter ? (
         <View style={styles.subToggleRow}>
