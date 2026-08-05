@@ -23,6 +23,10 @@ export const colors = {
   danger: "#F87171",
   dangerSubtle: "rgba(248, 113, 113, 0.14)",
   warning: "#F5C451",
+  // Same hex as `draw`/`gold` -- kept as its own semantic name so warning-toned
+  // UI (banners, badges) doesn't have to borrow the podium or match-result token.
+  warningSubtle: "rgba(245, 196, 81, 0.14)",
+  drawSubtle: "rgba(245, 196, 81, 0.14)",
 
   overlay: "rgba(4, 6, 5, 0.72)",
   skeleton: "#1B211F",

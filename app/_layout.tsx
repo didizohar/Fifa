@@ -6,6 +6,7 @@ import { StatusBar } from "expo-status-bar";
 import { ErrorBoundary } from "../src/components/ErrorBoundary";
 import { AuthProvider } from "../src/lib/context/AuthProvider";
 import { GroupProvider } from "../src/lib/context/GroupProvider";
+import { ToastProvider } from "../src/lib/context/ToastProvider";
 import { LocaleProvider } from "../src/lib/i18n";
 import { queryClient } from "../src/lib/queryClient";
 import { useAuth } from "../src/hooks/useAuth";
@@ -58,8 +59,10 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <GroupProvider>
-              <StatusBar style="light" />
-              <RootNavigator />
+              <ToastProvider>
+                <StatusBar style="light" />
+                <RootNavigator />
+              </ToastProvider>
             </GroupProvider>
           </AuthProvider>
         </QueryClientProvider>

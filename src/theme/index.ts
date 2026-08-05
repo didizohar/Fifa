@@ -2,3 +2,4 @@ export { colors } from "./colors";
 export { typography } from "./typography";
 export { spacing, radius, iconSize } from "./spacing";
 export { shadows } from "./shadows";
+export { motion } from "./motion";
