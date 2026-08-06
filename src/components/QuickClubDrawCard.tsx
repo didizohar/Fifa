@@ -1,18 +1,17 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useClubVersions } from "../hooks/useClubVersions";
 import { useNationalTeamsPreference } from "../hooks/useNationalTeamsPreference";
 import { useQuickDrawPoolPreference } from "../hooks/useQuickDrawPoolPreference";
-import { filterClubsByPool, type ClubPoolMode } from "../lib/clubPools";
+import { filterClubsByPool } from "../lib/clubPools";
 import { filterClubVersionsForRandomGeneration } from "../lib/clubRepository";
 import { useTranslation } from "../lib/i18n";
 import { assignRandomClubs, filterValidClubVersions } from "../lib/random/clubs";
-import type { ChipOption } from "./AppChipGroup";
 import type { ClubVersion } from "../lib/types/database";
 import { Button } from "./Button";
 import { colors, spacing, typography } from "../theme";
-import { AppChipGroup } from "./AppChipGroup";
 import { Card } from "./Card";
+import { Chip } from "./Chip";
 import { ClubBadge } from "./ClubBadge";
 import { FadeIn } from "./FadeIn";
 
@@ -42,14 +41,6 @@ export function QuickClubDrawCard({ groupId, gameVersionId }: QuickClubDrawCardP
   // message never implies switching pools would help when it wouldn't.
   const [failReason, setFailReason] = useState<"general" | "pool" | null>(null);
 
-  const poolOptions = useMemo<ChipOption<Exclude<ClubPoolMode, "random">>[]>(
-    () => [
-      { id: "large", label: t("home.quickClubDrawPoolLarge") },
-      { id: "small", label: t("home.quickClubDrawPoolSmall") },
-    ],
-    [t],
-  );
-
   const draw = () => {
     const validPool = filterValidClubVersions(filterClubVersionsForRandomGeneration(clubVersions ?? [], { includeNationalTeams }));
     if (validPool.length < 2) {
@@ -76,14 +67,26 @@ export function QuickClubDrawCard({ groupId, gameVersionId }: QuickClubDrawCardP
       <Text style={styles.title}>{t("home.quickClubDrawTitle")}</Text>
       <Text style={styles.hint}>{t("home.quickClubDrawHint")}</Text>
 
-      <AppChipGroup
-        mode="single"
-        options={poolOptions}
-        value={pool}
-        onChange={setPool}
-        accessibilityLabel={t("home.quickClubDrawTitle")}
-        style={styles.chipRow}
-      />
+      {/* Two wide pill buttons filling the row (not AppChipGroup's usual
+          content-hugging chips, and not a single-piece SegmentedControl) --
+          each Chip stretches via flex: 1 while keeping its own pill shape,
+          height, radius, and colors untouched. */}
+      <View style={styles.chipRow} accessibilityLabel={t("home.quickClubDrawTitle")}>
+        <Chip
+          label={t("home.quickClubDrawPoolLarge")}
+          active={pool === "large"}
+          onPress={() => setPool("large")}
+          accessibilityRole="radio"
+          style={styles.poolChip}
+        />
+        <Chip
+          label={t("home.quickClubDrawPoolSmall")}
+          active={pool === "small"}
+          onPress={() => setPool("small")}
+          accessibilityRole="radio"
+          style={styles.poolChip}
+        />
+      </View>
 
       {result ? (
         <FadeIn key={drawKey}>
@@ -122,7 +125,12 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   chipRow: {
+    flexDirection: "row",
     gap: spacing.sm,
+  },
+  poolChip: {
+    flex: 1,
+    justifyContent: "center",
   },
   resultRow: {
     flexDirection: "row",
