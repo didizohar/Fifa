@@ -15,6 +15,7 @@ import { LeagueTableCard, type LeagueTableCardPeriod } from "../../../src/compon
 import { MatchRow } from "../../../src/components/MatchRow";
 import { QuickActionCard } from "../../../src/components/QuickActionCard";
 import { QuickClubDrawCard } from "../../../src/components/QuickClubDrawCard";
+import { QuickMatchCard } from "../../../src/components/QuickMatchCard";
 import { Screen } from "../../../src/components/Screen";
 import { SkeletonList } from "../../../src/components/Skeleton";
 import { StatTile } from "../../../src/components/StatTile";
@@ -233,6 +234,8 @@ export default function HomeScreen() {
             <QuickActionCard icon="bulb" label={t("home.quickActionInsights")} onPress={() => router.push("/insights")} />
           </View>
         </View>
+
+        <QuickMatchCard groupId={groupId} gameVersionId={currentGroup?.default_game_version_id} />
 
         <QuickClubDrawCard groupId={groupId} gameVersionId={currentGroup?.default_game_version_id} />
 

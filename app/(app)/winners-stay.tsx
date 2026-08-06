@@ -18,20 +18,19 @@ import { usePlayers } from "../../src/hooks/usePlayers";
 import { useWinnersStaySession } from "../../src/hooks/useWinnersStaySession";
 import { useWinnersStaySessionHistory } from "../../src/hooks/useWinnersStaySessionHistory";
 import { useTranslation } from "../../src/lib/i18n";
-import type { MatchSidePlayer } from "../../src/lib/matches";
 import { buildMatchPrefillParams } from "../../src/lib/matchPrefill";
-import { toPickablePlayer } from "../../src/lib/players";
+import { toPickablePlayer, toRotationPlayer } from "../../src/lib/players";
 import {
   acceptPendingRotation,
   addToQueue,
-  advanceDuoSession,
-  advanceWinnersStaySession,
+  advanceSessionAfterMatch,
   canAdvanceSession,
   cleanupInactiveQueueEntries,
   computeSessionSummary,
   drawInitialSingleSides,
   drawRandomInitialPairs,
   endSession,
+  getSessionParticipantIds,
   moveQueueEntry,
   redrawSessionPartner,
   removeFromQueue,
@@ -43,10 +42,6 @@ import { archiveCompletedSession } from "../../src/lib/rotation/sessionHistory";
 import { computeSessionInsights } from "../../src/lib/rotation/sessionInsights";
 import type { MatchResult, RotationPlayer, SessionFormat, WinnersStaySession } from "../../src/lib/rotation/types";
 import { colors, radius, spacing, typography } from "../../src/theme";
-
-function toRotationPlayer(p: MatchSidePlayer): RotationPlayer {
-  return { id: p.id, display_name: p.display_name, avatar_url: p.avatar_url, custom_color: p.custom_color };
-}
 
 function newSessionId(): string {
   return `wss-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -128,30 +123,13 @@ export default function WinnersStayScreen() {
     // reflects the session's ORIGINAL starting lineup, not whatever the
     // rotation has since shuffled currentPairA/currentPairB/waitingQueue into.
     if (session.roundNumber === 0) {
-      setLastParticipants([
-        ...session.currentPairA.players.map((p) => p.id),
-        ...(session.currentPairB?.players.map((p) => p.id) ?? []),
-        ...session.waitingQueue.map((q) => q.playerId),
-      ]);
-    }
-
-    if (session.format === "duo") {
-      setSession(advanceDuoSession(session, matchId, new Date()));
-      return;
+      setLastParticipants(getSessionParticipantIds(session));
     }
 
     const [side1, side2] = matchQuery.data.sides;
     const result: MatchResult = side1.result === "win" ? "sideA" : side2.result === "win" ? "sideB" : "draw";
 
-    const advanced = advanceWinnersStaySession({
-      session,
-      matchId,
-      result,
-      playersById,
-      activePlayerIds,
-      now: new Date(),
-    });
-    setSession(advanced);
+    setSession(advanceSessionAfterMatch({ session, matchId, result, playersById, activePlayerIds, now: new Date() }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId, matchQuery.data, session?.id, session?.lastRecordedMatchId]);
 

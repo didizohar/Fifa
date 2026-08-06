@@ -1,3 +1,4 @@
+import type { RotationPlayer } from "./rotation/types";
 import { supabase } from "./supabase";
 import type { PlayerProfile } from "./types/database";
 
@@ -19,6 +20,11 @@ interface DisplayableProfile {
 /** Projects a player-ish record down to what PlayerPicker (and similar player-choosing UI) needs. */
 export function toPickablePlayer(player: DisplayableProfile): PickablePlayer {
   return { id: player.id, displayName: player.display_name, avatarUrl: player.avatar_url, color: player.custom_color };
+}
+
+/** Projects a player-ish record down to what the Winners Stay rotation engine needs -- same DisplayableProfile input as toPickablePlayer, just kept snake_case since that's RotationPlayer's own shape. Single conversion shared by every screen/card that feeds a roster into the rotation engine (winners-stay.tsx, the Dashboard's Quick Match card). */
+export function toRotationPlayer(player: DisplayableProfile): RotationPlayer {
+  return { id: player.id, display_name: player.display_name, avatar_url: player.avatar_url, custom_color: player.custom_color };
 }
 
 export interface CreatePlayerInput {

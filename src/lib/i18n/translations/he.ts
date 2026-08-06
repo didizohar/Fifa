@@ -124,6 +124,8 @@ const he = {
     quickClubDrawNotEnoughClubs: "אין מספיק מועדונים זמינים להגרלה.",
     quickClubDrawNotEnoughPoolClubs: "אין מספיק מועדונים בקבוצה הזו להגרלה.",
     loadError: "לא ניתן היה לטעון את לוח הבקרה. בדקו את החיבור ונסו שוב.",
+    quickMatchTitle: "תוצאה מהירה",
+    quickMatchNoClubSelected: "לא נבחר מועדון",
   },
   settings: {
     title: "הגדרות",

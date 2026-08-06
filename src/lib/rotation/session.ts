@@ -211,6 +211,30 @@ export function advanceDuoSession(session: WinnersStaySession, matchId: string, 
   };
 }
 
+/** All player ids currently part of a session -- both current sides plus the waiting queue. Used to snapshot "who's playing" the moment a session's first match saves (see start-evening.tsx / winners-stay.tsx's Continue Previous Session flow), and by anything else that needs the session's full roster. */
+export function getSessionParticipantIds(session: WinnersStaySession): string[] {
+  return [
+    ...session.currentPairA.players.map((p) => p.id),
+    ...(session.currentPairB?.players.map((p) => p.id) ?? []),
+    ...session.waitingQueue.map((q) => q.playerId),
+  ];
+}
+
+/**
+ * Advances a session by whichever engine its format needs -- duo has no
+ * rotation at all (advanceDuoSession); trio/group share the generalized
+ * rotation engine (advanceWinnersStaySession). Single entry point so every
+ * caller that records a match against an active session (winners-stay.tsx's
+ * advance-session effect, the Dashboard's Quick Match card) picks the same
+ * engine the same way, instead of re-deriving this branch per call site.
+ */
+export function advanceSessionAfterMatch(params: AdvanceSessionParams): WinnersStaySession {
+  if (params.session.format === "duo") {
+    return advanceDuoSession(params.session, params.matchId, params.now);
+  }
+  return advanceWinnersStaySession(params);
+}
+
 /**
  * Re-picks which of the two known losers partners the waiting player --
  * only valid when the pending rotation's opposing pair came from

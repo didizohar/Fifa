@@ -127,6 +127,8 @@ const en = {
     quickClubDrawNotEnoughClubs: "Not enough clubs available to draw from.",
     quickClubDrawNotEnoughPoolClubs: "Not enough clubs in this pool to draw from.",
     loadError: "Couldn't load your dashboard. Check your connection and try again.",
+    quickMatchTitle: "Quick Match",
+    quickMatchNoClubSelected: "No club selected",
   },
   settings: {
     title: "Settings",
