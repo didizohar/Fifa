@@ -506,7 +506,23 @@ export default function RecordMatchScreen() {
   const showForm = !editLoading && !editNotFound && !editPermissionDenied && !tooFewPlayers;
 
   return (
-    <Screen avoidKeyboard>
+    // avoidKeyboard only when there's actually a TextField on screen (the
+    // date/time/notes fields, edit-mode only) -- wrapping the ENTIRE screen
+    // (ScoreStepper, Club Draw chips, PlayerPicker, every Switch) in
+    // TouchableWithoutFeedback's legacy responder just to support a
+    // tap-outside-to-dismiss-keyboard gesture that has nothing to dismiss in
+    // create mode is exactly the "touch-responder negotiation conflict with
+    // modern Pressable/gesture handler components" Screen.tsx's own
+    // avoidKeyboard doc already warns about -- a three-way responder race
+    // between the outer ScrollView's pan responder, TouchableWithoutFeedback's
+    // tap responder, and each button's own Pressable responder, most likely
+    // to lose a rapid repeated-tap sequence (exactly the "change score
+    // repeatedly" pattern) and only resolve once a scroll gesture forces the
+    // ScrollView's responder to definitively win and reset the chain -- which
+    // matches the reported "one scroll un-freezes it" behavior exactly. Create
+    // mode (the path Winners Stay always uses) never renders a TextField at
+    // all, so it never needed this wrapper in the first place.
+    <Screen avoidKeyboard={isEditMode}>
       {isEditMode && showForm ? <Stack.Screen options={{ title: t("editMatch.entryAction") }} /> : null}
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {editLoading ? (

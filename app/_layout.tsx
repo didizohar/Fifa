@@ -2,6 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { ErrorBoundary } from "../src/components/ErrorBoundary";
 import { AuthProvider } from "../src/lib/context/AuthProvider";
@@ -54,19 +55,29 @@ function RootNavigator() {
 
 export default function RootLayout() {
   return (
-    <ErrorBoundary>
-      <LocaleProvider>
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <GroupProvider>
-              <ToastProvider>
-                <StatusBar style="dark" />
-                <RootNavigator />
-              </ToastProvider>
-            </GroupProvider>
-          </AuthProvider>
-        </QueryClientProvider>
-      </LocaleProvider>
-    </ErrorBoundary>
+    // react-native-screens' native-stack (every Stack/modal in this app)
+    // uses react-native-gesture-handler internally for its own gesture
+    // detection (see node_modules/react-native-screens/src/gesture-handler/
+    // ScreenGestureDetector.tsx) -- gesture-handler requires this root
+    // wrapper to function correctly, and without it, its gesture
+    // recognizers can end up in an inconsistent state that only a
+    // different gesture (e.g. a ScrollView pan) forces back into sync.
+    // This was previously missing entirely.
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
+        <LocaleProvider>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>
+              <GroupProvider>
+                <ToastProvider>
+                  <StatusBar style="dark" />
+                  <RootNavigator />
+                </ToastProvider>
+              </GroupProvider>
+            </AuthProvider>
+          </QueryClientProvider>
+        </LocaleProvider>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
   );
 }
