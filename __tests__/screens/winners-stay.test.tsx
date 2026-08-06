@@ -36,10 +36,11 @@ const ROSTER = [
 jest.mock("../../src/hooks/usePlayers", () => ({ usePlayers: () => ({ data: ROSTER, isLoading: false }) }));
 
 jest.mock("../../src/hooks/useMatches", () => ({
-  useGroupMatchHistory: () => ({ data: [] }),
+  useGroupMatchHistory: () => ({ data: mockGroupHistory }),
   useMatch: () => mockMatchQuery,
 }));
 let mockMatchQuery: { data: unknown; isError: boolean } = { data: undefined, isError: false };
+let mockGroupHistory: unknown[] = [];
 
 let mockLastParticipantIds: string[] = [];
 const mockSetLastParticipants = jest.fn((ids: string[]) => {
@@ -102,6 +103,7 @@ beforeEach(() => {
   mockLastParticipantIds = [];
   mockSession = null;
   mockSessionHistory = [];
+  mockGroupHistory = [];
 });
 
 describe("setup screen -- participant thresholds and format explanation", () => {
@@ -357,5 +359,60 @@ describe("abandoning a draft (Task 3: never archive a zero-match session)", () =
       findByAccessibilityLabel(renderer, "rotation.backToHomeFromSummary").props.onPress();
     });
     expect(mockSetSessionHistory).toHaveBeenCalled();
+  });
+});
+
+describe("session highlights for duo/trio sessions -- must not be hardcoded to doubles matches", () => {
+  function completedDuoSession(): WinnersStaySession {
+    const player = (id: string, name: string) => ({ id, display_name: name, avatar_url: null, custom_color: "#111" });
+    return {
+      id: "duo-1",
+      groupId: "group-1",
+      format: "duo",
+      activePlayerIds: ["p1", "p2"],
+      currentPairA: { players: [player("p1", "Alice")], consecutiveMatchesPlayed: 2 },
+      currentPairB: { players: [player("p2", "Bob")], consecutiveMatchesPlayed: 1 },
+      pendingRotation: null,
+      waitingQueue: [],
+      roundNumber: 1,
+      startedAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T01:00:00.000Z",
+      lastRecordedMatchId: "m1",
+      status: "completed",
+      longestWinningRun: 2,
+      previousSnapshot: null,
+    };
+  }
+
+  function singlesMatch() {
+    return {
+      id: "m1",
+      match_type: "singles" as const,
+      is_overtime: false,
+      is_penalties: false,
+      notes: null,
+      played_at: "2026-01-01T00:30:00.000Z",
+      sides: [
+        { id: "s1", side_number: 1 as const, score: 3, penalty_score: null, result: "win" as const, club: null, players: [{ id: "p1", display_name: "Alice", avatar_url: null, custom_color: "#111" }] },
+        { id: "s2", side_number: 2 as const, score: 1, penalty_score: null, result: "loss" as const, club: null, players: [{ id: "p2", display_name: "Bob", avatar_url: null, custom_color: "#222" }] },
+      ],
+    };
+  }
+
+  it("counts a duo session's own singles matches instead of filtering them all out as non-doubles", () => {
+    mockSession = completedDuoSession();
+    mockGroupHistory = [singlesMatch()];
+    const renderer = renderScreen();
+
+    expect(renderer.root.findAllByProps({ children: "rotation.sessionHighlights" }).length).toBeGreaterThan(0);
+    expect(renderer.root.findAllByProps({ children: "1" }).length).toBeGreaterThan(0); // matchesPlayed
+  });
+
+  it("shows no session-highlights block when a duo session genuinely has no matches (not a false positive)", () => {
+    mockSession = completedDuoSession();
+    mockGroupHistory = [];
+    const renderer = renderScreen();
+
+    expect(renderer.root.findAllByProps({ children: "rotation.sessionHighlights" }).length).toBe(0);
   });
 });

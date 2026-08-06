@@ -161,8 +161,13 @@ export default function WinnersStayScreen() {
     if (!session || session.status !== "completed") return null;
     const allMatches = groupHistory.data ?? [];
     const participantIds = new Set(session.activePlayerIds);
+    // A "duo"/"trio" session recorded singles matches, not doubles -- this
+    // was hardcoded to "doubles" before duo/trio existed, which silently
+    // excluded every match a 2- or 3-player session ever played, making
+    // its summary always report zero matches/goals/winner/MVP.
+    const expectedMatchType = session.format === "group" ? "doubles" : "singles";
     const sessionMatches = allMatches.filter((m) => {
-      if (m.match_type !== "doubles") return false;
+      if (m.match_type !== expectedMatchType) return false;
       const playedAt = new Date(m.played_at).getTime();
       if (Number.isNaN(playedAt) || playedAt < new Date(session.startedAt).getTime()) return false;
       return m.sides.every((side) => side.players.every((p) => participantIds.has(p.id)));

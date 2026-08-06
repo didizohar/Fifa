@@ -522,6 +522,8 @@ const en = {
   },
   rotation: {
     title: "Winners Stay",
+    nextMatchAction: "Next Match",
+    winnerStaysAction: "Winner Stays",
     startEveningTitle: "Start Evening",
     startEveningSubtitle: "How would you like to start?",
     startEveningNewSession: "New Session",

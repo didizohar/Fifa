@@ -519,6 +519,8 @@ const he = {
   },
   rotation: {
     title: "המנצחים נשארים",
+    nextMatchAction: "המשחק הבא",
+    winnerStaysAction: "מנצח נשאר",
     startEveningTitle: "התחלת ערב",
     startEveningSubtitle: "איך תרצה להתחיל?",
     startEveningNewSession: "סשן חדש",

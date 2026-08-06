@@ -10,9 +10,11 @@ import { Skeleton } from "../../../src/components/Skeleton";
 import { useAuth } from "../../../src/hooks/useAuth";
 import { useGroup } from "../../../src/hooks/useGroup";
 import { useMatch } from "../../../src/hooks/useMatches";
+import { useWinnersStaySession } from "../../../src/hooks/useWinnersStaySession";
 import { formatDateTime } from "../../../src/lib/format";
 import { useTranslation } from "../../../src/lib/i18n";
 import type { MatchSideSummary } from "../../../src/lib/matches";
+import { canAdvanceSession } from "../../../src/lib/rotation/session";
 import { canEditMatch } from "../../../src/lib/validation/editMatchForm";
 import { colors, radius, spacing, typography } from "../../../src/theme";
 
@@ -24,8 +26,9 @@ export default function MatchDetailScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { user } = useAuth();
-  const { currentRole } = useGroup();
+  const { currentGroup, currentRole } = useGroup();
   const { data: match, isLoading, isError, refetch } = useMatch(id);
+  const winnersStaySession = useWinnersStaySession(currentGroup?.id ?? null);
   const resultLabel = { win: t("common.resultWin"), loss: t("common.resultLoss"), draw: t("common.resultDraw") };
 
   if (isLoading) {
@@ -54,6 +57,22 @@ export default function MatchDetailScreen() {
   // nor the legacy record_match_and_apply_elo touch this column on insert --
   // so this comparison is exact, not a heuristic.
   const wasEdited = !!match.updated_at && !!match.created_at && match.updated_at !== match.created_at;
+
+  // Whether THIS match is the one the active Winners Stay session (of any
+  // format) is still waiting to advance against -- was previously hardcoded
+  // to `match.match_type === "doubles"`, which only ever matched the
+  // original 4+ "group" format. A "duo" (2-player) or "trio" (3-player)
+  // session records "singles" matches, so that check silently hid this
+  // button for them, leaving Edit Match as the only action and breaking the
+  // session flow entirely. canAdvanceSession is the exact same eligibility
+  // check winners-stay.tsx's own advance-session effect uses -- reusing it
+  // here (rather than re-deriving match_type/session-state rules) is what
+  // makes this correct for every format, and only for a match this
+  // particular session actually still needs.
+  const wsSession = winnersStaySession.session;
+  const expectedMatchType = wsSession?.format === "group" ? "doubles" : "singles";
+  const canContinueSession = !!wsSession && match.match_type === expectedMatchType && canAdvanceSession(wsSession, match.id);
+  const continueSessionLabel = wsSession?.format === "duo" ? t("rotation.nextMatchAction") : wsSession?.format === "trio" ? t("rotation.winnerStaysAction") : t("rotation.title");
 
   return (
     <Screen>
@@ -90,9 +109,9 @@ export default function MatchDetailScreen() {
           />
         ) : null}
 
-        {match.match_type === "doubles" ? (
+        {canContinueSession ? (
           <Button
-            label={t("rotation.title")}
+            label={continueSessionLabel}
             variant="secondary"
             // dismissTo (not push) -- when this match was just recorded from an
             // active Winners Stay round (record-match replaces itself with this
