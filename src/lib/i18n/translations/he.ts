@@ -524,6 +524,7 @@ const he = {
     startEveningContinueSession: "המשך סשן קודם",
     startEveningContinueSessionDescription: "המשך עם אותם המשתתפים מהפעם הקודמת.",
     startEveningPlayersRemovedNotice: "חלק מהשחקנים מהפעם הקודמת כבר לא פעילים והוסרו.",
+    startEveningError: "לא ניתן היה להתחיל את המשחק. נסו שוב.",
     winningPairLabel: "זוג מנצח",
     incomingPairLabel: "זוג נכנס",
     waitingQueueLabel: "תור ממתינים",

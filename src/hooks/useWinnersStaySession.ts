@@ -67,13 +67,24 @@ export function useWinnersStaySession(groupId: string | null) {
     };
   }, [groupId]);
 
+  // Returns a Promise that resolves once the AsyncStorage write/removal has
+  // actually completed -- existing fire-and-forget callers (every in-screen
+  // rotation transition in winners-stay.tsx) are unaffected, since calling
+  // an async function without awaiting it is still valid. It matters for a
+  // caller that navigates to a DIFFERENT screen right after clearing/
+  // setting the session (see start-evening.tsx): that other screen mounts
+  // its own separate instance of this hook, connected to this one only
+  // through the shared AsyncStorage key, not React state -- without
+  // awaiting here first, the navigation could land before the write/removal
+  // actually lands, and the other screen's own hydration read would see
+  // stale data.
   const setSession = useCallback(
-    (next: WinnersStaySession | null) => {
+    async (next: WinnersStaySession | null) => {
       setSessionState(next);
       setIsCorrupted(false);
       if (!groupId) return;
-      if (next) AsyncStorage.setItem(storageKey(groupId), JSON.stringify(next)).catch(() => {});
-      else AsyncStorage.removeItem(storageKey(groupId)).catch(() => {});
+      if (next) await AsyncStorage.setItem(storageKey(groupId), JSON.stringify(next)).catch(() => {});
+      else await AsyncStorage.removeItem(storageKey(groupId)).catch(() => {});
     },
     [groupId],
   );

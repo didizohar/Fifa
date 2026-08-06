@@ -527,6 +527,7 @@ const en = {
     startEveningContinueSession: "Continue Previous Session",
     startEveningContinueSessionDescription: "Continue with the same participants as last time.",
     startEveningPlayersRemovedNotice: "Some players from last time are no longer active and were removed.",
+    startEveningError: "Couldn't start the session. Please try again.",
     winningPairLabel: "Winning Pair",
     incomingPairLabel: "Incoming Pair",
     waitingQueueLabel: "Waiting Queue",

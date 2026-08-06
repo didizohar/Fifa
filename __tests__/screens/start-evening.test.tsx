@@ -18,11 +18,62 @@ jest.mock("../../src/lib/confirm", () => ({
 jest.mock("../../src/hooks/useGroup", () => ({ useGroup: () => ({ currentGroupId: "group-1" }) }));
 
 let mockPlayersData: { id: string }[] = [];
-jest.mock("../../src/hooks/usePlayers", () => ({ usePlayers: () => ({ data: mockPlayersData, isLoading: false }) }));
+let mockPlayersLoading = false;
+jest.mock("../../src/hooks/usePlayers", () => ({ usePlayers: () => ({ data: mockPlayersData, isLoading: mockPlayersLoading }) }));
 
 let mockParticipantIds: string[] = [];
 jest.mock("../../src/hooks/useLastWinnersStayParticipants", () => ({
   useLastWinnersStayParticipants: () => ({ participantIds: mockParticipantIds, isHydrated: true, setParticipantIds: jest.fn() }),
+}));
+
+interface MockSessionShape {
+  id: string;
+  groupId: string;
+  status: "active" | "completed";
+  activePlayerIds: string[];
+  currentPairA: { players: [{ id: string; display_name: string; avatar_url: null; custom_color: string }, { id: string; display_name: string; avatar_url: null; custom_color: string }]; consecutiveMatchesPlayed: number };
+  currentPairB: null;
+  pendingRotation: null;
+  waitingQueue: never[];
+  roundNumber: number;
+  startedAt: string;
+  updatedAt: string;
+  lastRecordedMatchId: null;
+  longestWinningRun: number;
+  previousSnapshot: null;
+}
+
+function makeSession(overrides: Partial<MockSessionShape> & { id: string; groupId: string; status: "active" | "completed" }): MockSessionShape {
+  const player = (id: string) => ({ id, display_name: id, avatar_url: null, custom_color: "#111" });
+  return {
+    activePlayerIds: ["p1", "p2", "p3", "p4"],
+    currentPairA: { players: [player("p1"), player("p2")], consecutiveMatchesPlayed: 1 },
+    currentPairB: null,
+    pendingRotation: null,
+    waitingQueue: [],
+    roundNumber: 1,
+    startedAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:10:00.000Z",
+    lastRecordedMatchId: null,
+    longestWinningRun: 1,
+    previousSnapshot: null,
+    ...overrides,
+  };
+}
+
+type MockSession = MockSessionShape | null;
+let mockSession: MockSession = null;
+let mockSetSessionImpl: (next: MockSession) => Promise<void> = async (next) => {
+  mockSession = next;
+};
+const mockSetSession = jest.fn((next: MockSession) => mockSetSessionImpl(next));
+jest.mock("../../src/hooks/useWinnersStaySession", () => ({
+  useWinnersStaySession: () => ({ session: mockSession, isHydrated: true, setSession: mockSetSession }),
+}));
+
+const mockSetHistory = jest.fn();
+jest.mock("../../src/hooks/useWinnersStaySessionHistory", () => ({
+  useWinnersStaySessionHistory: () => ({ history: [], setHistory: mockSetHistory }),
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -44,76 +95,289 @@ function findByAccessibilityLabelStartingWith(renderer: TestRenderer.ReactTestRe
   return matches[0]!;
 }
 
+function tapNewSession(renderer: TestRenderer.ReactTestRenderer) {
+  const card = findByAccessibilityLabelStartingWith(renderer, "rotation.startEveningNewSession");
+  return act(async () => {
+    card.props.onPress();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+function tapContinue(renderer: TestRenderer.ReactTestRenderer) {
+  const card = findByAccessibilityLabelStartingWith(renderer, "rotation.startEveningContinueSession");
+  return act(async () => {
+    card.props.onPress();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockPlayersData = [{ id: "p1" }, { id: "p2" }, { id: "p3" }, { id: "p4" }, { id: "p5" }];
+  mockPlayersLoading = false;
   mockParticipantIds = [];
+  mockSession = null;
+  mockSetSessionImpl = async (next) => {
+    mockSession = next;
+  };
 });
 
-describe("StartEveningScreen -- no previous session", () => {
-  it("shows only New Session, not Continue Previous Session", () => {
+describe("New Session -- always genuinely new, never a silent resume", () => {
+  it("with no existing session: clears nothing, navigates to a plain /winners-stay", async () => {
     const renderer = renderScreen();
-    expect(() => findByAccessibilityLabelStartingWith(renderer, "rotation.startEveningNewSession")).not.toThrow();
+    await tapNewSession(renderer);
+    expect(mockSetSession).not.toHaveBeenCalled();
+    expect(mockRouter.replace).toHaveBeenCalledWith("/winners-stay");
+  });
+
+  it("with an existing ACTIVE session: archives + clears it before navigating (never leaves it in place for Winners Stay to pick back up)", async () => {
+    mockSession = makeSession({ id: "old-active-id", groupId: "group-1", status: "active" })
+    const renderer = renderScreen();
+    await tapNewSession(renderer);
+
+    expect(mockSetHistory).toHaveBeenCalled();
+    expect(mockSetSession).toHaveBeenCalledWith(null);
+    expect(mockSession).toBeNull();
+    expect(mockRouter.replace).toHaveBeenCalledWith("/winners-stay");
+  });
+
+  it("with an existing COMPLETED session: also clears it (Winners Stay's own setup-screen check treats completed the same as active for this purpose)", async () => {
+    mockSession = makeSession({ id: "old-completed-id", groupId: "group-1", status: "completed" })
+    const renderer = renderScreen();
+    await tapNewSession(renderer);
+    expect(mockSetSession).toHaveBeenCalledWith(null);
+  });
+
+  it("awaits the clear before navigating -- navigation never fires while the AsyncStorage removal is still in flight", async () => {
+    mockSession = makeSession({ id: "old-active-id", groupId: "group-1", status: "active" })
+    let resolveClear!: () => void;
+    mockSetSessionImpl = () =>
+      new Promise((resolve) => {
+        resolveClear = () => {
+          mockSession = null;
+          resolve();
+        };
+      });
+
+    const renderer = renderScreen();
+    const card = findByAccessibilityLabelStartingWith(renderer, "rotation.startEveningNewSession");
+
+    let pressPromise!: Promise<void>;
+    act(() => {
+      pressPromise = card.props.onPress() as unknown as Promise<void>;
+    });
+
+    // The clear is still pending -- navigation must NOT have happened yet.
+    await Promise.resolve();
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveClear();
+      await pressPromise;
+    });
+
+    expect(mockRouter.replace).toHaveBeenCalledWith("/winners-stay");
+  });
+
+  it("double tap only clears/navigates once", async () => {
+    mockSession = makeSession({ id: "old-active-id", groupId: "group-1", status: "active" })
+    const renderer = renderScreen();
+    const card = findByAccessibilityLabelStartingWith(renderer, "rotation.startEveningNewSession");
+    await act(async () => {
+      card.props.onPress();
+      card.props.onPress();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(mockSetSession).toHaveBeenCalledTimes(1);
+    expect(mockRouter.replace).toHaveBeenCalledTimes(1);
+  });
+
+  it("a failed clear shows a clear error and resets the processing guard (button usable again) instead of getting stuck", async () => {
+    mockSession = makeSession({ id: "old-active-id", groupId: "group-1", status: "active" });
+    mockSetSessionImpl = () => Promise.reject(new Error("storage exploded"));
+    const renderer = renderScreen();
+    const card = findByAccessibilityLabelStartingWith(renderer, "rotation.startEveningNewSession");
+
+    await act(async () => {
+      card.props.onPress();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockNotify).toHaveBeenCalledWith("rotation.startEveningError");
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+
+    mockSetSessionImpl = async (next) => {
+      mockSession = next;
+    };
+    await act(async () => {
+      card.props.onPress();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(mockRouter.replace).toHaveBeenCalledWith("/winners-stay");
+  });
+});
+
+describe("Continue Previous Session -- one explicit rule, never a coin flip", () => {
+  it("no previous session at all: the card is not shown", () => {
+    const renderer = renderScreen();
     expect(() => findByAccessibilityLabelStartingWith(renderer, "rotation.startEveningContinueSession")).toThrow();
   });
 
-  it("New Session replaces with a plain /winners-stay push, no params", () => {
+  it("most recent session is ACTIVE: resumes it directly -- no clear, no new session, plain navigation", async () => {
+    mockParticipantIds = ["p1", "p2", "p3", "p4"];
+    mockSession = makeSession({ id: "active-id", groupId: "group-1", status: "active" })
     const renderer = renderScreen();
-    const card = findByAccessibilityLabelStartingWith(renderer, "rotation.startEveningNewSession");
-    act(() => {
-      (card.props.onPress as () => void)();
-    });
+    await tapContinue(renderer);
+
+    expect(mockSetSession).not.toHaveBeenCalled();
+    expect(mockSetHistory).not.toHaveBeenCalled();
     expect(mockRouter.replace).toHaveBeenCalledWith("/winners-stay");
+  });
+
+  it("most recent session is COMPLETED: creates a genuinely new session with the same participants, never pretends to resume", async () => {
+    mockParticipantIds = ["p1", "p2", "p3", "p4"];
+    mockSession = makeSession({ id: "completed-id", groupId: "group-1", status: "completed" })
+    const renderer = renderScreen();
+    await tapContinue(renderer);
+
+    expect(mockSetSession).toHaveBeenCalledWith(null);
+    expect(mockRouter.replace).toHaveBeenCalledWith({
+      pathname: "/winners-stay",
+      params: { preselectPlayerIds: "p1,p2,p3,p4" },
+    });
+  });
+
+  it("no existing session at all (already properly ended): creates a new session with the previous participants", async () => {
+    mockParticipantIds = ["p1", "p2", "p3", "p4"];
+    mockSession = null;
+    const renderer = renderScreen();
+    await tapContinue(renderer);
+
+    expect(mockSetSession).not.toHaveBeenCalled(); // nothing to clear
+    expect(mockRouter.replace).toHaveBeenCalledWith({
+      pathname: "/winners-stay",
+      params: { preselectPlayerIds: "p1,p2,p3,p4" },
+    });
+  });
+
+  it("an active session belonging to a DIFFERENT group is ignored entirely -- not resumed, not cleared", async () => {
+    mockParticipantIds = ["p1", "p2", "p3", "p4"];
+    mockSession = makeSession({ id: "other-group-session", groupId: "some-other-group", status: "active" })
+    const renderer = renderScreen();
+    await tapContinue(renderer);
+
+    expect(mockSetSession).not.toHaveBeenCalled();
+    expect(mockRouter.replace).toHaveBeenCalledWith({
+      pathname: "/winners-stay",
+      params: { preselectPlayerIds: "p1,p2,p3,p4" },
+    });
+  });
+
+  it("drops archived/deleted players, notifies, and falls back to plain selection when too few valid players remain", async () => {
+    mockParticipantIds = ["p1", "p2", "p3", "p_deleted"];
+    mockSession = makeSession({ id: "completed-id", groupId: "group-1", status: "completed" })
+    const renderer = renderScreen();
+    await tapContinue(renderer);
+
+    expect(mockNotify).toHaveBeenCalledWith("rotation.startEveningPlayersRemovedNotice");
+    expect(mockRouter.replace).toHaveBeenCalledWith("/winners-stay");
+  });
+
+  it("continues with the filtered list when enough valid players remain after dropping archived ones", async () => {
+    mockParticipantIds = ["p1", "p2", "p3", "p4", "p_deleted"];
+    mockSession = null;
+    const renderer = renderScreen();
+    await tapContinue(renderer);
+
+    expect(mockNotify).toHaveBeenCalledWith("rotation.startEveningPlayersRemovedNotice");
+    expect(mockRouter.replace).toHaveBeenCalledWith({
+      pathname: "/winners-stay",
+      params: { preselectPlayerIds: "p1,p2,p3,p4" },
+    });
+  });
+
+  it("double tap only resolves once (active-session resume path)", async () => {
+    mockParticipantIds = ["p1", "p2", "p3", "p4"];
+    mockSession = makeSession({ id: "active-id", groupId: "group-1", status: "active" })
+    const renderer = renderScreen();
+    const card = findByAccessibilityLabelStartingWith(renderer, "rotation.startEveningContinueSession");
+    await act(async () => {
+      card.props.onPress();
+      card.props.onPress();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(mockRouter.replace).toHaveBeenCalledTimes(1);
+  });
+
+  it("double tap only resolves once (create-new path)", async () => {
+    mockParticipantIds = ["p1", "p2", "p3", "p4"];
+    mockSession = makeSession({ id: "completed-id", groupId: "group-1", status: "completed" })
+    const renderer = renderScreen();
+    const card = findByAccessibilityLabelStartingWith(renderer, "rotation.startEveningContinueSession");
+    await act(async () => {
+      card.props.onPress();
+      card.props.onPress();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(mockSetSession).toHaveBeenCalledTimes(1);
+    expect(mockRouter.replace).toHaveBeenCalledTimes(1);
+  });
+
+  it("awaits the clear before navigating when the most recent session is completed (same race protection as New Session)", async () => {
+    mockParticipantIds = ["p1", "p2", "p3", "p4"];
+    mockSession = makeSession({ id: "completed-id", groupId: "group-1", status: "completed" })
+    let resolveClear!: () => void;
+    mockSetSessionImpl = () =>
+      new Promise((resolve) => {
+        resolveClear = () => {
+          mockSession = null;
+          resolve();
+        };
+      });
+
+    const renderer = renderScreen();
+    const card = findByAccessibilityLabelStartingWith(renderer, "rotation.startEveningContinueSession");
+
+    let pressPromise!: Promise<void>;
+    act(() => {
+      pressPromise = card.props.onPress() as unknown as Promise<void>;
+    });
+
+    await Promise.resolve();
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveClear();
+      await pressPromise;
+    });
+
+    expect(mockRouter.replace).toHaveBeenCalledWith({
+      pathname: "/winners-stay",
+      params: { preselectPlayerIds: "p1,p2,p3,p4" },
+    });
   });
 });
 
-describe("StartEveningScreen -- previous session exists", () => {
-  beforeEach(() => {
+describe("Loading state", () => {
+  it("both buttons stay disabled while player data is still loading", () => {
     mockParticipantIds = ["p1", "p2", "p3", "p4"];
-  });
-
-  it("shows both cards", () => {
+    mockPlayersLoading = true;
     const renderer = renderScreen();
-    expect(() => findByAccessibilityLabelStartingWith(renderer, "rotation.startEveningNewSession")).not.toThrow();
-    expect(() => findByAccessibilityLabelStartingWith(renderer, "rotation.startEveningContinueSession")).not.toThrow();
-  });
-
-  it("Continue Previous Session passes the previous participants as preselectPlayerIds, sorted stably", () => {
-    const renderer = renderScreen();
-    const card = findByAccessibilityLabelStartingWith(renderer, "rotation.startEveningContinueSession");
-    act(() => {
-      (card.props.onPress as () => void)();
-    });
-    expect(mockRouter.replace).toHaveBeenCalledWith({
-      pathname: "/winners-stay",
-      params: { preselectPlayerIds: "p1,p2,p3,p4" },
-    });
-    expect(mockNotify).not.toHaveBeenCalled();
-  });
-
-  it("drops archived/deleted players, notifies, and falls back to plain selection when too few valid players remain", () => {
-    mockParticipantIds = ["p1", "p2", "p3", "p_deleted"];
-    const renderer = renderScreen();
-    const card = findByAccessibilityLabelStartingWith(renderer, "rotation.startEveningContinueSession");
-    act(() => {
-      (card.props.onPress as () => void)();
-    });
-    expect(mockNotify).toHaveBeenCalledWith("rotation.startEveningPlayersRemovedNotice");
-    // Only 3 valid ids remain (below MIN_PARTICIPANTS = 4) -- falls back to plain selection.
-    expect(mockRouter.replace).toHaveBeenCalledWith("/winners-stay");
-  });
-
-  it("continues with the filtered list (no fallback) when enough valid players remain after filtering", () => {
-    mockParticipantIds = ["p1", "p2", "p3", "p4", "p_deleted"];
-    const renderer = renderScreen();
-    const card = findByAccessibilityLabelStartingWith(renderer, "rotation.startEveningContinueSession");
-    act(() => {
-      (card.props.onPress as () => void)();
-    });
-    expect(mockNotify).toHaveBeenCalledWith("rotation.startEveningPlayersRemovedNotice");
-    expect(mockRouter.replace).toHaveBeenCalledWith({
-      pathname: "/winners-stay",
-      params: { preselectPlayerIds: "p1,p2,p3,p4" },
-    });
+    const newCard = findByAccessibilityLabelStartingWith(renderer, "rotation.startEveningNewSession");
+    const continueCard = findByAccessibilityLabelStartingWith(renderer, "rotation.startEveningContinueSession");
+    expect(newCard.props.disabled).toBe(true);
+    expect(continueCard.props.disabled).toBe(true);
   });
 });
