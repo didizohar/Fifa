@@ -16,10 +16,10 @@ import { formatDateTime, formatRelativeDate, matchSideLabel } from "../../../src
 import { useTranslation } from "../../../src/lib/i18n";
 import { computeIndividualStandings, type LeagueStandingRow } from "../../../src/lib/leagueStandings";
 import { DEFAULT_MATCH_FILTERS, filterMatches, type MatchFilters } from "../../../src/lib/matchFilters";
+import { getTopRankTone } from "../../../src/lib/rankTone";
 import { colors, radius, spacing, typography } from "../../../src/theme";
 
 type SeasonTab = "overview" | "table" | "awards" | "statistics" | "clubs" | "matches";
-const MEDALS = ["🥇", "🥈", "🥉"] as const;
 
 export default function SeasonDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -82,9 +82,9 @@ export default function SeasonDetailsScreen() {
           {tab === "overview" ? (
             <>
               <Card style={styles.statsCard}>
-                <OverviewRow label={t("seasonHistory.championLabel")} value={overview.champion?.name ?? "–"} icon="🥇" />
-                <OverviewRow label={t("seasonHistory.runnerUp")} value={overview.runnerUp?.name ?? "–"} icon="🥈" />
-                <OverviewRow label={t("seasonHistory.thirdPlace")} value={overview.thirdPlace?.name ?? "–"} icon="🥉" />
+                <OverviewRow label={t("seasonHistory.championLabel")} value={overview.champion?.name ?? "–"} />
+                <OverviewRow label={t("seasonHistory.runnerUp")} value={overview.runnerUp?.name ?? "–"} />
+                <OverviewRow label={t("seasonHistory.thirdPlace")} value={overview.thirdPlace?.name ?? "–"} />
               </Card>
               <Card style={styles.statsCard}>
                 <View style={styles.statGrid}>
@@ -208,14 +208,11 @@ export default function SeasonDetailsScreen() {
   );
 }
 
-function OverviewRow({ label, value, icon }: { label: string; value: string; icon?: string }) {
+function OverviewRow({ label, value }: { label: string; value: string }) {
   const { isRTL } = useTranslation();
   return (
     <View style={styles.overviewRow}>
-      <Text style={styles.overviewLabel}>
-        {icon ? `${icon} ` : ""}
-        {label}
-      </Text>
+      <Text style={styles.overviewLabel}>{label}</Text>
       <Text style={[styles.overviewValue, { textAlign: isRTL ? "left" : "right" }]} numberOfLines={1}>
         {value}
       </Text>
@@ -301,14 +298,19 @@ function SeasonLeagueTable({ rows, t }: { rows: LeagueStandingRow[]; t: (key: st
           <Text style={[styles.tableHeaderCell, styles.posCell]}>{t("leagueTable.colPosition")}</Text>
           <Text style={[styles.tableHeaderCell, styles.nameCell]}>{t("leagueTable.colPlayer")}</Text>
         </View>
-        {rows.map((row, index) => (
-          <View key={row.id} style={styles.stickyRow}>
-            <Text style={[styles.tableCellText, styles.posCell]}>{index < MEDALS.length ? MEDALS[index] : index + 1}</Text>
-            <Text style={[styles.tableCellText, styles.nameCell]} numberOfLines={1}>
-              {row.name}
-            </Text>
-          </View>
-        ))}
+        {rows.map((row, index) => {
+          const topTone = getTopRankTone(index + 1);
+          return (
+            <View key={row.id} style={styles.stickyRow}>
+              <Text style={[styles.tableCellText, styles.posCell, topTone && [styles.posCellTop, { color: topTone.color, backgroundColor: topTone.background }]]}>
+                {index + 1}
+              </Text>
+              <Text style={[styles.tableCellText, styles.nameCell]} numberOfLines={1}>
+                {row.name}
+              </Text>
+            </View>
+          );
+        })}
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -520,6 +522,15 @@ const styles = StyleSheet.create({
   posCell: {
     width: 32,
     textAlign: "center",
+  },
+  posCellTop: {
+    fontWeight: "800",
+    width: 24,
+    height: 24,
+    lineHeight: 24,
+    alignSelf: "center",
+    borderRadius: radius.pill,
+    overflow: "hidden",
   },
   nameCell: {
     width: 110,

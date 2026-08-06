@@ -13,6 +13,7 @@ import { useGroupMatchHistory } from "../../src/hooks/useMatches";
 import { usePlayers } from "../../src/hooks/usePlayers";
 import { useSeasons } from "../../src/hooks/useSeasons";
 import { useTranslation } from "../../src/lib/i18n";
+import { getTopRankTone } from "../../src/lib/rankTone";
 import {
   computeIndividualStandings,
   computePairStandings,
@@ -28,7 +29,6 @@ type FilterMode = "all" | "currentMonth" | "previousMonth" | "custom" | "activeS
 type TableMode = "individual" | "pairs";
 
 const ROW_HEIGHT = 44;
-const MEDALS = ["🥇", "🥈", "🥉"] as const;
 
 export default function LeagueTableScreen() {
   const { t } = useTranslation();
@@ -168,8 +168,8 @@ export default function LeagueTableScreen() {
             </View>
             {rows.map((row, index) => {
               const isMe = myPlayerId !== null && row.playerIds.includes(myPlayerId);
-              const medal = sortMode === "points" && index < MEDALS.length ? MEDALS[index] : null;
-              return <StickyTableRow key={row.id} row={row} index={index} isMe={isMe} medal={medal} />;
+              const topTone = sortMode === "points" ? getTopRankTone(index + 1) : null;
+              return <StickyTableRow key={row.id} row={row} index={index} isMe={isMe} topTone={topTone} />;
             })}
           </View>
 
@@ -202,13 +202,25 @@ export default function LeagueTableScreen() {
 // itself changes then) but also on unrelated state like typing in the
 // custom date range fields, which doesn't touch `rows` at all. Memoizing
 // these means that keystroke doesn't re-diff every row in both the sticky
-// column and the horizontally-scrolled data columns. row/index/isMe/medal
+// column and the horizontally-scrolled data columns. row/index/isMe/topTone
 // are all plain values (not callbacks), so no caller-side stabilization
 // is needed for the memo to take effect.
-const StickyTableRow = memo(function StickyTableRow({ row, index, isMe, medal }: { row: LeagueStandingRow; index: number; isMe: boolean; medal: string | null }) {
+const StickyTableRow = memo(function StickyTableRow({
+  row,
+  index,
+  isMe,
+  topTone,
+}: {
+  row: LeagueStandingRow;
+  index: number;
+  isMe: boolean;
+  topTone: { color: string; background: string } | null;
+}) {
   return (
     <View style={[styles.stickyRow, isMe && styles.myRow]}>
-      <Text style={[styles.cellText, styles.posCell]}>{medal ?? index + 1}</Text>
+      <Text style={[styles.cellText, styles.posCell, topTone && [styles.posCellTop, { color: topTone.color, backgroundColor: topTone.background }]]}>
+        {index + 1}
+      </Text>
       <Text style={[styles.cellText, styles.nameCell, isMe && styles.myRowText]} numberOfLines={1}>
         {row.name}
       </Text>
@@ -340,6 +352,15 @@ const styles = StyleSheet.create({
   posCell: {
     width: 26,
     textAlign: "center",
+  },
+  posCellTop: {
+    fontWeight: "800",
+    width: 24,
+    height: 24,
+    lineHeight: 24,
+    alignSelf: "center",
+    borderRadius: radius.pill,
+    overflow: "hidden",
   },
   nameCell: {
     width: 120,

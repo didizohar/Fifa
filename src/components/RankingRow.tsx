@@ -1,11 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { memo, useCallback } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { getTopRankTone } from "../lib/rankTone";
 import { colors, radius, spacing, typography } from "../theme";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { Avatar } from "./Avatar";
-
-const MEDALS = ["🥇", "🥈", "🥉"] as const;
 
 interface RankingRowProps {
   /** Needed so onPress can be a single stable callback shared by every row (see onPress below) instead of each caller inline-binding a fresh closure per row per render, which would defeat this component's memo. */
@@ -32,7 +31,7 @@ interface RankingRowProps {
 // only actually re-renders rows whose own props changed, PROVIDED every
 // caller passes a stable onPress (see the playerId/onPress doc above).
 export const RankingRow = memo(function RankingRow({ playerId, rank, name, avatarUrl, color, value, detail, onPress, highlighted = false, movement = 0 }: RankingRowProps) {
-  const medal = rank >= 1 && rank <= 3 ? MEDALS[rank - 1] : null;
+  const topTone = getTopRankTone(rank);
   const handlePress = useCallback(() => onPress?.(playerId), [onPress, playerId]);
   return (
     <Pressable
@@ -40,11 +39,7 @@ export const RankingRow = memo(function RankingRow({ playerId, rank, name, avata
       accessibilityRole={onPress ? "button" : undefined}
       style={({ pressed }) => [styles.row, highlighted && styles.highlighted, pressed && styles.pressed]}
     >
-      {medal ? (
-        <Text style={styles.medal}>{medal}</Text>
-      ) : (
-        <Text style={styles.rank}>{rank}</Text>
-      )}
+      <Text style={[styles.rank, topTone && [styles.rankTop, { color: topTone.color, backgroundColor: topTone.background }]]}>{rank}</Text>
       <Avatar uri={avatarUrl} name={name} color={color} size={40} />
       <View style={styles.info}>
         <View style={styles.nameRow}>
@@ -87,10 +82,13 @@ const styles = StyleSheet.create({
     width: 24,
     textAlign: "center",
   },
-  medal: {
-    fontSize: 20,
-    width: 24,
-    textAlign: "center",
+  rankTop: {
+    fontWeight: "800",
+    width: 28,
+    height: 28,
+    lineHeight: 28,
+    borderRadius: radius.pill,
+    overflow: "hidden",
   },
   info: {
     flex: 1,
