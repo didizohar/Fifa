@@ -91,7 +91,29 @@ export default function MatchDetailScreen() {
         ) : null}
 
         {match.match_type === "doubles" ? (
-          <Button label={t("rotation.title")} variant="secondary" onPress={() => router.push({ pathname: "/winners-stay", params: { matchId: match.id } })} />
+          <Button
+            label={t("rotation.title")}
+            variant="secondary"
+            // dismissTo (not push) -- when this match was just recorded from an
+            // active Winners Stay round (record-match replaces itself with this
+            // screen on save), a Winners Stay screen is already sitting lower in
+            // the stack. push() would mount a SECOND, independent instance on
+            // top of it instead of returning to that one -- and since neither
+            // ever gets popped by the normal play loop (each round is
+            // record-match -> replace with match/[id] -> push winners-stay
+            // again), every round played permanently strands one more hidden
+            // Winners Stay screen (plus this match screen) in the stack, each
+            // still holding live usePlayers/useGroupMatchHistory/useMatch query
+            // subscriptions that re-render on every subsequent match save
+            // anywhere in the app -- competing for the JS thread with whatever
+            // the CURRENT screen is doing, and compounding every extra round.
+            // dismissTo pops back to the existing Winners Stay screen if one is
+            // already in the stack (reusing it, updating its matchId param so
+            // its round-advance effect still fires), or falls back to a plain
+            // replace if there isn't one -- so this is safe for both the
+            // mid-session and the "opened from match history" cases.
+            onPress={() => router.dismissTo({ pathname: "/winners-stay", params: { matchId: match.id } })}
+          />
         ) : null}
 
         {match.notes ? (
