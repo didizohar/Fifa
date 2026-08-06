@@ -90,11 +90,9 @@ export function QuickClubDrawCard({ groupId, gameVersionId }: QuickClubDrawCardP
 
       <View style={styles.buttonRow}>
         <AnimatedPressable onPress={() => draw("random")} style={styles.actionButton} accessibilityRole="button" accessibilityLabel={t("draw.clubModeRandom")}>
-          <Text style={styles.actionButtonIcon}>🎲</Text>
           <Text style={styles.actionButtonLabel}>{result ? t("home.quickClubDrawAgain") : t("draw.clubModeRandom")}</Text>
         </AnimatedPressable>
         <AnimatedPressable onPress={() => draw("stars")} style={styles.actionButton} accessibilityRole="button" accessibilityLabel={t("home.quickClubDrawByStars")}>
-          <Text style={styles.actionButtonIcon}>⭐</Text>
           <Text style={styles.actionButtonLabel}>{t("home.quickClubDrawByStars")}</Text>
         </AnimatedPressable>
       </View>
@@ -153,9 +151,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surfaceElevated,
-  },
-  actionButtonIcon: {
-    fontSize: 16,
   },
   actionButtonLabel: {
     ...typography.bodyStrong,
