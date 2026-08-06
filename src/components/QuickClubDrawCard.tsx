@@ -19,20 +19,16 @@ interface QuickClubDrawCardProps {
 
 type DrawMode = "random" | "stars";
 
-/** Picks the star level with the most eligible clubs (min. 2) so "By Stars" always has its best shot at an exact match without asking the user to choose one. */
-function pickBestStarLevel<T extends { star_rating: number }>(pool: readonly T[]): number | null {
-  const counts = new Map<number, number>();
-  for (const cv of pool) counts.set(cv.star_rating, (counts.get(cv.star_rating) ?? 0) + 1);
-  let best: number | null = null;
-  let bestCount = 0;
-  for (const [level, count] of counts) {
-    if (count >= 2 && count > bestCount) {
-      best = level;
-      bestCount = count;
-    }
-  }
-  return best;
-}
+/**
+ * "By Stars" on this dashboard shortcut always means exactly this rating --
+ * a fixed, predictable value for a one-tap card with no star-level picker
+ * of its own (unlike Record Match / Full Match Draw / Quick Match, which
+ * all let the user choose). Previously this picked whichever level had the
+ * most eligible clubs, which silently changed what "By Stars" meant run to
+ * run (e.g. landing on 3.5 stars just because that level happened to have
+ * more clubs) -- fixed here to never substitute a different rating.
+ */
+const QUICK_DRAW_EXACT_STAR_RATING = 4.5;
 
 /**
  * One-tap "Team A vs Team B" club draw for the dashboard -- deliberately
@@ -48,19 +44,28 @@ export function QuickClubDrawCard({ groupId, gameVersionId }: QuickClubDrawCardP
   const { includeNationalTeams } = useNationalTeamsPreference(groupId);
   const [result, setResult] = useState<{ clubA: ClubVersion; clubB: ClubVersion } | null>(null);
   const [drawKey, setDrawKey] = useState(0);
-  const [failed, setFailed] = useState(false);
+  // "general" = fewer than 2 eligible clubs overall (either mode); "stars" =
+  // enough clubs overall, but fewer than 2 at exactly QUICK_DRAW_EXACT_STAR_RATING.
+  // Kept distinct so the message never implies switching mode would help.
+  const [failReason, setFailReason] = useState<"general" | "stars" | null>(null);
 
   const draw = (mode: DrawMode) => {
     const pool = filterValidClubVersions(filterClubVersionsForRandomGeneration(clubVersions ?? [], { includeNationalTeams }));
     if (pool.length < 2) {
-      setFailed(true);
+      setFailReason("general");
       setResult(null);
       return;
     }
-    const starPool = mode === "stars" ? filterClubsByExactStars(pool, pickBestStarLevel(pool) ?? -1) : pool;
-    const drawPool = starPool.length >= 2 ? starPool : pool;
+
+    const drawPool = mode === "stars" ? filterClubsByExactStars(pool, QUICK_DRAW_EXACT_STAR_RATING) : pool;
+    if (drawPool.length < 2) {
+      setFailReason(mode === "stars" ? "stars" : "general");
+      setResult(null);
+      return;
+    }
+
     const { assignments } = assignRandomClubs(drawPool, 2);
-    setFailed(false);
+    setFailReason(null);
     setResult({ clubA: assignments[0]!, clubB: assignments[1]! });
     setDrawKey((k) => k + 1);
   };
@@ -84,7 +89,9 @@ export function QuickClubDrawCard({ groupId, gameVersionId }: QuickClubDrawCardP
             </View>
           </View>
         </FadeIn>
-      ) : failed ? (
+      ) : failReason === "stars" ? (
+        <Text style={styles.failedText}>{t("home.quickClubDrawNotEnoughStarClubs")}</Text>
+      ) : failReason === "general" ? (
         <Text style={styles.failedText}>{t("home.quickClubDrawNotEnoughClubs")}</Text>
       ) : null}
 

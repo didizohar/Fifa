@@ -121,6 +121,7 @@ const he = {
     quickClubDrawByStars: "לפי כוכבים",
     quickClubDrawAgain: "הגרלה נוספת",
     quickClubDrawNotEnoughClubs: "אין מספיק מועדונים זמינים להגרלה.",
+    quickClubDrawNotEnoughStarClubs: "אין מספיק מועדוני 4.5 כוכבים זמינים להגרלה.",
     loadError: "לא ניתן היה לטעון את לוח הבקרה. בדקו את החיבור ונסו שוב.",
   },
   settings: {

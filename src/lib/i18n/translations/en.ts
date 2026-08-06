@@ -124,6 +124,7 @@ const en = {
     quickClubDrawByStars: "By Stars",
     quickClubDrawAgain: "Draw Again",
     quickClubDrawNotEnoughClubs: "Not enough clubs available to draw from.",
+    quickClubDrawNotEnoughStarClubs: "Not enough 4.5-star clubs available to draw from.",
     loadError: "Couldn't load your dashboard. Check your connection and try again.",
   },
   settings: {
