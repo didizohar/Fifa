@@ -1,5 +1,6 @@
 import TestRenderer, { act } from "react-test-renderer";
 import { AnimatedPressable } from "../../src/components/AnimatedPressable";
+import { ClubBadge } from "../../src/components/ClubBadge";
 
 // record-match.tsx statically imports ClubPickerSheet, which pulls in the
 // real Supabase/AsyncStorage chain even though the sheet itself is never
@@ -71,7 +72,21 @@ jest.mock("../../src/hooks/useNationalTeamsPreference", () => ({
 }));
 
 let mockMatchQuery = { data: undefined as unknown, isLoading: false, isError: false, error: null, refetch: jest.fn() };
-jest.mock("../../src/hooks/useMatches", () => ({ useMatch: () => mockMatchQuery }));
+let mockPreviousMatches: unknown[] = [];
+jest.mock("../../src/hooks/useMatches", () => ({ useMatch: () => mockMatchQuery, useMatches: () => ({ data: mockPreviousMatches, isLoading: false }) }));
+
+const PREVIOUS_MATCH = {
+  id: "prev-match",
+  match_type: "singles",
+  is_overtime: false,
+  is_penalties: false,
+  notes: null,
+  played_at: "2026-01-01T00:00:00Z",
+  sides: [
+    { id: "ps1", side_number: 1, score: 3, penalty_score: null, result: "win", club_version_id: "c2", club: { id: "club-2", name: "Club Two" }, players: [] },
+    { id: "ps2", side_number: 2, score: 1, penalty_score: null, result: "loss", club_version_id: "c1", club: { id: "club-1", name: "Club One" }, players: [] },
+  ],
+};
 
 const mockRecordMutateAsync = jest.fn();
 const mockEditMutateAsync = jest.fn();
@@ -135,6 +150,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   capturedBeforeRemove = null;
   mockMatchQuery = { data: undefined, isLoading: false, isError: false, error: null, refetch: jest.fn() };
+  mockPreviousMatches = [];
 });
 
 describe("RecordMatchScreen -- save flow (create mode)", () => {
@@ -215,5 +231,65 @@ describe("RecordMatchScreen -- beforeRemove guard (manual navigation)", () => {
     const event = fireBeforeRemove();
     expect(event.preventDefault).not.toHaveBeenCalled();
     expect(mockConfirmAction).not.toHaveBeenCalled();
+  });
+});
+
+describe("RecordMatchScreen -- Same Clubs / Swap Clubs quick actions", () => {
+  it("Same Clubs applies the previous match's clubs to the matching sides", async () => {
+    mockPreviousMatches = [PREVIOUS_MATCH];
+    const renderer = await renderScreen({});
+
+    const button = findByAccessibilityLabel(renderer, "rotation.sameClubsAction");
+    act(() => {
+      button.props.onPress();
+    });
+
+    // PREVIOUS_MATCH: side1 -> Club Two (c2), side2 -> Club One (c1) -- "Same Clubs" keeps that mapping.
+    const names = renderer.root.findAllByType(ClubBadge).map((b) => b.props.name);
+    expect(names).toEqual(expect.arrayContaining(["Club Two", "Club One"]));
+  });
+
+  it("Swap Clubs applies the previous match's clubs with sides reversed", async () => {
+    mockPreviousMatches = [PREVIOUS_MATCH];
+    const renderer = await renderScreen({});
+
+    const sameButton = findByAccessibilityLabel(renderer, "rotation.sameClubsAction");
+    act(() => {
+      sameButton.props.onPress();
+    });
+    const afterSame = renderer.root.findAllByType(ClubBadge).map((b) => b.props.name);
+
+    const swapButton = findByAccessibilityLabel(renderer, "rotation.swapClubsAction");
+    act(() => {
+      swapButton.props.onPress();
+    });
+    const afterSwap = renderer.root.findAllByType(ClubBadge).map((b) => b.props.name);
+
+    // Same two clubs either way, but swap must reverse which side each lands on.
+    expect(afterSwap.slice().sort()).toEqual(afterSame.slice().sort());
+    expect(afterSwap).not.toEqual(afterSame);
+  });
+
+  it("does not offer Same Clubs / Swap Clubs when there is no previous match", async () => {
+    mockPreviousMatches = [];
+    const renderer = await renderScreen({});
+
+    expect(() => findByAccessibilityLabel(renderer, "rotation.sameClubsAction")).toThrow();
+    expect(() => findByAccessibilityLabel(renderer, "rotation.swapClubsAction")).toThrow();
+  });
+
+  it("does not offer Same Clubs / Swap Clubs when the previous match's club is no longer in the current club list", async () => {
+    mockPreviousMatches = [
+      {
+        ...PREVIOUS_MATCH,
+        sides: [
+          { ...PREVIOUS_MATCH.sides[0], club_version_id: "no-longer-available", club: { id: "gone", name: "Gone Club" } },
+          PREVIOUS_MATCH.sides[1],
+        ],
+      },
+    ];
+    const renderer = await renderScreen({});
+
+    expect(() => findByAccessibilityLabel(renderer, "rotation.sameClubsAction")).toThrow();
   });
 });

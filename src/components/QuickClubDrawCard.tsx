@@ -1,13 +1,17 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useClubVersions } from "../hooks/useClubVersions";
 import { useNationalTeamsPreference } from "../hooks/useNationalTeamsPreference";
+import { useQuickDrawPoolPreference } from "../hooks/useQuickDrawPoolPreference";
+import { filterClubsByPool, type ClubPoolMode } from "../lib/clubPools";
 import { filterClubVersionsForRandomGeneration } from "../lib/clubRepository";
 import { useTranslation } from "../lib/i18n";
-import { assignRandomClubs, filterClubsByExactStars, filterValidClubVersions } from "../lib/random/clubs";
+import { assignRandomClubs, filterValidClubVersions } from "../lib/random/clubs";
+import type { ChipOption } from "./AppChipGroup";
 import type { ClubVersion } from "../lib/types/database";
-import { colors, radius, spacing, typography } from "../theme";
-import { AnimatedPressable } from "./AnimatedPressable";
+import { Button } from "./Button";
+import { colors, spacing, typography } from "../theme";
+import { AppChipGroup } from "./AppChipGroup";
 import { Card } from "./Card";
 import { ClubBadge } from "./ClubBadge";
 import { FadeIn } from "./FadeIn";
@@ -17,49 +21,46 @@ interface QuickClubDrawCardProps {
   gameVersionId: string | null | undefined;
 }
 
-type DrawMode = "random" | "stars";
-
-/**
- * "By Stars" on this dashboard shortcut always means exactly this rating --
- * a fixed, predictable value for a one-tap card with no star-level picker
- * of its own (unlike Record Match / Full Match Draw / Quick Match, which
- * all let the user choose). Previously this picked whichever level had the
- * most eligible clubs, which silently changed what "By Stars" meant run to
- * run (e.g. landing on 3.5 stars just because that level happened to have
- * more clubs) -- fixed here to never substitute a different rating.
- */
-const QUICK_DRAW_EXACT_STAR_RATING = 4.5;
-
 /**
  * One-tap "Team A vs Team B" club draw for the dashboard -- deliberately
- * lighter than the full /draw/clubs screen: no player selection, no mode
- * picker beyond Random/By Stars, no navigation. Tapping a button both
- * picks the mode and runs the draw in the same action. Purely a fun/quick
- * reference (which club to play as), so it never writes to any match or
- * session state.
+ * lighter than the full /draw/clubs screen: no player selection, no
+ * navigation. Only two pools to choose from (Large/Small -- see
+ * clubPools.ts), no per-level picker and no unrestricted-random option;
+ * the choice is remembered per group via useQuickDrawPoolPreference.
+ * Purely a fun/quick reference (which club to play as), so it never writes
+ * to any match or session state.
  */
 export function QuickClubDrawCard({ groupId, gameVersionId }: QuickClubDrawCardProps) {
   const { t } = useTranslation();
   const { data: clubVersions } = useClubVersions(gameVersionId ?? undefined);
   const { includeNationalTeams } = useNationalTeamsPreference(groupId);
+  const { pool, setPool } = useQuickDrawPoolPreference(groupId);
   const [result, setResult] = useState<{ clubA: ClubVersion; clubB: ClubVersion } | null>(null);
   const [drawKey, setDrawKey] = useState(0);
-  // "general" = fewer than 2 eligible clubs overall (either mode); "stars" =
-  // enough clubs overall, but fewer than 2 at exactly QUICK_DRAW_EXACT_STAR_RATING.
-  // Kept distinct so the message never implies switching mode would help.
-  const [failReason, setFailReason] = useState<"general" | "stars" | null>(null);
+  // "general" = fewer than 2 eligible clubs overall; "pool" = enough clubs
+  // overall, but fewer than 2 in the selected pool. Kept distinct so the
+  // message never implies switching pools would help when it wouldn't.
+  const [failReason, setFailReason] = useState<"general" | "pool" | null>(null);
 
-  const draw = (mode: DrawMode) => {
-    const pool = filterValidClubVersions(filterClubVersionsForRandomGeneration(clubVersions ?? [], { includeNationalTeams }));
-    if (pool.length < 2) {
+  const poolOptions = useMemo<ChipOption<Exclude<ClubPoolMode, "random">>[]>(
+    () => [
+      { id: "large", label: t("home.quickClubDrawPoolLarge") },
+      { id: "small", label: t("home.quickClubDrawPoolSmall") },
+    ],
+    [t],
+  );
+
+  const draw = () => {
+    const validPool = filterValidClubVersions(filterClubVersionsForRandomGeneration(clubVersions ?? [], { includeNationalTeams }));
+    if (validPool.length < 2) {
       setFailReason("general");
       setResult(null);
       return;
     }
 
-    const drawPool = mode === "stars" ? filterClubsByExactStars(pool, QUICK_DRAW_EXACT_STAR_RATING) : pool;
+    const drawPool = filterClubsByPool(validPool, pool);
     if (drawPool.length < 2) {
-      setFailReason(mode === "stars" ? "stars" : "general");
+      setFailReason("pool");
       setResult(null);
       return;
     }
@@ -75,6 +76,15 @@ export function QuickClubDrawCard({ groupId, gameVersionId }: QuickClubDrawCardP
       <Text style={styles.title}>{t("home.quickClubDrawTitle")}</Text>
       <Text style={styles.hint}>{t("home.quickClubDrawHint")}</Text>
 
+      <AppChipGroup
+        mode="single"
+        options={poolOptions}
+        value={pool}
+        onChange={setPool}
+        accessibilityLabel={t("home.quickClubDrawTitle")}
+        style={styles.chipRow}
+      />
+
       {result ? (
         <FadeIn key={drawKey}>
           <View style={styles.resultRow}>
@@ -89,20 +99,13 @@ export function QuickClubDrawCard({ groupId, gameVersionId }: QuickClubDrawCardP
             </View>
           </View>
         </FadeIn>
-      ) : failReason === "stars" ? (
-        <Text style={styles.failedText}>{t("home.quickClubDrawNotEnoughStarClubs")}</Text>
+      ) : failReason === "pool" ? (
+        <Text style={styles.failedText}>{t("home.quickClubDrawNotEnoughPoolClubs")}</Text>
       ) : failReason === "general" ? (
         <Text style={styles.failedText}>{t("home.quickClubDrawNotEnoughClubs")}</Text>
       ) : null}
 
-      <View style={styles.buttonRow}>
-        <AnimatedPressable onPress={() => draw("random")} style={styles.actionButton} accessibilityRole="button" accessibilityLabel={t("draw.clubModeRandom")}>
-          <Text style={styles.actionButtonLabel}>{result ? t("home.quickClubDrawAgain") : t("draw.clubModeRandom")}</Text>
-        </AnimatedPressable>
-        <AnimatedPressable onPress={() => draw("stars")} style={styles.actionButton} accessibilityRole="button" accessibilityLabel={t("home.quickClubDrawByStars")}>
-          <Text style={styles.actionButtonLabel}>{t("home.quickClubDrawByStars")}</Text>
-        </AnimatedPressable>
-      </View>
+      <Button label={t("home.quickClubDrawAction")} onPress={draw} />
     </Card>
   );
 }
@@ -117,6 +120,9 @@ const styles = StyleSheet.create({
   hint: {
     ...typography.small,
     color: colors.textSecondary,
+  },
+  chipRow: {
+    gap: spacing.sm,
   },
   resultRow: {
     flexDirection: "row",
@@ -142,24 +148,5 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: "center",
     paddingVertical: spacing.sm,
-  },
-  buttonRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceElevated,
-  },
-  actionButtonLabel: {
-    ...typography.bodyStrong,
   },
 });

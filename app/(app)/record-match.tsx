@@ -1,13 +1,13 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Stack, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { AppChipGroup, type ChipOption } from "../../src/components/AppChipGroup";
 import { Button } from "../../src/components/Button";
 import { Card } from "../../src/components/Card";
 import { ClubBadge } from "../../src/components/ClubBadge";
 import { ClubPickerSheet } from "../../src/components/ClubPickerSheet";
 import { EmptyState } from "../../src/components/EmptyState";
 import { ErrorState } from "../../src/components/ErrorState";
-import { Chip } from "../../src/components/Chip";
 import { InfoBanner } from "../../src/components/InfoBanner";
 import { PlayerPicker } from "../../src/components/PlayerPicker";
 import { Screen } from "../../src/components/Screen";
@@ -20,20 +20,22 @@ import { useClubFavorites } from "../../src/hooks/useClubFavorites";
 import { useClubVersions } from "../../src/hooks/useClubVersions";
 import { useEditMatch } from "../../src/hooks/useEditMatch";
 import { useGroup } from "../../src/hooks/useGroup";
-import { useMatch } from "../../src/hooks/useMatches";
+import { useMatch, useMatches } from "../../src/hooks/useMatches";
 import { useNationalTeamsPreference } from "../../src/hooks/useNationalTeamsPreference";
 import { usePlayers } from "../../src/hooks/usePlayers";
 import { useRecentlyUsedClubs } from "../../src/hooks/useRecentlyUsedClubs";
 import { useRecordMatch } from "../../src/hooks/useRecordMatch";
 import { confirmAction, notify } from "../../src/lib/confirm";
+import { filterClubsByPool, type ClubPoolMode } from "../../src/lib/clubPools";
 import { filterClubVersionsForRandomGeneration } from "../../src/lib/clubRepository";
 import { matchSideLabel } from "../../src/lib/format";
 import { useTranslation } from "../../src/lib/i18n";
 import { type MatchPrefillRouteParams, validateMatchPrefill } from "../../src/lib/matchPrefill";
 import { EditMatchError } from "../../src/lib/matchService";
 import { toPickablePlayer, type PickablePlayer } from "../../src/lib/players";
+import { getPreviousMatchClubs, swapPreviousMatchClubs } from "../../src/lib/previousMatchClubs";
 import { filterValidClubVersions } from "../../src/lib/random/clubs";
-import { drawClubsForMatch, type ClubDrawStarMode } from "../../src/lib/random/matchClubDraw";
+import { drawClubsForMatch } from "../../src/lib/random/matchClubDraw";
 import { isMatchLinkedToActiveWinnersStaySession } from "../../src/lib/rotation/session";
 import type { ClubVersion, MatchType } from "../../src/lib/types/database";
 import {
@@ -48,8 +50,6 @@ import { validateMatchForm, type ComputedMatchResult } from "../../src/lib/valid
 import { useSeasons } from "../../src/hooks/useSeasons";
 import { useWinnersStaySession } from "../../src/hooks/useWinnersStaySession";
 import { colors, radius, spacing, typography } from "../../src/theme";
-
-const STAR_MODES: ClubDrawStarMode[] = ["sameStar", "similarStrength", "anyStrength"];
 
 const MIN_PLAYERS_TO_RECORD = 2;
 
@@ -109,6 +109,12 @@ export default function RecordMatchScreen() {
   const recordMatch = useRecordMatch(currentGroup?.id ?? null);
   const editMatch = useEditMatch(currentGroup?.id ?? null);
   const winnersStaySession = useWinnersStaySession(currentGroup?.id ?? null);
+  // "Same Clubs"/"Swap Clubs" only make sense when starting a brand-new
+  // match -- passing null in edit mode (rather than skipping the hook call,
+  // which would break the rules of hooks) disables the query entirely via
+  // useMatches' own enabled: !!groupId check, so editing a match never
+  // fires this extra fetch.
+  const previousMatchQuery = useMatches(!isEditMode ? currentGroup?.id ?? null : null, 1);
   const { favoriteIds: favoriteClubIds, toggleFavorite: toggleClubFavorite } = useClubFavorites(currentGroup?.id ?? null);
   const { recentIds: recentClubIds, recordUsage: recordClubUsage } = useRecentlyUsedClubs(currentGroup?.id ?? null);
   const { includeNationalTeams, setIncludeNationalTeams } = useNationalTeamsPreference(currentGroup?.id ?? null);
@@ -152,11 +158,12 @@ export default function RecordMatchScreen() {
   // regardless of success/failure so a genuinely failed save can be retried.
   const submitGuardRef = useRef(false);
 
-  // "Draw Clubs by Stars" -- only ever touches side1ClubId/side2ClubId, never
-  // the players, pairings, score, or waiting queue. Available for every
-  // match, not just ones started from Winners Stay.
-  const [starMode, setStarMode] = useState<ClubDrawStarMode>("sameStar");
-  const [selectedStarLevel, setSelectedStarLevel] = useState<number | null>(null);
+  // "Draw Clubs" -- only ever touches side1ClubId/side2ClubId, never the
+  // players, pairings, score, or waiting queue. Available for every match,
+  // not just ones started from Winners Stay. Three pools, no per-level
+  // picker (see clubPools.ts) -- matches the simplified Dashboard Quick
+  // Club Draw card so "Large/Small/Random" means the same thing everywhere.
+  const [poolMode, setPoolMode] = useState<ClubPoolMode>("large");
   const [hasDrawnClubs, setHasDrawnClubs] = useState(false);
   const [clubDrawFailed, setClubDrawFailed] = useState(false);
   // Local, per-visit draw options -- "Include National Teams" deliberately
@@ -176,18 +183,15 @@ export default function RecordMatchScreen() {
     () => filterClubVersionsForRandomGeneration(filterValidClubVersions(clubVersions ?? []), { includeNationalTeams, includeCustom: drawIncludeCustomClubs }),
     [clubVersions, includeNationalTeams, drawIncludeCustomClubs],
   );
-  const availableStarLevels = useMemo(() => Array.from(new Set(validClubPool.map((cv) => cv.star_rating))).sort((a, b) => b - a), [validClubPool]);
-
-  // Default to the highest available star level once clubs load, without stomping on a later user choice.
-  const hasSetDefaultStarLevel = useRef(false);
-  useEffect(() => {
-    if (hasSetDefaultStarLevel.current || availableStarLevels.length === 0) return;
-    hasSetDefaultStarLevel.current = true;
-    setSelectedStarLevel(availableStarLevels[0]!);
-  }, [availableStarLevels]);
 
   const handleDrawClubs = () => {
-    const outcome = drawClubsForMatch({ clubs: validClubPool, starMode, selectedStarLevel, allowDuplicates: !drawPreventDuplicates });
+    // filterClubsByPool narrows to the selected pool's star-rating band (or
+    // returns the pool unfiltered for "random"); drawClubsForMatch then just
+    // runs a plain random draw over whatever it's given -- same shared
+    // engine every other Club Draw surface uses, no separate pool-aware
+    // assignment logic.
+    const pool = filterClubsByPool(validClubPool, poolMode);
+    const outcome = drawClubsForMatch({ clubs: pool, starMode: "anyStrength", allowDuplicates: !drawPreventDuplicates });
     if (!outcome.ok) {
       setClubDrawFailed(true);
       return;
@@ -196,6 +200,31 @@ export default function RecordMatchScreen() {
     setHasDrawnClubs(true);
     setSide1ClubId(outcome.result.clubA.id);
     setSide2ClubId(outcome.result.clubB.id);
+  };
+
+  // Only offered when the previous match's clubs are still real, selectable
+  // options in the CURRENT club list -- e.g. if the group's default game
+  // version changed since that match was played, its club_version_id may no
+  // longer exist here, and silently applying a stale id would leave the
+  // side showing "no club selected" with no visible explanation.
+  const previousMatchClubs = useMemo(() => {
+    const raw = getPreviousMatchClubs(previousMatchQuery.data?.[0]);
+    if (!raw || !clubVersions) return null;
+    const stillAvailable = clubVersions.some((cv) => cv.id === raw.side1ClubVersionId) && clubVersions.some((cv) => cv.id === raw.side2ClubVersionId);
+    return stillAvailable ? raw : null;
+  }, [previousMatchQuery.data, clubVersions]);
+
+  const applySameClubs = () => {
+    if (!previousMatchClubs) return;
+    setSide1ClubId(previousMatchClubs.side1ClubVersionId);
+    setSide2ClubId(previousMatchClubs.side2ClubVersionId);
+  };
+
+  const applySwapClubs = () => {
+    if (!previousMatchClubs) return;
+    const swapped = swapPreviousMatchClubs(previousMatchClubs);
+    setSide1ClubId(swapped.side1ClubVersionId);
+    setSide2ClubId(swapped.side2ClubVersionId);
   };
 
   // Apply a draw-result prefill (see app/(app)/draw/matchup.tsx) exactly once, as soon as
@@ -276,6 +305,15 @@ export default function RecordMatchScreen() {
 
   const pairLabel = (playerIds: string[]): string =>
     matchSideLabel(playerIds.map((id) => pickablePlayers.find((p) => p.id === id)?.displayName ?? "?"));
+
+  const poolOptions = useMemo<ChipOption<ClubPoolMode>[]>(
+    () => [
+      { id: "large", label: t("home.quickClubDrawPoolLarge") },
+      { id: "small", label: t("home.quickClubDrawPoolSmall") },
+      { id: "random", label: t("draw.poolRandom") },
+    ],
+    [t],
+  );
 
   const changeMatchType = (type: MatchType) => {
     setMatchType(type);
@@ -570,31 +608,16 @@ export default function RecordMatchScreen() {
           onChange={changeMatchType}
         />
 
-        <Card style={styles.clubDrawCard}>
+        <Card variant="elevated" style={styles.clubDrawCard}>
           <Text style={styles.sideTitle}>{t("rotation.drawClubsByStars")}</Text>
-          <View style={styles.chipRow}>
-            <Chip label={t("draw.clubModeRandom")} active={starMode === "anyStrength"} onPress={() => setStarMode("anyStrength")} />
-            <Chip label={t("draw.clubModeExactStars")} active={starMode === "sameStar"} onPress={() => setStarMode("sameStar")} />
-          </View>
-
-          {starMode === "sameStar" ? (
-            clubsLoading ? (
-              <Skeleton height={36} />
-            ) : availableStarLevels.length === 0 ? (
-              <InfoBanner tone="warning" message={t("rotation.noClubsAvailable")} />
-            ) : (
-              <View style={styles.chipRow}>
-                {availableStarLevels.map((stars) => (
-                  <Chip
-                    key={stars}
-                    label={t("draw.exactStarsLabel", { stars: String(stars) })}
-                    active={selectedStarLevel === stars}
-                    onPress={() => setSelectedStarLevel(stars)}
-                  />
-                ))}
-              </View>
-            )
-          ) : null}
+          <AppChipGroup
+            mode="single"
+            options={poolOptions}
+            value={poolMode}
+            onChange={setPoolMode}
+            accessibilityLabel={t("rotation.drawClubsByStars")}
+            style={styles.chipRow}
+          />
 
           <View style={styles.switchRow}>
             <Text style={styles.switchLabel}>{t("clubPicker.includeNationalTeams")}</Text>
@@ -628,14 +651,14 @@ export default function RecordMatchScreen() {
             <InfoBanner
               tone="warning"
               message={
-                starMode === "sameStar"
+                poolMode !== "random"
                   ? `${t("rotation.notEnoughClubsAtLevel")} ${t("rotation.chooseAnotherLevel")}`
                   : t("rotation.notEnoughClubsOverall")
               }
             />
           ) : null}
 
-          <Button label={hasDrawnClubs ? t("rotation.drawClubsAgain") : t("rotation.drawClubsByStars")} variant="secondary" onPress={handleDrawClubs} />
+          <Button label={hasDrawnClubs ? t("rotation.drawClubsAgain") : t("rotation.drawClubsByStars")} onPress={handleDrawClubs} />
 
           {hasDrawnClubs && side1ClubId && side2ClubId ? (
             <View style={styles.clubDrawResultRow}>
@@ -644,6 +667,19 @@ export default function RecordMatchScreen() {
             </View>
           ) : null}
         </Card>
+
+        {!isEditMode && previousMatchClubs ? (
+          <Card style={styles.quickActionsCard}>
+            <Text style={styles.sideTitle}>{t("rotation.quickActionsTitle")}</Text>
+            <View style={styles.quickActionsRow}>
+              <Button label={t("rotation.sameClubsAction")} variant="secondary" size="md" style={styles.quickActionButton} onPress={applySameClubs} />
+              <Button label={t("rotation.swapClubsAction")} variant="secondary" size="md" style={styles.quickActionButton} onPress={applySwapClubs} />
+            </View>
+            <Text style={styles.previousMatchPreview}>
+              {t("rotation.previousMatchPreview", { side1: previousMatchClubs.side1ClubName, side2: previousMatchClubs.side2ClubName })}
+            </Text>
+          </Card>
+        ) : null}
 
         <MatchSideCard
           title={t("rotation.side1Label")}
@@ -923,9 +959,22 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   chipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
     gap: spacing.sm,
+  },
+  quickActionsCard: {
+    gap: spacing.sm,
+  },
+  quickActionsRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  quickActionButton: {
+    flex: 1,
+  },
+  previousMatchPreview: {
+    ...typography.small,
+    color: colors.textSecondary,
+    textAlign: "center",
   },
   clubDrawResultRow: {
     flexDirection: "row",
