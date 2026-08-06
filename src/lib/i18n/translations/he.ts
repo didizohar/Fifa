@@ -517,6 +517,13 @@ const he = {
   },
   rotation: {
     title: "המנצחים נשארים",
+    startEveningTitle: "התחלת ערב",
+    startEveningSubtitle: "איך תרצה להתחיל?",
+    startEveningNewSession: "סשן חדש",
+    startEveningNewSessionDescription: "התחל ערב חדש ובחר משתתפים מחדש.",
+    startEveningContinueSession: "המשך סשן קודם",
+    startEveningContinueSessionDescription: "המשך עם אותם המשתתפים מהפעם הקודמת.",
+    startEveningPlayersRemovedNotice: "חלק מהשחקנים מהפעם הקודמת כבר לא פעילים והוסרו.",
     winningPairLabel: "זוג מנצח",
     incomingPairLabel: "זוג נכנס",
     waitingQueueLabel: "תור ממתינים",

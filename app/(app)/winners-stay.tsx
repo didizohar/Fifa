@@ -12,6 +12,7 @@ import { Screen } from "../../src/components/Screen";
 import { SegmentedControl } from "../../src/components/SegmentedControl";
 import { Skeleton } from "../../src/components/Skeleton";
 import { useGroup } from "../../src/hooks/useGroup";
+import { useLastWinnersStayParticipants } from "../../src/hooks/useLastWinnersStayParticipants";
 import { useGroupMatchHistory, useMatch } from "../../src/hooks/useMatches";
 import { usePlayers } from "../../src/hooks/usePlayers";
 import { useWinnersStaySession } from "../../src/hooks/useWinnersStaySession";
@@ -56,7 +57,7 @@ function formatDuration(ms: number): string {
 }
 
 export default function WinnersStayScreen() {
-  const { matchId, autoStart } = useLocalSearchParams<{ matchId?: string; autoStart?: string }>();
+  const { matchId, preselectPlayerIds } = useLocalSearchParams<{ matchId?: string; preselectPlayerIds?: string }>();
   const router = useRouter();
   const { t } = useTranslation();
   const { currentGroupId } = useGroup();
@@ -64,6 +65,7 @@ export default function WinnersStayScreen() {
   const groupHistory = useGroupMatchHistory(currentGroupId);
   const { session, isHydrated, isCorrupted, setSession, discardCorrupted } = useWinnersStaySession(currentGroupId);
   const { history: sessionHistory, setHistory: setSessionHistory } = useWinnersStaySessionHistory(currentGroupId);
+  const { setParticipantIds: setLastParticipants } = useLastWinnersStayParticipants(currentGroupId);
   const matchQuery = useMatch(matchId);
   const [isEditingQueue, setIsEditingQueue] = useState(false);
 
@@ -85,39 +87,28 @@ export default function WinnersStayScreen() {
     return map;
   }, [roster.data, session]);
 
-  // Home's "Start Evening" quick action links here with ?autoStart=1 so tapping
-  // it drops straight into an active session with the full active roster,
-  // randomly paired -- no manual setup screen. Only fires once (hasAutoStartedRef),
-  // only when there's no session already in progress (never stomps an active
-  // session just because the param is still in the URL), and only when there
-  // are enough players to actually start one; otherwise this is a no-op and the
-  // normal manual setup screen below renders exactly as it did before.
-  const hasAutoStartedRef = useRef(false);
+  // The Start Evening choice screen (app/(app)/start-evening.tsx) links here
+  // with ?preselectPlayerIds=... when the user picked "Continue Previous
+  // Session" -- pre-checks those players on the normal setup screen below
+  // (never skips it -- the user still reviews/confirms and taps Start
+  // Session themselves). Only fires once (hasAppliedPreselectRef), only
+  // while there's no session already in progress (never stomps an active
+  // session just because the param is still in the URL), and re-validates
+  // against the current roster itself (defense in depth -- the choice
+  // screen already filtered out archived/deleted players before building
+  // this param, but a stale id slipping through here should be dropped,
+  // not silently pre-select a player who can't actually be selected).
+  const hasAppliedPreselectRef = useRef(false);
   useEffect(() => {
-    if (hasAutoStartedRef.current || autoStart !== "1") return;
-    if (!isHydrated || !currentGroupId || !roster.data) return;
+    if (hasAppliedPreselectRef.current || !preselectPlayerIds) return;
+    if (!isHydrated || !roster.data) return;
     if (session && session.status !== "completed") return;
-    if (activePlayerIds.length < 4) return;
 
-    hasAutoStartedRef.current = true;
-    if (session && session.status === "completed") {
-      setSessionHistory(archiveCompletedSession(sessionHistory, session, new Date().toISOString()));
-    }
-    const pool = activePlayerIds.map((id) => playersById[id]).filter((p): p is RotationPlayer => !!p);
-    const { pairA, pairB, waiting } = drawRandomInitialPairs(pool);
-    const started = startWinnersStaySession({
-      id: newSessionId(),
-      groupId: currentGroupId,
-      pairA,
-      pairB,
-      waitingPlayers: waiting,
-      activePlayerIds,
-      now: new Date(),
-    });
-    setSession(started);
-    router.push({ pathname: "/record-match", params: { ...buildMatchPrefillParams("doubles", [pairA, pairB], null), source: "winnersStay" } });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoStart, isHydrated, currentGroupId, roster.data, session, activePlayerIds, playersById, sessionHistory]);
+    hasAppliedPreselectRef.current = true;
+    const activeIds = new Set(activePlayerIds);
+    const ids = preselectPlayerIds.split(",").filter((id) => activeIds.has(id));
+    if (ids.length > 0) setSelectedPoolIds(ids);
+  }, [preselectPlayerIds, isHydrated, roster.data, session, activePlayerIds]);
 
   // Advance the session exactly once per new recorded match id.
   useEffect(() => {
@@ -262,6 +253,10 @@ export default function WinnersStayScreen() {
       now: new Date(),
     });
     setSession(started);
+    // Captured independently of session archiving/history -- this is what
+    // "Continue Previous Session" reads later, regardless of whether this
+    // session ever gets formally ended.
+    setLastParticipants([...pairA, ...pairB, ...waiting].map((p) => p.id));
     router.push({ pathname: "/record-match", params: { ...buildMatchPrefillParams("doubles", [pairA, pairB], null), source: "winnersStay" } });
   };
 

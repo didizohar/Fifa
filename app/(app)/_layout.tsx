@@ -69,6 +69,10 @@ export default function AppLayout() {
         name="delete-group"
         options={{ headerShown: true, title: t("deleteGroup.screenTitle"), presentation: "modal", ...themedHeaderOptions }}
       />
+      <Stack.Screen
+        name="start-evening"
+        options={{ headerShown: true, title: t("rotation.startEveningTitle"), presentation: "modal", ...themedHeaderOptions }}
+      />
       <Stack.Screen name="league-table" options={{ headerShown: true, title: t("leagueTable.title"), ...pushedHeaderOptions }} />
       <Stack.Screen name="monthly-summary" options={{ headerShown: true, title: t("monthlySummary.title"), ...pushedHeaderOptions }} />
       <Stack.Screen name="trends" options={{ headerShown: true, title: t("trendsScreen.title"), ...pushedHeaderOptions }} />

@@ -227,7 +227,7 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t("home.quickActions")}</Text>
           <View style={styles.quickActions}>
-            <QuickActionCard icon="football" label={t("home.quickActionStartEvening")} onPress={() => router.push({ pathname: "/winners-stay", params: { autoStart: "1" } })} />
+            <QuickActionCard icon="football" label={t("home.quickActionStartEvening")} onPress={() => router.push("/start-evening")} />
             <QuickActionCard icon="analytics" label={t("home.quickActionTrends")} onPress={() => router.push("/trends")} />
             <QuickActionCard icon="calendar" label={t("home.quickActionMonthlySummary")} onPress={() => router.push("/monthly-summary")} />
             <QuickActionCard icon="bulb" label={t("home.quickActionInsights")} onPress={() => router.push("/insights")} />

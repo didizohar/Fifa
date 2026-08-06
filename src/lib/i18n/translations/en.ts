@@ -520,6 +520,13 @@ const en = {
   },
   rotation: {
     title: "Winners Stay",
+    startEveningTitle: "Start Evening",
+    startEveningSubtitle: "How would you like to start?",
+    startEveningNewSession: "New Session",
+    startEveningNewSessionDescription: "Start a fresh evening and pick participants again.",
+    startEveningContinueSession: "Continue Previous Session",
+    startEveningContinueSessionDescription: "Continue with the same participants as last time.",
+    startEveningPlayersRemovedNotice: "Some players from last time are no longer active and were removed.",
     winningPairLabel: "Winning Pair",
     incomingPairLabel: "Incoming Pair",
     waitingQueueLabel: "Waiting Queue",
