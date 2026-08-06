@@ -68,6 +68,60 @@ describe("drawClubsForMatch -- sameStar mode", () => {
   });
 });
 
+describe("drawClubsForMatch -- sameStar mode, half-star exact rating (4.5)", () => {
+  // Deliberately mixes whole and half-star neighbors (4, 4.5, 5) so an exact
+  // match against 4.5 can only pass if the comparison is truly exact, not
+  // accidentally satisfied by a rounded or truncated value from a nearby level.
+  const clubs = [
+    club("real", "Real Madrid", 4.5),
+    club("barca", "Barcelona", 4.5),
+    club("city", "Manchester City", 4.5),
+    club("psg", "PSG", 4),
+    club("juve", "Juventus", 5),
+  ];
+
+  it("draws two different clubs at exactly 4.5 stars, never a 4 or a 5", () => {
+    const outcome = drawClubsForMatch({ clubs, starMode: "sameStar", selectedStarLevel: 4.5, randomFn: rng() });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.clubA.star_rating).toBe(4.5);
+    expect(outcome.result.clubB.star_rating).toBe(4.5);
+    expect(outcome.result.clubA.id).not.toBe(outcome.result.clubB.id);
+    expect(outcome.result.starDifference).toBe(0);
+  });
+
+  it("keeps respecting the selected 4.5 rating across many repeated redraws", () => {
+    for (let seed = 0; seed < 40; seed++) {
+      const outcome = drawClubsForMatch({ clubs, starMode: "sameStar", selectedStarLevel: 4.5, randomFn: rng(seed) });
+      expect(outcome.ok).toBe(true);
+      if (!outcome.ok) continue;
+      expect(outcome.result.clubA.star_rating).toBe(4.5);
+      expect(outcome.result.clubB.star_rating).toBe(4.5);
+      expect(outcome.result.clubA.id).not.toBe(outcome.result.clubB.id);
+    }
+  });
+
+  it("reports notEnoughClubs when fewer than two clubs exist at 4.5 stars", () => {
+    const thin = [club("real", "Real Madrid", 4.5), club("psg", "PSG", 4), club("juve", "Juventus", 5)];
+    const outcome = drawClubsForMatch({ clubs: thin, starMode: "sameStar", selectedStarLevel: 4.5, randomFn: rng() });
+    expect(outcome).toEqual({ ok: false, reason: "notEnoughClubs" });
+  });
+
+  it("honors allowDuplicates at 4.5 stars the same way whole-star levels do", () => {
+    const single = [club("real", "Real Madrid", 4.5), club("psg", "PSG", 4)];
+    expect(drawClubsForMatch({ clubs: single, starMode: "sameStar", selectedStarLevel: 4.5, randomFn: rng() })).toEqual({
+      ok: false,
+      reason: "notEnoughClubs",
+    });
+    const outcome = drawClubsForMatch({ clubs: single, starMode: "sameStar", selectedStarLevel: 4.5, allowDuplicates: true, randomFn: rng() });
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) {
+      expect(outcome.result.clubA.id).toBe("real");
+      expect(outcome.result.clubB.id).toBe("real");
+    }
+  });
+});
+
 describe("drawClubsForMatch -- similarStrength mode", () => {
   it("prefers an exact star match when one exists in the pool", () => {
     const clubs = [club("barca", "Barcelona", 5), club("real", "Real Madrid", 5), club("psg", "PSG", 4)];
@@ -224,5 +278,32 @@ describe("Winners Stay draw end-to-end with filterClubVersionsForRandomGeneratio
         expect(reroll.result.clubB.club.league).not.toBe(NATIONAL_TEAMS_LEAGUE_LABEL);
       }
     }
+  });
+
+  it("composes correctly with a 4.5-star exact selection: national team and custom club toggles still apply at a half-star level", () => {
+    const halfStarPool: ClubVersion[] = [
+      ...clubPool,
+      makeClubVersion(makeClub({ id: "psg", name: "PSG", league: "Ligue 1" }), 4.5),
+      makeClubVersion(makeClub({ id: "italy", name: "Italy", league: NATIONAL_TEAMS_LEAGUE_LABEL }), 4.5),
+      makeClubVersion(makeClub({ id: "my-club", name: "My Custom Club", group_id: "group-1" }), 4.5),
+    ];
+
+    // National teams excluded, custom clubs included -- only PSG and My Custom Club are eligible at 4.5.
+    const pool = filterClubVersionsForRandomGeneration(halfStarPool, { includeNationalTeams: false, includeCustom: true });
+    for (let seed = 0; seed < 30; seed++) {
+      const outcome = drawClubsForMatch({ clubs: pool, starMode: "sameStar", selectedStarLevel: 4.5, randomFn: rng(seed) });
+      expect(outcome.ok).toBe(true);
+      if (!outcome.ok) continue;
+      expect(outcome.result.clubA.star_rating).toBe(4.5);
+      expect(outcome.result.clubB.star_rating).toBe(4.5);
+      expect(new Set([outcome.result.clubA.club_id, outcome.result.clubB.club_id])).toEqual(new Set(["psg", "my-club"]));
+    }
+
+    // Custom clubs excluded too -- no longer enough 4.5-star clubs to draw from.
+    const noCustomPool = filterClubVersionsForRandomGeneration(halfStarPool, { includeNationalTeams: false, includeCustom: false });
+    expect(drawClubsForMatch({ clubs: noCustomPool, starMode: "sameStar", selectedStarLevel: 4.5, randomFn: rng() })).toEqual({
+      ok: false,
+      reason: "notEnoughClubs",
+    });
   });
 });

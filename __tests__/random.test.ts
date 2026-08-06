@@ -165,6 +165,11 @@ describe("club star filters", () => {
     expect(result.map((c) => c.star_rating)).toEqual([5, 5]);
   });
 
+  it("filters to an exact half-star rating (e.g. 4.5) -- no special-casing, same equality check as whole ratings", () => {
+    const result = filterClubsByExactStars(clubs([4, 4.5, 4.5, 5, 3.5]), 4.5);
+    expect(result.map((c) => c.star_rating)).toEqual([4.5, 4.5]);
+  });
+
   it("filters to a star range inclusive of both ends", () => {
     const result = filterClubsByStarRange(clubs([1, 2, 3, 4, 5]), 3, 4);
     expect(result.map((c) => c.star_rating)).toEqual([3, 4]);
