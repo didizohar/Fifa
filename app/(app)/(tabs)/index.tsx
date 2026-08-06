@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import type { ComponentProps, ReactNode } from "react";
 import { useCallback, useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { ActionButton } from "../../../src/components/ActionButton";
 import { AnimatedNumber } from "../../../src/components/AnimatedNumber";
 import { Avatar } from "../../../src/components/Avatar";
 import { Badge, rankBadgeTone } from "../../../src/components/Badge";
@@ -14,6 +13,7 @@ import { FadeIn } from "../../../src/components/FadeIn";
 import { FormStrip } from "../../../src/components/FormStrip";
 import { LeagueTableCard, type LeagueTableCardPeriod } from "../../../src/components/LeagueTableCard";
 import { MatchRow } from "../../../src/components/MatchRow";
+import { QuickActionCard } from "../../../src/components/QuickActionCard";
 import { QuickClubDrawCard } from "../../../src/components/QuickClubDrawCard";
 import { Screen } from "../../../src/components/Screen";
 import { SkeletonList } from "../../../src/components/Skeleton";
@@ -219,10 +219,10 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t("home.quickActions")}</Text>
           <View style={styles.quickActions}>
-            <ActionButton icon="football" label={t("home.quickActionStartEvening")} onPress={() => router.push({ pathname: "/winners-stay", params: { autoStart: "1" } })} />
-            <ActionButton icon="analytics" label={t("home.quickActionTrends")} onPress={() => router.push("/trends")} />
-            <ActionButton icon="calendar" label={t("home.quickActionMonthlySummary")} onPress={() => router.push("/monthly-summary")} />
-            <ActionButton icon="bulb" label={t("home.quickActionInsights")} onPress={() => router.push("/insights")} />
+            <QuickActionCard icon="football" label={t("home.quickActionStartEvening")} onPress={() => router.push({ pathname: "/winners-stay", params: { autoStart: "1" } })} />
+            <QuickActionCard icon="analytics" label={t("home.quickActionTrends")} onPress={() => router.push("/trends")} />
+            <QuickActionCard icon="calendar" label={t("home.quickActionMonthlySummary")} onPress={() => router.push("/monthly-summary")} />
+            <QuickActionCard icon="bulb" label={t("home.quickActionInsights")} onPress={() => router.push("/insights")} />
           </View>
         </View>
 
