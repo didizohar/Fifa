@@ -1,5 +1,5 @@
+import { computeIndividualStandings } from "./leagueStandings";
 import type { MatchSidePlayer, MatchSummary } from "./matches";
-import { computeWinRateLeaderboard } from "./stats";
 
 export interface LeagueSummary {
   matchesPlayed: number;
@@ -25,11 +25,20 @@ export function computeLeagueOverview(roster: { is_active: boolean }[], matchesP
   return { activePlayers, archivedPlayers: roster.length - activePlayers, matchesPlayed };
 }
 
-/** Group-wide totals for the dashboard's League Summary cards. */
+/**
+ * Group-wide totals for the dashboard's League Summary cards. currentLeader
+ * is deliberately whoever's #1 in computeIndividualStandings -- the exact
+ * same points-based standings engine (and, with all matches and no date
+ * filter, the exact same ranking) as the League Table screen's default view
+ * and the Dashboard's own LeagueTableCard widget. There must be only one
+ * definition of "the leader" -- this must never diverge onto a different
+ * metric (e.g. win rate), or the Dashboard and League Table can show two
+ * different #1 players from the same data.
+ */
 export function computeLeagueSummary(roster: MatchSidePlayer[], matches: MatchSummary[]): LeagueSummary {
   const totalGoals = matches.reduce((sum, m) => sum + m.sides[0].score + m.sides[1].score, 0);
-  const leaders = computeWinRateLeaderboard(roster, matches);
-  const currentLeader = leaders[0] ? { playerId: leaders[0].playerId, playerName: leaders[0].playerName } : null;
+  const standings = computeIndividualStandings(roster, matches);
+  const currentLeader = standings[0] ? { playerId: standings[0].id, playerName: standings[0].name } : null;
   return { matchesPlayed: matches.length, totalGoals, playersCount: roster.length, currentLeader };
 }
 

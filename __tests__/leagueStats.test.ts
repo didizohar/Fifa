@@ -1,4 +1,5 @@
 import { computeLeagueOverview, computeLeagueSummary, computeMatchesPerWeek } from "../src/lib/leagueStats";
+import { computeIndividualStandings } from "../src/lib/leagueStandings";
 import type { MatchSidePlayer, MatchSummary } from "../src/lib/matches";
 
 interface SideSpec {
@@ -48,15 +49,32 @@ describe("computeLeagueSummary", () => {
     expect(summary.playersCount).toBe(2);
   });
 
-  it("names the top of the win-rate leaderboard as the current leader, once qualified", () => {
-    const matches = Array.from({ length: 5 }, () => makeMatch({ playerIds: ["a"], score: 1, result: "win" }, { playerIds: ["b"], score: 0, result: "loss" }));
+  it("names #1 in the points-based league standings as the current leader -- no minimum-games qualification, matching the League Table's default view", () => {
+    // A single win is already enough to lead by points (3/1/0) -- unlike
+    // the win-rate leaderboard elsewhere in the app, there is no 5-game
+    // qualification threshold here. Requirement: the Dashboard leader must
+    // never diverge from the League Table screen's #1.
+    const matches = [makeMatch({ playerIds: ["a"], score: 1, result: "win" }, { playerIds: ["b"], score: 0, result: "loss" })];
     const summary = computeLeagueSummary(roster(["a", "b"]), matches);
     expect(summary.currentLeader).toEqual({ playerId: "a", playerName: "a" });
   });
 
-  it("has no current leader when nobody has qualified yet", () => {
-    const matches = [makeMatch({ playerIds: ["a"], score: 1, result: "win" }, { playerIds: ["b"], score: 0, result: "loss" })];
+  it("has no current leader when nobody has played a match yet", () => {
+    const matches: MatchSummary[] = [];
     expect(computeLeagueSummary(roster(["a", "b"]), matches).currentLeader).toBeNull();
+  });
+
+  it("is always exactly the #1 row of computeIndividualStandings -- the same single source of truth the League Table screen uses (no duplicated ranking algorithm)", () => {
+    const matches = [
+      makeMatch({ playerIds: ["a"], score: 1, result: "win" }, { playerIds: ["b"], score: 0, result: "loss" }),
+      makeMatch({ playerIds: ["b"], score: 2, result: "win" }, { playerIds: ["c"], score: 1, result: "loss" }),
+      makeMatch({ playerIds: ["b"], score: 3, result: "win" }, { playerIds: ["c"], score: 0, result: "loss" }),
+    ];
+    const players = roster(["a", "b", "c"]);
+    const summary = computeLeagueSummary(players, matches);
+    const standings = computeIndividualStandings(players, matches);
+    expect(summary.currentLeader).toEqual({ playerId: standings[0]!.id, playerName: standings[0]!.name });
+    expect(standings[0]!.id).toBe("b"); // 2 wins = 6 points, ahead of a's 3 and c's 0
   });
 });
 
