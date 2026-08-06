@@ -8,20 +8,25 @@ jest.mock("../src/lib/supabase", () => ({
       exchangeCodeForSession: jest.fn(),
       updateUser: jest.fn(),
     },
+    rpc: jest.fn(),
   },
 }));
 
 import { supabase } from "../src/lib/supabase";
-import { exchangeRecoveryCode, requestPasswordReset, updatePassword } from "../src/lib/auth";
+import { deleteAccountConfirmationMatches, deleteOwnAccount, exchangeRecoveryCode, requestPasswordReset, signOut, updatePassword } from "../src/lib/auth";
 
 const mockResetPasswordForEmail = supabase.auth.resetPasswordForEmail as jest.Mock;
 const mockExchangeCodeForSession = supabase.auth.exchangeCodeForSession as jest.Mock;
 const mockUpdateUser = supabase.auth.updateUser as jest.Mock;
+const mockSignOut = supabase.auth.signOut as jest.Mock;
+const mockRpc = supabase.rpc as jest.Mock;
 
 beforeEach(() => {
   mockResetPasswordForEmail.mockReset();
   mockExchangeCodeForSession.mockReset();
   mockUpdateUser.mockReset();
+  mockSignOut.mockReset();
+  mockRpc.mockReset();
 });
 
 describe("requestPasswordReset", () => {
@@ -66,5 +71,63 @@ describe("updatePassword", () => {
   it("throws when the provider rejects the update", async () => {
     mockUpdateUser.mockResolvedValue({ data: null, error: { message: "Auth session missing" } });
     await expect(updatePassword("newSecurePassword")).rejects.toThrow("Auth session missing");
+  });
+});
+
+describe("signOut", () => {
+  it("defaults to the 'global' scope (the regular Log Out button's behavior, unchanged)", async () => {
+    mockSignOut.mockResolvedValue({ error: null });
+    await expect(signOut()).resolves.toBeUndefined();
+    expect(mockSignOut).toHaveBeenCalledWith({ scope: "global" });
+  });
+
+  it("supports the 'local' scope (used after account deletion, no network dependency)", async () => {
+    mockSignOut.mockResolvedValue({ error: null });
+    await expect(signOut("local")).resolves.toBeUndefined();
+    expect(mockSignOut).toHaveBeenCalledWith({ scope: "local" });
+  });
+
+  it("throws when the provider rejects the sign-out", async () => {
+    mockSignOut.mockResolvedValue({ error: { message: "Network error" } });
+    await expect(signOut()).rejects.toThrow("Network error");
+  });
+});
+
+describe("deleteAccountConfirmationMatches", () => {
+  it("matches the exact literal 'DELETE'", () => {
+    expect(deleteAccountConfirmationMatches("DELETE")).toBe(true);
+  });
+
+  it("tolerates leading/trailing whitespace", () => {
+    expect(deleteAccountConfirmationMatches("  DELETE  ")).toBe(true);
+  });
+
+  it("rejects a lowercase or mixed-case typo", () => {
+    expect(deleteAccountConfirmationMatches("delete")).toBe(false);
+    expect(deleteAccountConfirmationMatches("Delete")).toBe(false);
+  });
+
+  it("rejects an empty, partial, or unrelated value", () => {
+    expect(deleteAccountConfirmationMatches("")).toBe(false);
+    expect(deleteAccountConfirmationMatches("DELET")).toBe(false);
+    expect(deleteAccountConfirmationMatches("DELETE ME")).toBe(false);
+  });
+});
+
+describe("deleteOwnAccount", () => {
+  it("calls the delete_own_account RPC with no parameters (the server derives identity from auth.uid())", async () => {
+    mockRpc.mockResolvedValueOnce({ data: null, error: null });
+    await deleteOwnAccount();
+    expect(mockRpc).toHaveBeenCalledWith("delete_own_account");
+  });
+
+  it("throws when the RPC reports the caller is blocked by group ownership", async () => {
+    mockRpc.mockResolvedValueOnce({ data: null, error: { message: "Transfer ownership or delete these groups before deleting your account: Friday FC" } });
+    await expect(deleteOwnAccount()).rejects.toThrow(/Transfer ownership/);
+  });
+
+  it("throws on a generic RPC error", async () => {
+    mockRpc.mockResolvedValueOnce({ data: null, error: { message: "permission denied" } });
+    await expect(deleteOwnAccount()).rejects.toThrow("permission denied");
   });
 });

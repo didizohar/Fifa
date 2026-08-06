@@ -16,8 +16,16 @@ export async function signUpWithEmail(email: string, password: string): Promise<
   return { hasSession: data.session !== null };
 }
 
-export async function signOut(): Promise<void> {
-  const { error } = await supabase.auth.signOut();
+/**
+ * "local" (used after account deletion) only clears the client's own stored
+ * session/token and fires the SIGNED_OUT event -- no network call to revoke
+ * a server-side session, which matters once the account behind it no
+ * longer exists: there's nothing left to revoke, and unlike the default
+ * "global" scope, it can never fail due to a network error, guaranteeing
+ * the user actually lands back on the auth screen in the same app session.
+ */
+export async function signOut(scope: "global" | "local" = "global"): Promise<void> {
+  const { error } = await supabase.auth.signOut({ scope });
   if (error) throw new Error(error.message);
 }
 
@@ -41,5 +49,27 @@ export async function exchangeRecoveryCode(code: string): Promise<void> {
 /** Updates the password for the currently authenticated session (including a temporary password-recovery session). */
 export async function updatePassword(newPassword: string): Promise<void> {
   const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw new Error(error.message);
+}
+
+const DELETE_ACCOUNT_CONFIRMATION_WORD = "DELETE";
+
+/** Same trim + exact-match convention as groups.ts's groupNameConfirmationMatches -- a fixed literal (not the user's email/name) so it reads the same in both locales and isn't defeated by autocorrect/autocapitalize on a typed email. */
+export function deleteAccountConfirmationMatches(typed: string): boolean {
+  return typed.trim() === DELETE_ACCOUNT_CONFIRMATION_WORD;
+}
+
+/**
+ * Permanently deletes the current user's Supabase Auth identity via the
+ * delete_own_account RPC (SECURITY DEFINER, server-side -- see
+ * supabase/migrations/20260806120000_delete_own_account.sql). Never touches
+ * the service-role key from the client; auth.uid() inside the RPC is the
+ * only identity it can ever act on. Does NOT sign the client out itself --
+ * the caller (useDeleteAccount) does that afterward, since the local
+ * session token is still technically "valid" shaped until signOut() clears
+ * it, even though the account behind it is already gone server-side.
+ */
+export async function deleteOwnAccount(): Promise<void> {
+  const { error } = await supabase.rpc("delete_own_account");
   if (error) throw new Error(error.message);
 }

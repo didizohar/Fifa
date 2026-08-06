@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Button } from "../../src/components/Button";
 import { ErrorState } from "../../src/components/ErrorState";
@@ -33,6 +33,11 @@ export default function DeleteGroupScreen() {
   const [confirmText, setConfirmText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const deleteGroupMutation = useDeleteGroup(user?.id);
+  // Synchronous double-tap guard, same pattern as record-match.tsx's
+  // submitGuardRef -- isPending only reflects the last completed render,
+  // so two taps in the same event-loop tick would both see it as `false`
+  // and both fire this permanent, irreversible deletion.
+  const submitGuardRef = useRef(false);
 
   const canDelete = currentRole === "owner" || currentRole === "admin";
 
@@ -53,8 +58,9 @@ export default function DeleteGroupScreen() {
   const nameMatches = groupNameConfirmationMatches(currentGroup.name, confirmText);
 
   const handleDelete = async () => {
-    if (!nameMatches || deleteGroupMutation.isPending) return;
+    if (!nameMatches || deleteGroupMutation.isPending || submitGuardRef.current) return;
     setError(null);
+    submitGuardRef.current = true;
     try {
       await deleteGroupMutation.mutateAsync({ groupId: currentGroup.id, confirmName: confirmText });
       showToast(t("deleteGroup.successMessage"));
@@ -69,6 +75,7 @@ export default function DeleteGroupScreen() {
       // was the user's last group, otherwise their next remaining one.
       router.replace("/");
     } catch (e) {
+      submitGuardRef.current = false;
       setError(e instanceof Error && e.message ? e.message : t("deleteGroup.genericError"));
     }
   };

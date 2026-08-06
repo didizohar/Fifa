@@ -128,6 +128,12 @@ export default function SettingsScreen() {
           <Button label={t("settings.joinGroup")} variant="secondary" onPress={() => router.push("/group/join")} />
           <Button label={t("settings.logOut")} variant="danger" onPress={handleLogout} loading={isSigningOut} />
         </View>
+
+        <Card style={styles.dangerZoneCard}>
+          <Text style={styles.dangerZoneTitle}>{t("deleteAccount.entryButtonLabel")}</Text>
+          <Text style={styles.dangerZoneHint}>{t("settings.deleteAccountHint")}</Text>
+          <Button label={t("deleteAccount.entryButtonLabel")} variant="danger" onPress={() => router.push("/delete-account")} />
+        </Card>
       </ScrollView>
     </Screen>
   );
@@ -217,5 +223,17 @@ const styles = StyleSheet.create({
   actions: {
     gap: spacing.md,
     marginTop: spacing.md,
+  },
+  dangerZoneCard: {
+    gap: spacing.sm,
+    borderColor: colors.danger,
+  },
+  dangerZoneTitle: {
+    ...typography.heading,
+    color: colors.danger,
+  },
+  dangerZoneHint: {
+    ...typography.small,
+    color: colors.textSecondary,
   },
 });
