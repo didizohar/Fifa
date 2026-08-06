@@ -13,6 +13,12 @@ function looksLikeSession(value: unknown): value is WinnersStaySession {
   return typeof v.id === "string" && typeof v.groupId === "string" && typeof v.roundNumber === "number" && (v.status === "active" || v.status === "completed");
 }
 
+/** A session persisted before `format` existed (originally every session was the 4+/doubles "group" format) won't have the field -- default it here so the rest of the app can trust session.format is always defined, without a data migration. */
+function normalizeSession(session: WinnersStaySession): WinnersStaySession {
+  if (session.format === "duo" || session.format === "trio" || session.format === "group") return session;
+  return { ...session, format: "group" };
+}
+
 /**
  * AsyncStorage-backed persistence for one Winners Stay session per group --
  * same hydrate-on-mount / write-through pattern as GroupProvider's
@@ -48,7 +54,7 @@ export function useWinnersStaySession(groupId: string | null) {
         try {
           const parsed: unknown = JSON.parse(stored);
           if (looksLikeSession(parsed)) {
-            setSessionState(parsed);
+            setSessionState(normalizeSession(parsed));
           } else {
             setIsCorrupted(true);
             setSessionState(null);

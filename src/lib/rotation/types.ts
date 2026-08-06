@@ -6,9 +6,23 @@ export interface RotationPlayer {
   custom_color: string;
 }
 
-/** A pair currently on the field, plus how many matches in a row they've stayed -- reset to 0 the moment they rotate out, per Stage 7's "Winners Stay" spec. */
+/**
+ * A side currently on the field, plus how many matches in a row it's
+ * stayed -- reset to 0 the moment it rotates out, per Stage 7's "Winners
+ * Stay" spec. `players` is length 2 for the original doubles ("group",
+ * 4+ participants) format, or length 1 for the singles-based "duo"
+ * (exactly 2 participants) and "trio" (exactly 3) formats added later --
+ * every function here that only reads `.players`/`.consecutiveMatchesPlayed`
+ * generically (draw-rotation, undo, queue editing, summaries) already works
+ * for either size unchanged; only initial pairing and the rotation-entry
+ * logic need to know which size they're dealing with. Named ActivePair
+ * (not "ActiveSide") to avoid a pointless rename across every existing
+ * caller -- a length-1 "pair" reads oddly, but "side" pulled in from
+ * matches.ts already means something more specific (which club, which
+ * score) that doesn't fit here.
+ */
 export interface ActivePair {
-  players: [RotationPlayer, RotationPlayer];
+  players: RotationPlayer[];
   consecutiveMatchesPlayed: number;
 }
 
@@ -30,8 +44,8 @@ export interface RotationReason {
 }
 
 export interface WinnersStayRotationResult {
-  stayingPair: [RotationPlayer, RotationPlayer];
-  opposingPair: [RotationPlayer, RotationPlayer] | null;
+  stayingPair: RotationPlayer[];
+  opposingPair: RotationPlayer[] | null;
   waitingPlayers: WaitingQueueItem[];
   rotatedOutPlayers: RotationPlayer[];
   selectionSource: SelectionSource;
@@ -46,11 +60,20 @@ export type RandomFn = () => number;
 export type MatchResult = "sideA" | "sideB" | "draw";
 
 export interface RotationValidationIssue {
-  code: "notDoublesMatch" | "duplicatePlayer";
+  code: "sideSizeMismatch" | "duplicatePlayer";
   message: string;
 }
 
 export type WinnersStaySessionStatus = "active" | "completed";
+
+/**
+ * "duo" (exactly 2 participants): the same two players face off every
+ * round -- no waiting queue, no rotation, ever. "trio" (exactly 3): 1v1
+ * with exactly one player waiting, rotating via the same engine "group"
+ * uses, just with 1-player sides. "group" (4+): the original doubles
+ * format -- unchanged.
+ */
+export type SessionFormat = "duo" | "trio" | "group";
 
 /** Enough of the session to restore it verbatim -- session.ts's one-slot undo buffer. */
 export interface WinnersStaySessionSnapshot {
@@ -72,6 +95,8 @@ export interface WinnersStaySessionSnapshot {
 export interface WinnersStaySession {
   id: string;
   groupId: string;
+  /** Fixed for the lifetime of the session -- decided once, from the participant count, when the session starts. Determines how initial sides are drawn and how a round advances (see startWinnersStaySession/advanceWinnersStaySession). */
+  format: SessionFormat;
   /** Every player eligible for this session (the pool the rotation draws from) -- not necessarily still all "active" by the time the session ends. */
   activePlayerIds: string[];
   currentPairA: ActivePair;

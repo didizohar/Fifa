@@ -1,10 +1,12 @@
 import {
   acceptPendingRotation,
   addToQueue,
+  advanceDuoSession,
   advanceWinnersStaySession,
   canAdvanceSession,
   cleanupInactiveQueueEntries,
   computeSessionSummary,
+  drawInitialSingleSides,
   drawRandomInitialPairs,
   endSession,
   isMatchLinkedToActiveWinnersStaySession,
@@ -36,6 +38,7 @@ function freshSession(now = new Date(2026, 6, 27, 12), waiting = ["e", "f"]): Wi
   return startWinnersStaySession({
     id: "session-1",
     groupId: "group-1",
+    format: "group",
     pairA: [player("a"), player("b")],
     pairB: [player("c"), player("d")],
     waitingPlayers: waiting.map(player),
@@ -89,6 +92,7 @@ describe("startWinnersStaySession", () => {
     const session = startWinnersStaySession({
       id: "s",
       groupId: "g",
+      format: "group",
       pairA: [player("x"), player("y")],
       pairB: [player("z"), player("w")],
       waitingPlayers: [],
@@ -380,6 +384,174 @@ describe("endSession / computeSessionSummary", () => {
     session = advanceWinnersStaySession({ session, matchId: "m2", result: "sideA", playersById: playersById(ALL), activePlayerIds: ALL, now: new Date() });
     const summary = computeSessionSummary(session); // "a"+"b" have stayed 3 rounds and are still on court
     expect(summary.longestWinningRun).toBe(3);
+  });
+});
+
+describe("drawInitialSingleSides", () => {
+  it("splits exactly 2 players into two 1-player sides with nobody waiting", () => {
+    const { sideA, sideB, waiting } = drawInitialSingleSides([player("a"), player("b")], seededRandom([0.1]));
+    expect(sideA).toHaveLength(1);
+    expect(sideB).toHaveLength(1);
+    expect([...sideA, ...sideB].map((p) => p.id).sort()).toEqual(["a", "b"]);
+    expect(waiting).toEqual([]);
+  });
+
+  it("splits exactly 3 players into two 1-player sides plus exactly one waiting", () => {
+    const { sideA, sideB, waiting } = drawInitialSingleSides([player("a"), player("b"), player("c")], seededRandom([0.4]));
+    expect(sideA).toHaveLength(1);
+    expect(sideB).toHaveLength(1);
+    expect(waiting).toHaveLength(1);
+    expect([...sideA, ...sideB, ...waiting].map((p) => p.id).sort()).toEqual(["a", "b", "c"]);
+  });
+
+  it("throws for anything other than exactly 2 or 3 players", () => {
+    expect(() => drawInitialSingleSides([player("a")])).toThrow();
+    expect(() => drawInitialSingleSides([player("a"), player("b"), player("c"), player("d")])).toThrow();
+  });
+});
+
+describe("duo sessions (2 participants -- 1v1, no rotation ever)", () => {
+  function freshDuoSession(now = new Date(2026, 6, 27, 12)): WinnersStaySession {
+    return startWinnersStaySession({
+      id: "duo-session",
+      groupId: "group-1",
+      format: "duo",
+      pairA: [player("a")],
+      pairB: [player("b")],
+      waitingPlayers: [],
+      activePlayerIds: ["a", "b"],
+      now,
+    });
+  }
+
+  it("starts with a 1-player side each, no waiting queue, and format 'duo'", () => {
+    const session = freshDuoSession();
+    expect(session.format).toBe("duo");
+    expect(session.currentPairA.players.map((p) => p.id)).toEqual(["a"]);
+    expect(session.currentPairB!.players.map((p) => p.id)).toEqual(["b"]);
+    expect(session.waitingQueue).toEqual([]);
+  });
+
+  it("advanceDuoSession never changes who's playing -- same two players every round", () => {
+    const session = freshDuoSession();
+    const advanced = advanceDuoSession(session, "m1", new Date());
+    expect(advanced.currentPairA.players.map((p) => p.id)).toEqual(["a"]);
+    expect(advanced.currentPairB!.players.map((p) => p.id)).toEqual(["b"]);
+    expect(advanced.waitingQueue).toEqual([]);
+    expect(advanced.pendingRotation).toBeNull();
+    expect(advanced.roundNumber).toBe(1);
+    expect(advanced.lastRecordedMatchId).toBe("m1");
+  });
+
+  it("tracks consecutive-matches streaks across many rounds even though nobody ever rotates out", () => {
+    let session = freshDuoSession();
+    for (const matchId of ["m1", "m2", "m3"]) {
+      session = advanceDuoSession(session, matchId, new Date());
+    }
+    expect(session.currentPairA.consecutiveMatchesPlayed).toBe(4); // started at 1, +3 rounds
+    expect(session.roundNumber).toBe(3);
+    expect(session.longestWinningRun).toBe(4);
+  });
+
+  it("is idempotent per matchId, same as the group engine", () => {
+    const session = freshDuoSession();
+    const advanced = advanceDuoSession(session, "m1", new Date());
+    expect(canAdvanceSession(advanced, "m1")).toBe(false);
+    expect(() => advanceDuoSession(advanced, "m1", new Date())).toThrow();
+  });
+
+  it("refuses to advance a non-duo session, and refuses to advance a duo session via the group engine", () => {
+    const groupSession = freshSession();
+    expect(() => advanceDuoSession(groupSession, "m1", new Date())).toThrow();
+
+    const duoSession = freshDuoSession();
+    expect(() => advanceWinnersStaySession({ session: duoSession, matchId: "m1", result: "sideA", playersById: playersById(["a", "b"]), activePlayerIds: ["a", "b"], now: new Date() })).toThrow();
+  });
+
+  it("undoLastRotation reverts a duo round exactly like a group round", () => {
+    const session = freshDuoSession();
+    const advanced = advanceDuoSession(session, "m1", new Date());
+    const undone = undoLastRotation(advanced, new Date());
+    expect(undone.currentPairA).toEqual(session.currentPairA);
+    expect(undone.roundNumber).toBe(0);
+    expect(undone.lastRecordedMatchId).toBeNull();
+  });
+});
+
+describe("trio sessions (3 participants -- 1v1 with exactly one waiting)", () => {
+  function freshTrioSession(waiting = ["c"], now = new Date(2026, 6, 27, 12)): WinnersStaySession {
+    return startWinnersStaySession({
+      id: "trio-session",
+      groupId: "group-1",
+      format: "trio",
+      pairA: [player("a")],
+      pairB: [player("b")],
+      waitingPlayers: waiting.map(player),
+      activePlayerIds: ["a", "b", "c"],
+      now,
+    });
+  }
+
+  it("starts with a 1-player side each and exactly one player waiting", () => {
+    const session = freshTrioSession();
+    expect(session.format).toBe("trio");
+    expect(session.waitingQueue.map((q) => q.playerId)).toEqual(["c"]);
+  });
+
+  it("after a match, the single waiting player enters directly (no random-partner mixing, since sideSize is 1)", () => {
+    const session = freshTrioSession();
+    const advanced = advanceWinnersStaySession({ session, matchId: "m1", result: "sideA", playersById: playersById(["a", "b", "c"]), activePlayerIds: ["a", "b", "c"], now: new Date() });
+    expect(advanced.pendingRotation!.selectionSource).toBe("waitingQueue");
+    expect(advanced.pendingRotation!.opposingPair).toEqual([playersById(["a", "b", "c"])!.c]);
+  });
+
+  it("winner remains, loser rotates to waiting, waiting player enters -- exactly one player waits at all times", () => {
+    let session = freshTrioSession();
+    const byId = playersById(["a", "b", "c"]);
+
+    session = advanceWinnersStaySession({ session, matchId: "m1", result: "sideA", playersById: byId, activePlayerIds: ["a", "b", "c"], now: new Date() });
+    session = acceptPendingRotation(session, new Date());
+    // "a" won and stays, "b" lost and now waits, "c" entered.
+    expect(session.currentPairA.players.map((p) => p.id)).toEqual(["a"]);
+    expect(session.currentPairB!.players.map((p) => p.id)).toEqual(["c"]);
+    expect(session.waitingQueue.map((q) => q.playerId)).toEqual(["b"]);
+
+    session = advanceWinnersStaySession({ session, matchId: "m2", result: "sideB", playersById: byId, activePlayerIds: ["a", "b", "c"], now: new Date() });
+    session = acceptPendingRotation(session, new Date());
+    // "c" won this time and stays, "a" lost and now waits, "b" re-enters.
+    expect(session.currentPairA.players.map((p) => p.id)).toEqual(["c"]);
+    expect(session.currentPairB!.players.map((p) => p.id)).toEqual(["b"]);
+    expect(session.waitingQueue.map((q) => q.playerId)).toEqual(["a"]);
+
+    // Never active AND waiting simultaneously, never duplicated, exactly one waiting throughout.
+    const onCourt = new Set([...session.currentPairA.players.map((p) => p.id), ...session.currentPairB!.players.map((p) => p.id)]);
+    const waiting = new Set(session.waitingQueue.map((q) => q.playerId));
+    expect([...onCourt].every((id) => !waiting.has(id))).toBe(true);
+    expect(onCourt.size + waiting.size).toBe(3);
+  });
+
+  it("a draw preserves the existing draw-handling rule (fewer consecutive matches stays) unchanged for 1-player sides", () => {
+    let session = freshTrioSession();
+    const byId = playersById(["a", "b", "c"]);
+    session = advanceWinnersStaySession({ session, matchId: "m1", result: "sideA", playersById: byId, activePlayerIds: ["a", "b", "c"], now: new Date() });
+    session = acceptPendingRotation(session, new Date());
+    // currentPairA ("a") now has consecutiveMatchesPlayed 2; currentPairB ("c") has 1.
+    session = advanceWinnersStaySession({ session, matchId: "m2", result: "draw", playersById: byId, activePlayerIds: ["a", "b", "c"], now: new Date() });
+    expect(session.currentPairA.players.map((p) => p.id)).toEqual(["c"]); // fewer consecutive matches
+    expect(session.pendingRotation!.drawRotationApplied).toBe(true);
+  });
+
+  it("never creates a 2v2 match -- every side stays exactly 1 player throughout", () => {
+    let session = freshTrioSession();
+    const byId = playersById(["a", "b", "c"]);
+    for (let i = 0; i < 4; i++) {
+      session = advanceWinnersStaySession({ session, matchId: `m${i}`, result: i % 2 === 0 ? "sideA" : "sideB", playersById: byId, activePlayerIds: ["a", "b", "c"], now: new Date() });
+      expect(session.pendingRotation!.stayingPair).toHaveLength(1);
+      if (session.pendingRotation!.opposingPair) expect(session.pendingRotation!.opposingPair).toHaveLength(1);
+      session = acceptPendingRotation(session, new Date());
+      expect(session.currentPairA.players).toHaveLength(1);
+      expect(session.currentPairB!.players).toHaveLength(1);
+    }
   });
 });
 

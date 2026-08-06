@@ -12,23 +12,32 @@ import type {
 } from "./types";
 
 /**
- * Pre-flight integrity check for the two pairs about to play -- catches
- * programmer errors (a singles match handed to a doubles-only rotation
- * mode, the same player appearing on both sides) that generateWinnersStayRotation
- * refuses to silently paper over. Data-hygiene issues that CAN legitimately
- * occur at runtime (a stale winner still sitting in the waiting queue, an
- * archived/deleted player in it) are handled separately and gracefully by
- * generateWinnersStayRotation/updateWaitingQueue instead of failing here.
+ * Pre-flight integrity check for the two sides about to play -- catches
+ * programmer errors (a match type that doesn't match the sides' actual
+ * size, the same player appearing on both sides) that
+ * generateWinnersStayRotation refuses to silently paper over. Data-hygiene
+ * issues that CAN legitimately occur at runtime (a stale winner still
+ * sitting in the waiting queue, an archived/deleted player in it) are
+ * handled separately and gracefully by generateWinnersStayRotation/
+ * updateWaitingQueue instead of failing here.
+ *
+ * Both sides must be the same size, and that size must match matchType:
+ * 1 player per side <-> "singles" (the "duo"/"trio" session formats), 2
+ * per side <-> "doubles" (the original "group" format). Nothing here
+ * assumes which specific size is "correct" -- a caller passing mismatched
+ * sides or the wrong matchType for their size is what this catches.
  */
 export function validateRotation(input: { matchType: MatchType; sideA: ActivePair; sideB: ActivePair }): RotationValidationIssue[] {
   const issues: RotationValidationIssue[] = [];
-  if (input.matchType !== "doubles") {
-    issues.push({ code: "notDoublesMatch", message: "Winners Stay only applies to doubles matches." });
+  const sideSize = input.sideA.players.length;
+  const expectedMatchType: MatchType = sideSize === 1 ? "singles" : "doubles";
+  if (input.sideB.players.length !== sideSize || input.matchType !== expectedMatchType) {
+    issues.push({ code: "sideSizeMismatch", message: "Winners Stay requires both sides to be the same size, matching the session's match type." });
   }
 
   const allIds = [...input.sideA.players, ...input.sideB.players].map((p) => p.id);
   if (new Set(allIds).size !== allIds.length) {
-    issues.push({ code: "duplicatePlayer", message: "The same player appears more than once across the two pairs." });
+    issues.push({ code: "duplicatePlayer", message: "The same player appears more than once across the two sides." });
   }
 
   return issues;
@@ -102,8 +111,8 @@ export function incrementConsecutiveMatches(pair: ActivePair): ActivePair {
   return { ...pair, consecutiveMatchesPlayed: pair.consecutiveMatchesPlayed + 1 };
 }
 
-/** A freshly-entered pair always starts at 1 (this match counts as their first), per Stage 7's spec. */
-export function startingConsecutiveMatches(players: [RotationPlayer, RotationPlayer]): ActivePair {
+/** A freshly-entered side always starts at 1 (this match counts as their first), per Stage 7's spec. Works for a 1-player side (duo/trio) exactly the same as a 2-player pair (group). */
+export function startingConsecutiveMatches(players: RotationPlayer[]): ActivePair {
   return { players, consecutiveMatchesPlayed: 1 };
 }
 
@@ -123,18 +132,24 @@ export interface GenerateRotationInput {
 }
 
 /**
- * The core "Winners Stay" rule, one rotation at a time:
- *  - the winning pair (or, on a draw, whichever pair has played fewer
+ * The core "Winners Stay" rule, one rotation at a time. sideA/sideB's own
+ * size (1 or 2 players) decides which format this call is for -- the
+ * SAME logic serves "trio" (1-player sides) and "group" (2-player sides,
+ * the original behavior, unchanged):
+ *  - the winning side (or, on a draw, whichever side has played fewer
  *    consecutive matches -- resolveDrawRotation) always stays, never split
- *  - two waiting players (longest-waiting first) enter together when
- *    available: Cases 1 and 3
- *  - exactly one waiting player enters and is randomly paired with ONE
- *    player from the losing pair when only one is waiting: Case 2
+ *  - a full side's worth of waiting players (longest-waiting first) enters
+ *    together when enough are available: Cases 1 and 3 (for a 1-player
+ *    side, this is simply "the one longest-waiting player enters")
+ *  - for a 2-player side specifically, exactly one waiting player enters
+ *    and is randomly paired with ONE player from the losing pair when only
+ *    one is waiting: Case 2 -- structurally impossible for a 1-player side
+ *    (there's nothing to partially replace)
  *  - nothing rotates (opposingPair is null) when nobody is waiting: Case 4
- * Throws only for programmer errors (see validateRotation) -- a singles
- * match or a duplicate player id across the two pairs. Everything else
- * (a stale winner or archived/deleted player already in the queue) is
- * sanitized rather than treated as fatal.
+ * Throws only for programmer errors (see validateRotation) -- a side-size/
+ * matchType mismatch or a duplicate player id across the two sides.
+ * Everything else (a stale winner or archived/deleted player already in
+ * the queue) is sanitized rather than treated as fatal.
  */
 export function generateWinnersStayRotation(input: GenerateRotationInput): WinnersStayRotationResult {
   const random = input.random ?? Math.random;
@@ -160,7 +175,12 @@ export function generateWinnersStayRotation(input: GenerateRotationInput): Winne
   // archived/deleted player shouldn't linger in a stale queue either.
   const sanitizedQueue = input.waitingQueue.filter((item) => !stayingIds.includes(item.playerId) && input.activePlayerIds.includes(item.playerId));
 
-  const availableWaiting = selectWaitingPlayers(sanitizedQueue, 2);
+  // The number of players a side needs -- 2 for the original doubles
+  // ("group") format, 1 for the singles-based "duo"/"trio" formats.
+  // validateRotation above already guarantees sideA/sideB match, so either
+  // one is a valid source for this.
+  const sideSize = staying.players.length;
+  const availableWaiting = selectWaitingPlayers(sanitizedQueue, sideSize);
 
   if (availableWaiting.length === 0) {
     // Case 4: nobody waiting -- no automatic next match, nothing rotates.
@@ -175,29 +195,41 @@ export function generateWinnersStayRotation(input: GenerateRotationInput): Winne
     };
   }
 
-  let opposingPair: [RotationPlayer, RotationPlayer];
+  let opposingPair: RotationPlayer[];
   let selectionSource: SelectionSource;
   let rotatedOutPlayers: RotationPlayer[];
   let selectedQueueEntries: WaitingQueueItem[];
   let reason: RotationReason;
 
-  if (availableWaiting.length === 1) {
-    // Case 2: one waiting player, randomly paired with one loser (never a winner).
+  if (availableWaiting.length < sideSize) {
+    // Case 2: fewer waiting players than a side needs. Only reachable when
+    // sideSize is 2 (a 1-player side can never have 0 < n < 1 waiting) --
+    // one waiting player enters, randomly paired with one player from the
+    // losing PAIR (never a winner). rotatingOut.players is therefore
+    // guaranteed to be exactly [loser1, loser2] here, safe to treat as a
+    // pair despite the widened RotationPlayer[] type.
     const waitingPlayer = input.playersById[availableWaiting[0]!.playerId]!;
-    const { selected, remaining } = selectRandomLosingPlayer(rotatingOut.players, random);
+    const { selected, remaining } = selectRandomLosingPlayer(rotatingOut.players as [RotationPlayer, RotationPlayer], random);
     opposingPair = [waitingPlayer, selected];
     rotatedOutPlayers = [remaining];
     selectedQueueEntries = availableWaiting;
     selectionSource = "randomFromLosers";
     reason = { key: "rotation.reasonRandomPartner", params: { waitingName: waitingPlayer.display_name, partnerName: selected.display_name } };
   } else {
-    // Cases 1 & 3: two waiting players (longest-waiting first) enter together; both losers rotate out.
-    const [first, second] = availableWaiting as [WaitingQueueItem, WaitingQueueItem];
-    opposingPair = [input.playersById[first.playerId]!, input.playersById[second.playerId]!];
+    // Cases 1 & 3 (sideSize 2): two waiting players (longest-waiting first)
+    // enter together, both losers rotate out. Generalizes cleanly to
+    // sideSize 1 (trio): the single longest-waiting player enters directly,
+    // replacing the single loser -- no "mixing" ever needed there, since a
+    // 1-player side is never partially replaceable.
+    const entering = availableWaiting.slice(0, sideSize);
+    opposingPair = entering.map((entry) => input.playersById[entry.playerId]!);
     rotatedOutPlayers = rotatingOut.players;
-    selectedQueueEntries = [first, second];
+    selectedQueueEntries = entering;
     selectionSource = "waitingQueue";
-    reason = { key: "rotation.reasonWaitingEnter", params: { firstName: opposingPair[0].display_name, secondName: opposingPair[1].display_name } };
+    reason =
+      entering.length === 1
+        ? { key: "rotation.reasonWaitingEnterSingle", params: { name: opposingPair[0]!.display_name } }
+        : { key: "rotation.reasonWaitingEnter", params: { firstName: opposingPair[0]!.display_name, secondName: opposingPair[1]!.display_name } };
   }
 
   const waitingPlayers = updateWaitingQueue({

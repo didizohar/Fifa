@@ -14,8 +14,8 @@ import { useTranslation } from "../../src/lib/i18n";
 import { archiveCompletedSession } from "../../src/lib/rotation/sessionHistory";
 import { colors, radius, spacing, typography } from "../../src/theme";
 
-/** Same "enough players to actually run a session" floor Winners Stay's own setup screen already enforces (2 pairs minimum). */
-const MIN_PARTICIPANTS = 4;
+/** Same floor Winners Stay's own setup screen enforces -- a session needs at least two players (duo). Three supports the "one waits" trio format; four or more is the original group/doubles format. */
+const MIN_PARTICIPANTS = 2;
 
 export default function StartEveningScreen() {
   const router = useRouter();
@@ -52,7 +52,14 @@ export default function StartEveningScreen() {
    */
   const clearSessionSlot = async () => {
     if (!session || session.groupId !== currentGroupId) return;
-    setSessionHistory(archiveCompletedSession(sessionHistory, session, new Date().toISOString()));
+    // A session with zero recorded matches (roundNumber === 0) is only ever
+    // a local draft -- participant selection alone, per Task 3's "a session
+    // is real only once it has a saved match" rule. Archiving it would
+    // pollute "Past Sessions" with an empty entry, so it's silently
+    // discarded instead.
+    if (session.roundNumber > 0) {
+      setSessionHistory(archiveCompletedSession(sessionHistory, session, new Date().toISOString()));
+    }
     await setSession(null);
   };
 
@@ -103,7 +110,13 @@ export default function StartEveningScreen() {
     processingGuardRef.current = true;
     setIsProcessing(true);
     try {
-      if (session && session.status === "active" && session.groupId === currentGroupId) {
+      // Only resume a session that's actually recorded a match -- an active
+      // session with roundNumber 0 is a local draft (participants picked,
+      // nothing played yet), not a valid "previous session" to continue.
+      // Falling through below discards it (clearSessionSlot) and instead
+      // rebuilds from the last participant list that WAS captured after a
+      // real match saved (see winners-stay.tsx's advance-session effect).
+      if (session && session.status === "active" && session.roundNumber > 0 && session.groupId === currentGroupId) {
         router.replace("/winners-stay");
         return;
       }

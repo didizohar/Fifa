@@ -19,6 +19,7 @@ function session(overrides: Partial<WinnersStaySession> = {}): WinnersStaySessio
   return {
     id: "session-1",
     groupId: "group-1",
+    format: "group",
     activePlayerIds: ["a", "b", "c", "d"],
     currentPairA: pair("a", "b", 3),
     currentPairB: null,

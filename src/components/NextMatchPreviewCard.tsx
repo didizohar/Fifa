@@ -73,7 +73,7 @@ export function NextMatchPreviewCard({ result, playersById, labels, explanation,
   );
 }
 
-function PairRow({ label, players }: { label: string; players: [RotationPlayer, RotationPlayer] }) {
+function PairRow({ label, players }: { label: string; players: RotationPlayer[] }) {
   return (
     <View style={styles.pairRow}>
       <Text style={styles.pairLabel}>{label}</Text>

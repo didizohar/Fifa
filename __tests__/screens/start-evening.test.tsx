@@ -283,13 +283,27 @@ describe("Continue Previous Session -- one explicit rule, never a coin flip", ()
   });
 
   it("drops archived/deleted players, notifies, and falls back to plain selection when too few valid players remain", async () => {
-    mockParticipantIds = ["p1", "p2", "p3", "p_deleted"];
+    // Only "p1" survives filtering -- below the 2-player (duo) floor.
+    mockParticipantIds = ["p1", "p_deleted1", "p_deleted2"];
     mockSession = makeSession({ id: "completed-id", groupId: "group-1", status: "completed" })
     const renderer = renderScreen();
     await tapContinue(renderer);
 
     expect(mockNotify).toHaveBeenCalledWith("rotation.startEveningPlayersRemovedNotice");
     expect(mockRouter.replace).toHaveBeenCalledWith("/winners-stay");
+  });
+
+  it("continues with exactly the 2-player (duo) floor when only two valid previous participants remain", async () => {
+    mockParticipantIds = ["p1", "p2", "p_deleted"];
+    mockSession = makeSession({ id: "completed-id", groupId: "group-1", status: "completed" })
+    const renderer = renderScreen();
+    await tapContinue(renderer);
+
+    expect(mockNotify).toHaveBeenCalledWith("rotation.startEveningPlayersRemovedNotice");
+    expect(mockRouter.replace).toHaveBeenCalledWith({
+      pathname: "/winners-stay",
+      params: { preselectPlayerIds: "p1,p2" },
+    });
   });
 
   it("continues with the filtered list when enough valid players remain after dropping archived ones", async () => {
@@ -333,6 +347,40 @@ describe("Continue Previous Session -- one explicit rule, never a coin flip", ()
     });
     expect(mockSetSession).toHaveBeenCalledTimes(1);
     expect(mockRouter.replace).toHaveBeenCalledTimes(1);
+  });
+
+  it("most recent session is ACTIVE but has recorded zero matches (an abandoned draft): does NOT resume it -- discards it and creates a fresh session from the last real participant list instead", async () => {
+    mockParticipantIds = ["p1", "p2", "p3", "p4"]; // captured by the LAST session that actually recorded a match
+    mockSession = makeSession({ id: "draft-id", groupId: "group-1", status: "active", roundNumber: 0 });
+    const renderer = renderScreen();
+    await tapContinue(renderer);
+
+    // The draft is discarded (cleared), not resumed -- and per the next
+    // test, discarding a zero-match draft must not archive it either.
+    expect(mockSetSession).toHaveBeenCalledWith(null);
+    expect(mockRouter.replace).toHaveBeenCalledWith({
+      pathname: "/winners-stay",
+      params: { preselectPlayerIds: "p1,p2,p3,p4" },
+    });
+  });
+
+  it("New Session: discarding an existing ACTIVE zero-match draft does NOT archive it into session history", async () => {
+    mockSession = makeSession({ id: "draft-id", groupId: "group-1", status: "active", roundNumber: 0 });
+    const renderer = renderScreen();
+    await tapNewSession(renderer);
+
+    expect(mockSetHistory).not.toHaveBeenCalled();
+    expect(mockSetSession).toHaveBeenCalledWith(null);
+    expect(mockRouter.replace).toHaveBeenCalledWith("/winners-stay");
+  });
+
+  it("Continue: discarding an active zero-match draft (falling through, not resuming) does NOT archive it into session history", async () => {
+    mockParticipantIds = ["p1", "p2", "p3", "p4"];
+    mockSession = makeSession({ id: "draft-id", groupId: "group-1", status: "active", roundNumber: 0 });
+    const renderer = renderScreen();
+    await tapContinue(renderer);
+
+    expect(mockSetHistory).not.toHaveBeenCalled();
   });
 
   it("awaits the clear before navigating when the most recent session is completed (same race protection as New Session)", async () => {

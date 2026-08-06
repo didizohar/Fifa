@@ -24,10 +24,12 @@ import { toPickablePlayer } from "../../src/lib/players";
 import {
   acceptPendingRotation,
   addToQueue,
+  advanceDuoSession,
   advanceWinnersStaySession,
   canAdvanceSession,
   cleanupInactiveQueueEntries,
   computeSessionSummary,
+  drawInitialSingleSides,
   drawRandomInitialPairs,
   endSession,
   moveQueueEntry,
@@ -39,7 +41,7 @@ import {
 } from "../../src/lib/rotation/session";
 import { archiveCompletedSession } from "../../src/lib/rotation/sessionHistory";
 import { computeSessionInsights } from "../../src/lib/rotation/sessionInsights";
-import type { MatchResult, RotationPlayer, WinnersStaySession } from "../../src/lib/rotation/types";
+import type { MatchResult, RotationPlayer, SessionFormat, WinnersStaySession } from "../../src/lib/rotation/types";
 import { colors, radius, spacing, typography } from "../../src/theme";
 
 function toRotationPlayer(p: MatchSidePlayer): RotationPlayer {
@@ -112,8 +114,31 @@ export default function WinnersStayScreen() {
 
   // Advance the session exactly once per new recorded match id.
   useEffect(() => {
-    if (!matchId || !session || !matchQuery.data || matchQuery.data.match_type !== "doubles") return;
+    if (!matchId || !session || !matchQuery.data) return;
+    const expectedMatchType = session.format === "group" ? "doubles" : "singles";
+    if (matchQuery.data.match_type !== expectedMatchType) return;
     if (!canAdvanceSession(session, matchId)) return;
+
+    // Task 3: a session only becomes "real" -- eligible for Continue
+    // Previous Session, session history, etc. -- once its first match has
+    // actually been saved. This is exactly that moment (roundNumber is
+    // still 0, about to become 1), so the participant snapshot is captured
+    // here and NOT at session-start time (see handleStartSession, which
+    // deliberately skips this). Read from the pre-advance session so this
+    // reflects the session's ORIGINAL starting lineup, not whatever the
+    // rotation has since shuffled currentPairA/currentPairB/waitingQueue into.
+    if (session.roundNumber === 0) {
+      setLastParticipants([
+        ...session.currentPairA.players.map((p) => p.id),
+        ...(session.currentPairB?.players.map((p) => p.id) ?? []),
+        ...session.waitingQueue.map((q) => q.playerId),
+      ]);
+    }
+
+    if (session.format === "duo") {
+      setSession(advanceDuoSession(session, matchId, new Date()));
+      return;
+    }
 
     const [side1, side2] = matchQuery.data.sides;
     const result: MatchResult = side1.result === "win" ? "sideA" : side2.result === "win" ? "sideB" : "draw";
@@ -182,10 +207,13 @@ export default function WinnersStayScreen() {
   const handleBackToHome = () => {
     if (hasHandledBackToHomeRef.current) return;
     hasHandledBackToHomeRef.current = true;
-    if (session) {
+    if (session && session.roundNumber > 0) {
       // Archive first so the completed session's summary stays reachable
       // via history, THEN clear the active slot -- never the other way
       // around, or a crash between the two steps would lose the summary.
+      // A session with zero recorded matches (roundNumber === 0) is only
+      // ever a local draft -- per Task 3 it must never appear in session
+      // history, so it's silently discarded instead of archived.
       setSessionHistory(archiveCompletedSession(sessionHistory, session, new Date().toISOString()));
     }
     setSession(null);
@@ -211,7 +239,8 @@ export default function WinnersStayScreen() {
   const handleStartNewSession = () => {
     if (hasHandledStartNewRef.current) return;
     hasHandledStartNewRef.current = true;
-    if (session) {
+    // Same zero-match-draft guard as handleBackToHome above.
+    if (session && session.roundNumber > 0) {
       setSessionHistory(archiveCompletedSession(sessionHistory, session, new Date().toISOString()));
     }
     setSession(null);
@@ -241,11 +270,12 @@ export default function WinnersStayScreen() {
     );
   }
 
-  const handleStartSession = (pairA: [RotationPlayer, RotationPlayer], pairB: [RotationPlayer, RotationPlayer], waiting: RotationPlayer[]) => {
+  const handleStartSession = (pairA: RotationPlayer[], pairB: RotationPlayer[], waiting: RotationPlayer[], format: SessionFormat) => {
     if (!currentGroupId) return;
     const started = startWinnersStaySession({
       id: newSessionId(),
       groupId: currentGroupId,
+      format,
       pairA,
       pairB,
       waitingPlayers: waiting,
@@ -253,31 +283,45 @@ export default function WinnersStayScreen() {
       now: new Date(),
     });
     setSession(started);
-    // Captured independently of session archiving/history -- this is what
-    // "Continue Previous Session" reads later, regardless of whether this
-    // session ever gets formally ended.
-    setLastParticipants([...pairA, ...pairB, ...waiting].map((p) => p.id));
-    router.push({ pathname: "/record-match", params: { ...buildMatchPrefillParams("doubles", [pairA, pairB], null), source: "winnersStay" } });
+    // Deliberately NOT calling setLastParticipants here -- see the "advance
+    // session" effect above. Task 3: a session (and its participant list)
+    // only becomes what "Continue Previous Session" can resume once its
+    // first match is actually saved, not merely started -- otherwise an
+    // abandoned zero-match draft would silently become the "previous
+    // session" the moment its participants were picked.
+    const matchType = format === "group" ? "doubles" : "singles";
+    router.push({ pathname: "/record-match", params: { ...buildMatchPrefillParams(matchType, [pairA, pairB], null), source: "winnersStay" } });
   };
 
   const handleStartRandom = () => {
     const pool = selectedPoolIds.map((id) => playersById[id]).filter((p): p is RotationPlayer => !!p);
-    if (pool.length < 4) return;
+    if (pool.length < 2) return;
+    if (pool.length < 4) {
+      const { sideA, sideB, waiting } = drawInitialSingleSides(pool);
+      handleStartSession(sideA, sideB, waiting, pool.length === 2 ? "duo" : "trio");
+      return;
+    }
     const { pairA, pairB, waiting } = drawRandomInitialPairs(pool);
-    handleStartSession(pairA, pairB, waiting);
+    handleStartSession(pairA, pairB, waiting, "group");
   };
 
   const handleStartManual = () => {
     if (manualPairAIds.length !== 2 || manualPairBIds.length !== 2) return;
-    const pairA = manualPairAIds.map((id) => playersById[id]!) as [RotationPlayer, RotationPlayer];
-    const pairB = manualPairBIds.map((id) => playersById[id]!) as [RotationPlayer, RotationPlayer];
+    const pairA = manualPairAIds.map((id) => playersById[id]!);
+    const pairB = manualPairBIds.map((id) => playersById[id]!);
     const waitingIds = selectedPoolIds.filter((id) => !manualPairAIds.includes(id) && !manualPairBIds.includes(id));
-    handleStartSession(pairA, pairB, waitingIds.map((id) => playersById[id]!));
+    handleStartSession(pairA, pairB, waitingIds.map((id) => playersById[id]!), "group");
   };
 
   if (!session || session.status === "completed") {
     const summary = session ? computeSessionSummary(session) : null;
     const pickablePool = (roster.data ?? []).map(toPickablePlayer);
+    // Manual pairing only makes sense once there are two full pairs to
+    // choose (4+ players) -- for 2/3 selected players the format is fixed
+    // (duo/trio), so the segmented control is hidden and this always
+    // resolves to "random" regardless of any stale manual selection left
+    // over from a previous, larger selection.
+    const effectivePairMode = selectedPoolIds.length >= 4 ? pairMode : "random";
 
     return (
       <Screen>
@@ -365,17 +409,25 @@ export default function WinnersStayScreen() {
             <Text style={styles.body}>{t("rotation.selectPlayersMessage")}</Text>
             <PlayerPicker players={pickablePool} selectedIds={selectedPoolIds} onToggle={(id) => setSelectedPoolIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))} maxSelected={pickablePool.length} />
 
-            <Text style={styles.subLabel}>{t("rotation.initialPairMode")}</Text>
-            <SegmentedControl
-              options={[
-                { value: "random", label: t("rotation.randomPairs") },
-                { value: "manual", label: t("rotation.manualPairs") },
-              ]}
-              value={pairMode}
-              onChange={setPairMode}
-            />
+            {selectedPoolIds.length >= 4 ? (
+              <>
+                <Text style={styles.subLabel}>{t("rotation.initialPairMode")}</Text>
+                <SegmentedControl
+                  options={[
+                    { value: "random", label: t("rotation.randomPairs") },
+                    { value: "manual", label: t("rotation.manualPairs") },
+                  ]}
+                  value={pairMode}
+                  onChange={setPairMode}
+                />
+              </>
+            ) : null}
 
-            {pairMode === "manual" && selectedPoolIds.length >= 4 ? (
+            {selectedPoolIds.length === 2 || selectedPoolIds.length === 3 ? (
+              <InfoBanner tone="info" message={t(selectedPoolIds.length === 2 ? "rotation.formatLabelDuo" : "rotation.formatLabelTrio")} />
+            ) : null}
+
+            {effectivePairMode === "manual" && selectedPoolIds.length >= 4 ? (
               <>
                 <Text style={styles.subLabel}>{t("rotation.winningPairLabel")} A</Text>
                 <PlayerPicker
@@ -396,12 +448,12 @@ export default function WinnersStayScreen() {
               </>
             ) : null}
 
-            {selectedPoolIds.length < 4 ? <InfoBanner tone="warning" message={t("rotation.notEnoughSelected")} /> : null}
+            {selectedPoolIds.length < 2 ? <InfoBanner tone="warning" message={t("rotation.notEnoughSelected")} /> : null}
 
             <Button
               label={t("rotation.startSession")}
-              disabled={selectedPoolIds.length < 4 || (pairMode === "manual" && (manualPairAIds.length !== 2 || manualPairBIds.length !== 2))}
-              onPress={pairMode === "random" ? handleStartRandom : handleStartManual}
+              disabled={selectedPoolIds.length < 2 || (effectivePairMode === "manual" && (manualPairAIds.length !== 2 || manualPairBIds.length !== 2))}
+              onPress={effectivePairMode === "random" ? handleStartRandom : handleStartManual}
             />
             <Button label={t("rotation.moreDrawOptions")} variant="ghost" size="sm" onPress={() => router.push("/draw")} />
           </Card>
@@ -417,9 +469,10 @@ export default function WinnersStayScreen() {
     if (!session.pendingRotation?.opposingPair) return;
     const accepted = acceptPendingRotation(session, new Date());
     setSession(accepted);
+    const matchType = session.format === "group" ? "doubles" : "singles";
     router.push({
       pathname: "/record-match",
-      params: { ...buildMatchPrefillParams("doubles", [accepted.currentPairA.players, accepted.currentPairB!.players], null), source: "winnersStay" },
+      params: { ...buildMatchPrefillParams(matchType, [accepted.currentPairA.players, accepted.currentPairB!.players], null), source: "winnersStay" },
     });
   };
 
@@ -435,9 +488,10 @@ export default function WinnersStayScreen() {
 
   const handleRecordCurrentMatch = () => {
     if (!session.currentPairB) return;
+    const matchType = session.format === "group" ? "doubles" : "singles";
     router.push({
       pathname: "/record-match",
-      params: { ...buildMatchPrefillParams("doubles", [session.currentPairA.players, session.currentPairB.players], null), source: "winnersStay" },
+      params: { ...buildMatchPrefillParams(matchType, [session.currentPairA.players, session.currentPairB.players], null), source: "winnersStay" },
     });
   };
 
@@ -492,62 +546,69 @@ export default function WinnersStayScreen() {
           </Card>
         )}
 
-        <Card style={styles.queueCard}>
-          <View style={styles.queueHeader}>
-            <Text style={styles.subLabel}>{t("rotation.waitingQueueLabel")}</Text>
-            <Text style={styles.linkAction} onPress={() => setIsEditingQueue((prev) => !prev)}>
-              {isEditingQueue ? t("rotation.doneEditingQueue") : t("rotation.editQueue")}
-            </Text>
-          </View>
+        {session.format !== "duo" ? (
+          <Card style={styles.queueCard}>
+            <View style={styles.queueHeader}>
+              <Text style={styles.subLabel}>{t("rotation.waitingQueueLabel")}</Text>
+              <Text style={styles.linkAction} onPress={() => setIsEditingQueue((prev) => !prev)}>
+                {isEditingQueue ? t("rotation.doneEditingQueue") : t("rotation.editQueue")}
+              </Text>
+            </View>
 
-          {queuePlayers.length === 0 ? (
-            <Text style={styles.body}>{t("rotation.emptyQueueMessage")}</Text>
-          ) : (
-            queuePlayers.map(({ item, player }, index) => (
-              <View key={item.playerId} style={styles.queueRow}>
-                <Text style={styles.queuePosition}>{index + 1}</Text>
-                <Text style={styles.queueName} numberOfLines={1}>
-                  {player.display_name}
-                </Text>
-                {isEditingQueue ? (
-                  <View style={styles.queueActions}>
-                    <Text
-                      style={[styles.linkAction, index === 0 && styles.linkActionDisabled]}
-                      onPress={() => index > 0 && setSession({ ...session, waitingQueue: moveQueueEntry(session.waitingQueue, item.playerId, "up") })}
-                    >
-                      {t("rotation.moveUp")}
-                    </Text>
-                    <Text
-                      style={[styles.linkAction, index === queuePlayers.length - 1 && styles.linkActionDisabled]}
-                      onPress={() => index < queuePlayers.length - 1 && setSession({ ...session, waitingQueue: moveQueueEntry(session.waitingQueue, item.playerId, "down") })}
-                    >
-                      {t("rotation.moveDown")}
-                    </Text>
-                    <Text style={styles.linkActionDanger} onPress={() => setSession({ ...session, waitingQueue: removeFromQueue(session.waitingQueue, item.playerId) })}>
-                      {t("rotation.removeFromQueue")}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            ))
-          )}
+            {queuePlayers.length === 0 ? (
+              <Text style={styles.body}>{t("rotation.emptyQueueMessage")}</Text>
+            ) : (
+              queuePlayers.map(({ item, player }, index) => (
+                <View key={item.playerId} style={styles.queueRow}>
+                  <Text style={styles.queuePosition}>{index + 1}</Text>
+                  <Text style={styles.queueName} numberOfLines={1}>
+                    {player.display_name}
+                  </Text>
+                  {isEditingQueue ? (
+                    <View style={styles.queueActions}>
+                      <Text
+                        style={[styles.linkAction, index === 0 && styles.linkActionDisabled]}
+                        onPress={() => index > 0 && setSession({ ...session, waitingQueue: moveQueueEntry(session.waitingQueue, item.playerId, "up") })}
+                      >
+                        {t("rotation.moveUp")}
+                      </Text>
+                      <Text
+                        style={[styles.linkAction, index === queuePlayers.length - 1 && styles.linkActionDisabled]}
+                        onPress={() => index < queuePlayers.length - 1 && setSession({ ...session, waitingQueue: moveQueueEntry(session.waitingQueue, item.playerId, "down") })}
+                      >
+                        {t("rotation.moveDown")}
+                      </Text>
+                      <Text style={styles.linkActionDanger} onPress={() => setSession({ ...session, waitingQueue: removeFromQueue(session.waitingQueue, item.playerId) })}>
+                        {t("rotation.removeFromQueue")}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              ))
+            )}
 
-          {isEditingQueue ? (
-            <PlayerPicker
-              players={(roster.data ?? [])
-                .filter((p) => !session.waitingQueue.some((q) => q.playerId === p.id))
-                .filter((p) => !session.currentPairA.players.some((pl) => pl.id === p.id))
-                .filter((p) => !session.currentPairB || !session.currentPairB.players.some((pl) => pl.id === p.id))
-                .map(toPickablePlayer)}
-              selectedIds={[]}
-              onToggle={(id) => {
-                const p = playersById[id];
-                if (p) setSession({ ...session, waitingQueue: addToQueue(session.waitingQueue, p) });
-              }}
-              maxSelected={1}
-            />
-          ) : null}
-        </Card>
+            {isEditingQueue && session.format === "group" ? (
+              // Adding a brand-new player to the queue only makes sense for
+              // "group" sessions -- duo/trio's format is fixed for the
+              // session's lifetime (exactly 2 or exactly 3 participants), so
+              // growing the queue here would silently change what kind of
+              // session this is, which nothing downstream expects.
+              <PlayerPicker
+                players={(roster.data ?? [])
+                  .filter((p) => !session.waitingQueue.some((q) => q.playerId === p.id))
+                  .filter((p) => !session.currentPairA.players.some((pl) => pl.id === p.id))
+                  .filter((p) => !session.currentPairB || !session.currentPairB.players.some((pl) => pl.id === p.id))
+                  .map(toPickablePlayer)}
+                selectedIds={[]}
+                onToggle={(id) => {
+                  const p = playersById[id];
+                  if (p) setSession({ ...session, waitingQueue: addToQueue(session.waitingQueue, p) });
+                }}
+                maxSelected={1}
+              />
+            ) : null}
+          </Card>
+        ) : null}
 
         <Card style={styles.actionsCard}>
           {canUndo ? (
@@ -564,7 +625,7 @@ export default function WinnersStayScreen() {
   );
 }
 
-function PairLine({ label, pair }: { label: string; pair: { players: [RotationPlayer, RotationPlayer]; consecutiveMatchesPlayed: number } }) {
+function PairLine({ label, pair }: { label: string; pair: { players: RotationPlayer[]; consecutiveMatchesPlayed: number } }) {
   const { t } = useTranslation();
   return (
     <View style={styles.pairLine}>

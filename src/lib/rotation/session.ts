@@ -1,9 +1,10 @@
-import { generateWinnersStayRotation, selectRandomLosingPlayer, selectWaitingPlayers, startingConsecutiveMatches } from "./winnersStay";
+import { generateWinnersStayRotation, incrementConsecutiveMatches, selectRandomLosingPlayer, selectWaitingPlayers, startingConsecutiveMatches } from "./winnersStay";
 import type {
   ActivePair,
   MatchResult,
   RandomFn,
   RotationPlayer,
+  SessionFormat,
   WaitingQueueItem,
   WinnersStaySession,
   WinnersStaySessionSnapshot,
@@ -38,29 +39,45 @@ function shuffle<T>(items: T[], random: RandomFn): T[] {
   return arr;
 }
 
-/** Randomly splits >= 4 selected players into two starting pairs plus a waiting group, using an injectable shuffle -- no Elo, no hidden randomness. */
+/** Randomly splits >= 4 selected players into two starting pairs plus a waiting group, using an injectable shuffle -- no Elo, no hidden randomness. Unchanged: still the "group" (4+) format's only entry point. */
 export function drawRandomInitialPairs(players: RotationPlayer[], random: RandomFn = Math.random): { pairA: [RotationPlayer, RotationPlayer]; pairB: [RotationPlayer, RotationPlayer]; waiting: RotationPlayer[] } {
   if (players.length < 4) throw new Error("Winners Stay needs at least four players to start a session.");
   const shuffled = shuffle(players, random);
   return { pairA: [shuffled[0]!, shuffled[1]!], pairB: [shuffled[2]!, shuffled[3]!], waiting: shuffled.slice(4) };
 }
 
+/**
+ * Randomly splits exactly 2 or 3 selected players into two 1-player sides
+ * plus an optional single waiting player -- the "duo"/"trio" formats'
+ * counterpart to drawRandomInitialPairs. 2 players -> no one waits (duo
+ * has no rotation, ever); 3 -> exactly one waits (trio).
+ */
+export function drawInitialSingleSides(players: RotationPlayer[], random: RandomFn = Math.random): { sideA: RotationPlayer[]; sideB: RotationPlayer[]; waiting: RotationPlayer[] } {
+  if (players.length !== 2 && players.length !== 3) {
+    throw new Error("A duo or trio Winners Stay session needs exactly 2 or 3 players.");
+  }
+  const shuffled = shuffle(players, random);
+  return { sideA: [shuffled[0]!], sideB: [shuffled[1]!], waiting: shuffled.slice(2) };
+}
+
 export interface StartSessionParams {
   id: string;
   groupId: string;
-  pairA: [RotationPlayer, RotationPlayer];
-  pairB: [RotationPlayer, RotationPlayer];
+  format: SessionFormat;
+  pairA: RotationPlayer[];
+  pairB: RotationPlayer[];
   waitingPlayers: RotationPlayer[];
   activePlayerIds: string[];
   now: Date;
 }
 
-/** Bootstraps a fresh session -- both starting pairs begin at consecutiveMatchesPlayed 1 (Stage 7's "starts at 1 after the pair first enters"), waiting players queue in the given order. */
+/** Bootstraps a fresh session -- both starting sides begin at consecutiveMatchesPlayed 1 (Stage 7's "starts at 1 after the pair first enters"), waiting players queue in the given order. Same entry point for every format; only the caller-supplied pairA/pairB/format differ. */
 export function startWinnersStaySession(params: StartSessionParams): WinnersStaySession {
   const nowIso = params.now.toISOString();
   return {
     id: params.id,
     groupId: params.groupId,
+    format: params.format,
     activePlayerIds: params.activePlayerIds,
     currentPairA: startingConsecutiveMatches(params.pairA),
     currentPairB: startingConsecutiveMatches(params.pairB),
@@ -113,10 +130,16 @@ export interface AdvanceSessionParams {
  * committed state. Throws if this exact match already advanced the
  * session, or if there's no accepted opposing pair yet to play against
  * (check canAdvanceSession first).
+ *
+ * Only valid for "trio" and "group" sessions -- a "duo" session has no
+ * rotation at all (see advanceDuoSession).
  */
 export function advanceWinnersStaySession(params: AdvanceSessionParams): WinnersStaySession {
   if (!canAdvanceSession(params.session, params.matchId)) {
     throw new Error("This match has already advanced this Winners Stay session, or there is no active matchup to record against.");
+  }
+  if (params.session.format === "duo") {
+    throw new Error("A duo session has no rotation -- use advanceDuoSession instead.");
   }
 
   const sideA = params.session.currentPairA;
@@ -124,7 +147,7 @@ export function advanceWinnersStaySession(params: AdvanceSessionParams): Winners
   const sequence = params.session.roundNumber * 1000 + 1;
 
   const rotation = generateWinnersStayRotation({
-    matchType: "doubles",
+    matchType: params.session.format === "group" ? "doubles" : "singles",
     sideA,
     sideB,
     result: params.result,
@@ -152,6 +175,39 @@ export function advanceWinnersStaySession(params: AdvanceSessionParams): Winners
     lastRecordedMatchId: params.matchId,
     updatedAt: params.now.toISOString(),
     longestWinningRun,
+  };
+}
+
+/**
+ * A "duo" session's counterpart to advanceWinnersStaySession -- duo has no
+ * waiting queue and no rotation, ever ("1 vs 1 -- no rotation" per spec),
+ * so recording a match never changes who's playing: currentPairA/
+ * currentPairB stay exactly as they are, immediately ready for the next
+ * match with zero pending-rotation review step. Only the round count,
+ * idempotency guard, and each side's own consecutive-matches streak (kept
+ * accurate for computeSessionSummary's longestWinningRun, even though nothing
+ * ever actually rotates for a duo) advance.
+ */
+export function advanceDuoSession(session: WinnersStaySession, matchId: string, now: Date): WinnersStaySession {
+  if (session.format !== "duo") {
+    throw new Error("advanceDuoSession is only valid for a duo session -- use advanceWinnersStaySession for trio/group.");
+  }
+  if (!canAdvanceSession(session, matchId)) {
+    throw new Error("This match has already advanced this Winners Stay session, or there is no active matchup to record against.");
+  }
+
+  const currentPairA = incrementConsecutiveMatches(session.currentPairA);
+  const currentPairB = session.currentPairB ? incrementConsecutiveMatches(session.currentPairB) : null;
+
+  return {
+    ...session,
+    previousSnapshot: snapshotOf(session),
+    currentPairA,
+    currentPairB,
+    roundNumber: session.roundNumber + 1,
+    lastRecordedMatchId: matchId,
+    updatedAt: now.toISOString(),
+    longestWinningRun: Math.max(session.longestWinningRun, currentPairA.consecutiveMatchesPlayed),
   };
 }
 

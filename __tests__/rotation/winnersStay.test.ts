@@ -32,9 +32,23 @@ function seededRandom(sequence: number[]): RandomFn {
 }
 
 describe("validateRotation", () => {
-  it("flags a singles match handed to Winners Stay", () => {
+  it("flags a singles match handed to Winners Stay with 2-player sides", () => {
     const issues = validateRotation({ matchType: "singles", sideA: pair(["a", "b"]), sideB: pair(["c", "d"]) });
-    expect(issues.map((i) => i.code)).toContain("notDoublesMatch");
+    expect(issues.map((i) => i.code)).toContain("sideSizeMismatch");
+  });
+
+  it("flags mismatched side sizes (e.g. a 1-player side against a 2-player side)", () => {
+    const issues = validateRotation({ matchType: "doubles", sideA: { players: [player("a")], consecutiveMatchesPlayed: 1 }, sideB: pair(["c", "d"]) });
+    expect(issues.map((i) => i.code)).toContain("sideSizeMismatch");
+  });
+
+  it("returns no issues for a valid singles (1-player side) matchup", () => {
+    const issues = validateRotation({
+      matchType: "singles",
+      sideA: { players: [player("a")], consecutiveMatchesPlayed: 1 },
+      sideB: { players: [player("b")], consecutiveMatchesPlayed: 1 },
+    });
+    expect(issues).toEqual([]);
   });
 
   it("flags a duplicate player id across the two pairs", () => {
