@@ -21,6 +21,7 @@ import { StatTile } from "../../../src/components/StatTile";
 import { TrendBadge } from "../../../src/components/TrendBadge";
 import { WinRateBreakdown } from "../../../src/components/WinRateBreakdown";
 import { useAuth } from "../../../src/hooks/useAuth";
+import { useFocusFrozenValue } from "../../../src/hooks/useFocusFrozenValue";
 import { useGroup } from "../../../src/hooks/useGroup";
 import { useLeagueTableCardPreference } from "../../../src/hooks/useLeagueTableCardPreference";
 import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
@@ -76,8 +77,15 @@ export default function HomeScreen() {
   const isError = players.isError || fullHistory.isError;
   const isRefetching = players.isRefetching || fullHistory.isRefetching;
 
-  const roster = players.data ?? EMPTY_PLAYERS;
-  const allMatches = fullHistory.data ?? EMPTY_MATCHES;
+  // Frozen while this tab is buried under a pushed screen (Record Match,
+  // Winners Stay, ...) -- (tabs) never unmounts just because something was
+  // pushed on top of it, so without this, every match saved anywhere in the
+  // app (which invalidates group match history) would re-run this whole
+  // screen's trend/insight/discovery computations in the background, on
+  // every save, competing with whatever the user is actually doing on the
+  // visible screen. See useFocusFrozenValue for the full rationale.
+  const roster = useFocusFrozenValue(players.data ?? EMPTY_PLAYERS);
+  const allMatches = useFocusFrozenValue(fullHistory.data ?? EMPTY_MATCHES);
   const latestMatch = allMatches[0] ?? null;
   const myPlayer = roster.find((p) => p.linked_user_id === user?.id) ?? null;
 

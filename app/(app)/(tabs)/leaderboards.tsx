@@ -16,6 +16,7 @@ import { Screen } from "../../../src/components/Screen";
 import { SegmentedControl } from "../../../src/components/SegmentedControl";
 import { SkeletonList } from "../../../src/components/Skeleton";
 import { useAuth } from "../../../src/hooks/useAuth";
+import { useFocusFrozenValue } from "../../../src/hooks/useFocusFrozenValue";
 import { useGroup } from "../../../src/hooks/useGroup";
 import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
@@ -109,8 +110,10 @@ export default function LeaderboardsScreen() {
   /** Animates the list reordering itself on a category/sort/filter switch instead of an abrupt jump. Separate from the per-row movement badges below, which flag an actual rank change within the same category since it was last shown. */
   const animateReorder = () => LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 
-  const roster = players.data ?? EMPTY_PLAYERS;
-  const matches = matchHistory.data ?? EMPTY_MATCHES;
+  // Frozen while this tab is buried under a pushed screen -- see
+  // useFocusFrozenValue / app/(app)/(tabs)/index.tsx for the full rationale.
+  const roster = useFocusFrozenValue(players.data ?? EMPTY_PLAYERS);
+  const matches = useFocusFrozenValue(matchHistory.data ?? EMPTY_MATCHES);
   const myPlayerId = roster.find((p) => p.linked_user_id === user?.id)?.id ?? null;
 
   const filteredMatches: MatchSummary[] = useMemo(

@@ -9,6 +9,7 @@ import { ExportButton } from "../../../src/components/ExportButton";
 import { ListSeparator } from "../../../src/components/ListSeparator";
 import { Screen } from "../../../src/components/Screen";
 import { SkeletonList } from "../../../src/components/Skeleton";
+import { useFocusFrozenValue } from "../../../src/hooks/useFocusFrozenValue";
 import { useGroup } from "../../../src/hooks/useGroup";
 import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
@@ -34,7 +35,9 @@ export default function PlayersScreen() {
   const [includeArchived, setIncludeArchived] = useState(includeArchivedParam === "1");
   const { data: players, isLoading, isError, refetch, isRefetching } = usePlayers(currentGroupId, includeArchived);
   const matchHistory = useGroupMatchHistory(currentGroupId);
-  const matches = matchHistory.data ?? EMPTY_MATCHES;
+  // Frozen while this tab is buried under a pushed screen -- see
+  // useFocusFrozenValue / app/(app)/(tabs)/index.tsx for the full rationale.
+  const matches = useFocusFrozenValue(matchHistory.data ?? EMPTY_MATCHES);
   const statsById = useMemo(
     () => computeAllPlayerStats((players ?? EMPTY_PLAYERS).map((p) => p.id), matches),
     [players, matches],

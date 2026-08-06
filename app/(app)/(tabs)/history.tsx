@@ -14,6 +14,7 @@ import { Screen } from "../../../src/components/Screen";
 import { SegmentedControl } from "../../../src/components/SegmentedControl";
 import { SkeletonList } from "../../../src/components/Skeleton";
 import { useAuth } from "../../../src/hooks/useAuth";
+import { useFocusFrozenValue } from "../../../src/hooks/useFocusFrozenValue";
 import { useGroup } from "../../../src/hooks/useGroup";
 import { useGroupMatchHistory } from "../../../src/hooks/useMatches";
 import { usePlayers } from "../../../src/hooks/usePlayers";
@@ -61,7 +62,9 @@ export default function HistoryScreen() {
   const [filters, setFilters] = useState<MatchFilters>(DEFAULT_MATCH_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
 
-  const allMatches = matches ?? [];
+  // Frozen while this tab is buried under a pushed screen -- see
+  // useFocusFrozenValue / app/(app)/(tabs)/index.tsx for the full rationale.
+  const allMatches = useFocusFrozenValue(matches ?? []);
   const clubs = useMemo(() => distinctClubs(allMatches), [allMatches]);
   const filtered = useMemo(() => filterMatches(allMatches, filters), [allMatches, filters]);
   const filtersActive = hasActiveFilters(filters);
