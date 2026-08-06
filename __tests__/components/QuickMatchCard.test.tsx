@@ -126,10 +126,21 @@ function renderCard() {
   return renderer;
 }
 
-function rerender(renderer: TestRenderer.ReactTestRenderer) {
+/**
+ * Forces a genuinely fresh read of the (externally mocked) session state --
+ * QuickMatchCard is wrapped in React.memo with stable primitive props, so
+ * renderer.update() with the SAME props is a no-op bailout that never
+ * re-executes the component body, even though the underlying mock state
+ * (mockSession) has since changed. Unmounting and creating a fresh instance
+ * sidesteps that bailout, mirroring what actually happens in production --
+ * a different component instance (e.g. navigating away and back) always
+ * re-reads the current session, memo or not.
+ */
+function rerender(renderer: TestRenderer.ReactTestRenderer): TestRenderer.ReactTestRenderer {
   act(() => {
-    renderer.update(<QuickMatchCard groupId="group-1" gameVersionId="gv-1" />);
+    renderer.unmount();
   });
+  return renderCard();
 }
 
 function findButton(renderer: TestRenderer.ReactTestRenderer, label: string) {
@@ -285,14 +296,173 @@ describe("club actions", () => {
   });
 });
 
-describe("Winners Stay navigation", () => {
-  it("the Winners Stay button navigates to the full session screen, no new implementation", () => {
+describe("'תיעוד משחק' -- opens the exact primary Record Match route, no new implementation", () => {
+  it("navigates to /record-match with this session's exact current matchup prefilled", () => {
     mockSession = baseSession();
     const renderer = renderCard();
     act(() => {
-      findButton(renderer, "rotation.title").props.onPress();
+      findButton(renderer, "home.quickMatchRecordAction").props.onPress();
     });
-    expect(mockRouter.push).toHaveBeenCalledWith("/winners-stay");
+
+    expect(mockRouter.push).toHaveBeenCalledTimes(1);
+    const call = mockRouter.push.mock.calls[0]![0] as { pathname: string; params: Record<string, string> };
+    expect(call.pathname).toBe("/record-match");
+    expect(call.params.matchType).toBe("doubles");
+    expect(call.params.side1Players).toBe("p1,p2");
+    expect(call.params.side2Players).toBe("p3,p4");
+    expect(call.params.source).toBe("winnersStay");
+  });
+
+  it("carries over clubs already selected on the Dashboard card", () => {
+    mockSession = baseSession();
+    const renderer = renderCard();
+    act(() => {
+      findButton(renderer, "home.quickClubDrawPoolLarge").props.onPress();
+    });
+    act(() => {
+      findButton(renderer, "home.quickMatchRecordAction").props.onPress();
+    });
+
+    const call = mockRouter.push.mock.calls[0]![0] as { params: Record<string, string> };
+    expect(call.params.side1Club).toBeDefined();
+    expect(call.params.side2Club).toBeDefined();
+  });
+
+  it("does not create another session or touch session state -- it's a pure navigation", () => {
+    mockSession = baseSession();
+    const renderer = renderCard();
+    act(() => {
+      findButton(renderer, "home.quickMatchRecordAction").props.onPress();
+    });
+    expect(mockSetSession).not.toHaveBeenCalled();
+  });
+
+  it("uses push (not replace) so the back button returns to the Dashboard, which still shows this same session", () => {
+    mockSession = baseSession();
+    const renderer = renderCard();
+    act(() => {
+      findButton(renderer, "home.quickMatchRecordAction").props.onPress();
+    });
+    // router.push, never router.replace/dismissTo -- Dashboard stays in the stack underneath.
+    expect(mockRouter.push).toHaveBeenCalled();
+    expect(mockSession).not.toBeNull();
+    expect(mockSession!.id).toBe("session-1");
+  });
+});
+
+describe("binding to the exact active session (never a stale or different one)", () => {
+  it("a duo session's save uses exactly that session's two players, matching its own session id context", async () => {
+    mockSession = duoSession({ id: "duo-session-xyz", roundNumber: 2, lastRecordedMatchId: "m-old" });
+    const renderer = renderCard();
+    act(() => {
+      findButton(renderer, "home.quickClubDrawPoolLarge").props.onPress();
+    });
+    await pressButton(renderer, "home.quickMatchNextMatchAction");
+
+    const payload = mockMutateAsync.mock.calls[0]![0] as { sides: { playerIds: string[] }[] };
+    expect(payload.sides[0]!.playerIds).toEqual(["p1"]);
+    expect(payload.sides[1]!.playerIds).toEqual(["p2"]);
+    expect(mockSession!.id).toBe("duo-session-xyz");
+  });
+
+  it("a trio session's save uses exactly that session's two active players (not the waiting one)", async () => {
+    mockSession = trioSession({ id: "trio-session-xyz", roundNumber: 2, lastRecordedMatchId: "m-old" });
+    const renderer = renderCard();
+    act(() => {
+      findButton(renderer, "home.quickClubDrawPoolLarge").props.onPress();
+    });
+    await pressButton(renderer, "home.quickMatchNextMatchAction");
+
+    const payload = mockMutateAsync.mock.calls[0]![0] as { sides: { playerIds: string[] }[] };
+    expect(payload.sides[0]!.playerIds).toEqual(["p1"]);
+    expect(payload.sides[1]!.playerIds).toEqual(["p2"]);
+    expect(mockSession!.id).toBe("trio-session-xyz");
+  });
+
+  it("a group (4+) session's save uses exactly that session's two full pairs", async () => {
+    mockSession = baseSession({ id: "group-session-xyz", roundNumber: 2, lastRecordedMatchId: "m-old" });
+    const renderer = renderCard();
+    act(() => {
+      findButton(renderer, "home.quickClubDrawPoolLarge").props.onPress();
+    });
+    await pressButton(renderer, "home.quickMatchNextMatchAction");
+
+    const payload = mockMutateAsync.mock.calls[0]![0] as { sides: { playerIds: string[] }[] };
+    expect(payload.sides[0]!.playerIds).toEqual(["p1", "p2"]);
+    expect(payload.sides[1]!.playerIds).toEqual(["p3", "p4"]);
+    expect(mockSession!.id).toBe("group-session-xyz");
+  });
+
+  it("never falls back to a different session just because it's newer/other -- a session for a different group is simply hidden, never substituted", () => {
+    mockSession = baseSession({ id: "wrong-group-session", groupId: "some-other-group" });
+    const renderer = renderCard();
+    expect(renderer.toJSON()).toBeNull();
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("a freshly-started session (roundNumber 0, its very first match not yet played) is visible -- this is NOT an abandoned draft, just not yet played", () => {
+    mockSession = duoSession({ roundNumber: 0, lastRecordedMatchId: null });
+    const renderer = renderCard();
+    expect(renderer.toJSON()).not.toBeNull();
+  });
+});
+
+describe("auto-resolving a pending rotation review for duo/trio (the 'card disappeared' fix)", () => {
+  it("a trio session left mid-review (pendingRotation set, e.g. after using match/[id].tsx's continue-session action without tapping Accept on the full screen) still shows the card, not hidden", async () => {
+    mockSession = trioSession({
+      currentPairB: null,
+      pendingRotation: {
+        stayingPair: [player("p1", "Alice")],
+        opposingPair: [player("p3", "Cleo")],
+        waitingPlayers: [{ playerId: "p2", enteredQueueAt: 0, consecutiveWaitCount: 0 }],
+        rotatedOutPlayers: [player("p2", "Bob")],
+        selectionSource: "waitingQueue",
+        reason: { key: "", params: {} },
+        drawRotationApplied: false,
+      },
+    });
+    let renderer = renderCard();
+    // The auto-accept effect is a passive effect (useEffect) -- it's only
+    // guaranteed flushed by the ASYNC form of act(), not the synchronous
+    // one renderCard()/rerender() use elsewhere in this file (where every
+    // session mutation happens directly inside a handler, never via an
+    // effect). Flush it, then re-render to see its result reflected.
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    renderer = rerender(renderer);
+
+    expect(mockSetSession).toHaveBeenCalled();
+    expect(mockSession!.pendingRotation).toBeNull();
+    expect(mockSession!.currentPairB).not.toBeNull();
+    expect(renderer.toJSON()).not.toBeNull();
+  });
+
+  it("a duo session never has a pendingRotation to begin with -- nothing to auto-accept, no spurious setSession call", () => {
+    mockSession = duoSession();
+    renderCard();
+    expect(mockSetSession).not.toHaveBeenCalled();
+  });
+
+  it("does NOT auto-accept a group (4+) session's pending rotation -- the manual review/redraw step is preserved unchanged", () => {
+    mockSession = baseSession({
+      currentPairB: null,
+      pendingRotation: {
+        stayingPair: [player("p1", "Alice"), player("p2", "Bob")],
+        opposingPair: [player("p5", "Eve"), player("p3", "Cleo")],
+        waitingPlayers: [],
+        rotatedOutPlayers: [player("p4", "Dan")],
+        selectionSource: "randomFromLosers",
+        reason: { key: "", params: {} },
+        drawRotationApplied: false,
+      },
+    });
+    let renderer = renderCard();
+    renderer = rerender(renderer);
+
+    expect(mockSetSession).not.toHaveBeenCalled();
+    expect(renderer.toJSON()).toBeNull(); // still hidden -- group's review step is untouched
   });
 });
 
@@ -315,7 +485,7 @@ describe("saving a result", () => {
   it("Save is disabled until both clubs are assigned", () => {
     mockSession = baseSession();
     const renderer = renderCard();
-    expect(findButton(renderer, "editMatch.saveMatchAction").props.disabled).toBe(true);
+    expect(findButton(renderer, "home.quickMatchNextMatchAction").props.disabled).toBe(true);
   });
 
   it("reuses the exact useRecordMatch mutation with the session's current matchup", async () => {
@@ -324,7 +494,7 @@ describe("saving a result", () => {
     setClubs(renderer);
     bumpScore(renderer, 0, 2);
 
-    await pressButton(renderer, "editMatch.saveMatchAction");
+    await pressButton(renderer, "home.quickMatchNextMatchAction");
 
     expect(mockMutateAsync).toHaveBeenCalledTimes(1);
     const payload = mockMutateAsync.mock.calls[0]![0] as { matchType: string; sides: { playerIds: string[]; score: number; result: string }[] };
@@ -342,7 +512,7 @@ describe("saving a result", () => {
     setClubs(renderer);
     bumpScore(renderer, 0, 1);
 
-    await pressButton(renderer, "editMatch.saveMatchAction");
+    await pressButton(renderer, "home.quickMatchNextMatchAction");
 
     expect(mockSetSession).toHaveBeenCalled();
     expect(mockSession!.roundNumber).toBe(4);
@@ -354,12 +524,12 @@ describe("saving a result", () => {
 
   it("next matchup updates on screen after saving (new players shown)", async () => {
     mockSession = trioSession({ roundNumber: 2, lastRecordedMatchId: "m-old" });
-    const renderer = renderCard();
+    let renderer = renderCard();
     setClubs(renderer);
     bumpScore(renderer, 0, 1); // p1 (Alice) wins clearly, so the draw tiebreak can't decide who stays
 
-    await pressButton(renderer, "editMatch.saveMatchAction");
-    rerender(renderer);
+    await pressButton(renderer, "home.quickMatchNextMatchAction");
+    renderer = rerender(renderer);
 
     // p1 won and stays, p3 (the only waiter) enters -- p2 now waits.
     const texts = renderer.root.findAllByType(Text).map((n) => n.props.children);
@@ -369,11 +539,11 @@ describe("saving a result", () => {
 
   it("hides the card once the session runs out of a valid next matchup (Case 4 -- nobody left waiting)", async () => {
     mockSession = trioSession({ waitingQueue: [], roundNumber: 5, lastRecordedMatchId: "m-old" }); // trio with 0 waiting collapses to Case 4 after advancing
-    const renderer = renderCard();
+    let renderer = renderCard();
     setClubs(renderer);
 
-    await pressButton(renderer, "editMatch.saveMatchAction");
-    rerender(renderer);
+    await pressButton(renderer, "home.quickMatchNextMatchAction");
+    renderer = rerender(renderer);
 
     expect(renderer.toJSON()).toBeNull();
   });
@@ -383,7 +553,7 @@ describe("saving a result", () => {
     const renderer = renderCard();
     setClubs(renderer);
 
-    await pressButton(renderer, "editMatch.saveMatchAction");
+    await pressButton(renderer, "home.quickMatchNextMatchAction");
 
     expect(mockSetLastParticipants).toHaveBeenCalledTimes(1);
     expect(mockLastParticipantIds).toEqual(expect.arrayContaining(["p1", "p2"]));
@@ -394,7 +564,7 @@ describe("saving a result", () => {
     const renderer = renderCard();
     setClubs(renderer);
 
-    await pressButton(renderer, "editMatch.saveMatchAction");
+    await pressButton(renderer, "home.quickMatchNextMatchAction");
 
     expect(mockSetLastParticipants).not.toHaveBeenCalled();
   });
@@ -407,7 +577,7 @@ describe("saving a result", () => {
     setClubs(renderer);
 
     await act(async () => {
-      const btn = findButton(renderer, "editMatch.saveMatchAction");
+      const btn = findButton(renderer, "home.quickMatchNextMatchAction");
       btn.props.onPress();
       btn.props.onPress();
       btn.props.onPress();
@@ -429,7 +599,7 @@ describe("saving a result", () => {
     const renderer = renderCard();
     setClubs(renderer);
 
-    await pressButton(renderer, "editMatch.saveMatchAction");
+    await pressButton(renderer, "home.quickMatchNextMatchAction");
 
     expect(mockSetSession).not.toHaveBeenCalled();
     const texts = renderer.root.findAllByType(Text).map((n) => n.props.children);
@@ -437,7 +607,7 @@ describe("saving a result", () => {
 
     // Retry is possible -- the guard was released.
     mockRecordMatchImpl = async () => "new-match-id";
-    await pressButton(renderer, "editMatch.saveMatchAction");
+    await pressButton(renderer, "home.quickMatchNextMatchAction");
     expect(mockSetSession).toHaveBeenCalled();
   });
 
@@ -445,7 +615,25 @@ describe("saving a result", () => {
     mockSession = baseSession({ roundNumber: 3, lastRecordedMatchId: "m-old" });
     const renderer = renderCard();
     setClubs(renderer);
-    await pressButton(renderer, "editMatch.saveMatchAction");
+    await pressButton(renderer, "home.quickMatchNextMatchAction");
     expect(mockMutateAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it("repeated save cycles (duo) each create exactly one match, with no accumulation/duplication across rounds", async () => {
+    mockSession = duoSession({ roundNumber: 0, lastRecordedMatchId: null });
+    let matchCounter = 0;
+    mockRecordMatchImpl = async () => `match-${++matchCounter}`; // a real mutation never returns the same id twice
+    let renderer = renderCard();
+
+    for (let round = 1; round <= 5; round++) {
+      renderer = rerender(renderer);
+      setClubs(renderer);
+      // eslint-disable-next-line no-await-in-loop
+      await pressButton(renderer, "home.quickMatchNextMatchAction");
+      expect(mockMutateAsync).toHaveBeenCalledTimes(round);
+      expect(mockSession!.roundNumber).toBe(round);
+      expect(mockSession!.currentPairA.players.map((p) => p.id)).toEqual(["p1"]);
+      expect(mockSession!.currentPairB!.players.map((p) => p.id)).toEqual(["p2"]);
+    }
   });
 });

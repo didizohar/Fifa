@@ -1,4 +1,4 @@
-import { memo, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 import { useClubVersions } from "../hooks/useClubVersions";
@@ -13,6 +13,7 @@ import { filterClubsByPool } from "../lib/clubPools";
 import { filterClubVersionsForRandomGeneration } from "../lib/clubRepository";
 import { useTranslation } from "../lib/i18n";
 import { matchSideLabel } from "../lib/format";
+import { buildMatchPrefillParams } from "../lib/matchPrefill";
 import { toRotationPlayer } from "../lib/players";
 import { getPreviousMatchClubs, swapPreviousMatchClubs } from "../lib/previousMatchClubs";
 import { filterValidClubVersions } from "../lib/random/clubs";
@@ -72,6 +73,26 @@ export const QuickMatchCard = memo(function QuickMatchCard({ groupId, gameVersio
   const [errors, setErrors] = useState<string[]>([]);
   // Synchronous double-tap guard, same pattern as record-match.tsx's submitGuardRef -- isPending is only as fresh as the last render, this ref is authoritative the instant Save actually runs.
   const submitGuardRef = useRef(false);
+
+  // A duo/trio session whose round was just advanced via the FULL Winners
+  // Stay screen (or match/[id].tsx's "next match" action) sits with
+  // pendingRotation set until the user explicitly taps "Accept Next Match"
+  // there -- otherwise this compact card would stay hidden (no valid
+  // current matchup yet), which is exactly why it can appear to
+  // "disappear" after playing a round anywhere other than this card itself.
+  // Duo/trio never have a redraw decision to make (Case 2's random-partner
+  // mixing is only reachable at group's 2-player side size -- see
+  // winnersStay.ts), so there is nothing to review: auto-accepting via the
+  // exact same acceptPendingRotation the full screen's own "Accept Next
+  // Match" button calls is safe and correct. "group" sessions keep the
+  // manual review step untouched, since a redraw there is a real choice.
+  useEffect(() => {
+    if (!session || session.groupId !== groupId || session.status !== "active") return;
+    if (session.format === "group") return;
+    if (session.pendingRotation?.opposingPair) {
+      setSession(acceptPendingRotation(session, new Date()));
+    }
+  }, [session, groupId, setSession]);
 
   const matchupKey = session ? `${session.id}:${session.roundNumber}` : null;
   const [lastMatchupKey, setLastMatchupKey] = useState(matchupKey);
@@ -220,6 +241,26 @@ export const QuickMatchCard = memo(function QuickMatchCard({ groupId, gameVersio
   const canApplyPreviousClubs = !!previousMatchClubs;
   const canSave = !!side1ClubId && !!side2ClubId && !recordMatch.isPending;
 
+  // "תיעוד משחק" -- opens the exact same primary Record Match route the
+  // rest of the app uses (never a second/simplified implementation),
+  // pre-filled with this session's current matchup, carrying over whatever
+  // clubs are already selected here. router.push (not replace) so its back
+  // button returns to this Dashboard, which -- via useWinnersStaySession's
+  // refocus resync -- still shows this exact same session, unchanged,
+  // since nothing here was saved. There's no existing mechanism to seed
+  // Record Match's local score from a route param (buildMatchPrefillParams
+  // only ever carries matchType/players/clubs), and the product's existing
+  // rule is that this local score is local-only to whichever screen holds
+  // it -- Record Match's own create-mode score already always starts at 0
+  // the same way, so this isn't a regression, just consistency.
+  const openFullRecordMatch = () => {
+    const sideClubs = side1ClubId && side2ClubId ? ([{ id: side1ClubId }, { id: side2ClubId }] as [{ id: string }, { id: string }]) : null;
+    router.push({
+      pathname: "/record-match",
+      params: { ...buildMatchPrefillParams(matchType, [side1Players, side2Players], sideClubs), source: "winnersStay" },
+    });
+  };
+
   return (
     <Card variant="elevated" style={styles.card}>
       <Text style={styles.title}>{t("home.quickMatchTitle")}</Text>
@@ -256,11 +297,10 @@ export const QuickMatchCard = memo(function QuickMatchCard({ groupId, gameVersio
         <Button label={t("rotation.swapClubsAction")} variant="secondary" size="md" style={styles.actionButton} onPress={applySwapClubs} disabled={!canApplyPreviousClubs} />
       </View>
 
-      <Button label={t("rotation.title")} variant="ghost" size="sm" onPress={() => router.push("/winners-stay")} />
-
       {errors.length > 0 ? <Text style={styles.errorText}>{errors[0]}</Text> : null}
 
-      <Button label={t("editMatch.saveMatchAction")} onPress={handleSave} loading={recordMatch.isPending} disabled={!canSave} />
+      <Button label={t("home.quickMatchRecordAction")} variant="secondary" onPress={openFullRecordMatch} />
+      <Button label={t("home.quickMatchNextMatchAction")} onPress={handleSave} loading={recordMatch.isPending} disabled={!canSave} />
     </Card>
   );
 });

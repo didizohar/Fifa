@@ -126,6 +126,8 @@ const he = {
     loadError: "לא ניתן היה לטעון את לוח הבקרה. בדקו את החיבור ונסו שוב.",
     quickMatchTitle: "תוצאה מהירה",
     quickMatchNoClubSelected: "לא נבחר מועדון",
+    quickMatchNextMatchAction: "משחק הבא",
+    quickMatchRecordAction: "תיעוד משחק",
   },
   settings: {
     title: "הגדרות",

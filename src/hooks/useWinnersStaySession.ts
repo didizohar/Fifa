@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useCallback, useEffect, useState } from "react";
+import { useIsFocused } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { WinnersStaySession } from "../lib/rotation/types";
 
 function storageKey(groupId: string): string {
@@ -28,21 +29,44 @@ function normalizeSession(session: WinnersStaySession): WinnersStaySession {
  * navigation, backgrounding, and reloads.
  */
 export function useWinnersStaySession(groupId: string | null) {
+  const isFocused = useIsFocused();
   const [session, setSessionState] = useState<WinnersStaySession | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const [isCorrupted, setIsCorrupted] = useState(false);
+  // Tracks which groupId this hook instance has already run its
+  // authoritative first hydration for -- distinguishes "the very first read
+  // for this group" (shows the loading state, flags corrupted storage) from
+  // a later refocus-triggered resync (silent background refresh only).
+  const hydratedGroupIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!groupId) {
       setSessionState(null);
       setIsHydrated(true);
       setIsCorrupted(false);
+      hydratedGroupIdRef.current = null;
       return;
     }
 
+    // A tab screen (Dashboard) never unmounts just because Start Evening /
+    // Winners Stay / Record Match was pushed on top of it -- so its OWN
+    // instance of this hook, once mounted, would otherwise keep showing
+    // whatever session existed at that exact moment forever, even after a
+    // DIFFERENT screen has since started, advanced, or ended a session for
+    // the same group. These are independent React state instances,
+    // connected only through this shared AsyncStorage key, not live-synced.
+    // Skipping the read while unfocused (and re-running it every time this
+    // instance regains focus) is what keeps every screen holding this hook
+    // honest about which session is actually active, without polling and
+    // without a second source of truth -- same storage key, same read.
+    if (!isFocused) return;
+
     let cancelled = false;
-    setIsHydrated(false);
-    setIsCorrupted(false);
+    const isFirstReadForThisGroup = hydratedGroupIdRef.current !== groupId;
+    if (isFirstReadForThisGroup) {
+      setIsHydrated(false);
+      setIsCorrupted(false);
+    }
 
     AsyncStorage.getItem(storageKey(groupId))
       .then((stored) => {
@@ -55,23 +79,31 @@ export function useWinnersStaySession(groupId: string | null) {
           const parsed: unknown = JSON.parse(stored);
           if (looksLikeSession(parsed)) {
             setSessionState(normalizeSession(parsed));
-          } else {
+          } else if (isFirstReadForThisGroup) {
+            // A refocus resync deliberately does NOT flag corruption or
+            // clear an already-good in-memory session over a single bad
+            // read -- that authoritative check only applies to the first
+            // read for this group.
             setIsCorrupted(true);
             setSessionState(null);
           }
         } catch {
-          setIsCorrupted(true);
-          setSessionState(null);
+          if (isFirstReadForThisGroup) {
+            setIsCorrupted(true);
+            setSessionState(null);
+          }
         }
       })
       .finally(() => {
-        if (!cancelled) setIsHydrated(true);
+        if (cancelled) return;
+        setIsHydrated(true);
+        hydratedGroupIdRef.current = groupId;
       });
 
     return () => {
       cancelled = true;
     };
-  }, [groupId]);
+  }, [groupId, isFocused]);
 
   // Returns a Promise that resolves once the AsyncStorage write/removal has
   // actually completed -- existing fire-and-forget callers (every in-screen
