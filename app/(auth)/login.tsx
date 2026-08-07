@@ -41,7 +41,8 @@ export default function LoginScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.logo}>⚽️</Text>
-          <Text style={styles.title}>FC Rival</Text>
+          <Text style={styles.title}>Couch League</Text>
+          <Text style={styles.tagline}>{t("auth.tagline")}</Text>
           <Text style={styles.subtitle}>{t("auth.loginSubtitle")}</Text>
         </View>
         <View style={styles.form}>
@@ -95,6 +96,10 @@ const styles = StyleSheet.create({
   },
   title: {
     ...typography.display,
+  },
+  tagline: {
+    ...typography.caption,
+    color: colors.textSecondary,
   },
   subtitle: {
     ...typography.caption,

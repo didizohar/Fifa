@@ -131,6 +131,8 @@ const he = {
   },
   settings: {
     title: "הגדרות",
+    aboutAppName: "Couch League",
+    aboutTagline: "The Home of Football Nights.",
     signedInAs: "מחובר בתור",
     currentGroup: "הקבוצה הנוכחית",
     groupManagement: "ניהול קבוצה",
@@ -150,7 +152,7 @@ const he = {
     roleOwner: "בעלים",
     roleAdmin: "מנהל",
     roleMember: "חבר",
-    shareInviteMessage: 'הצטרפו לקבוצת ה-FC Rival שלי "{groupName}" עם קוד ההזמנה: {code}',
+    shareInviteMessage: 'הצטרפו לקבוצת ה-Couch League שלי "{groupName}" עם קוד ההזמנה: {code}',
     shareInviteA11y: "שיתוף קוד ההזמנה {code}",
     shareInvite: "שיתוף הזמנה",
   },
@@ -355,6 +357,7 @@ const he = {
     unknownClub: "מועדון לא ידוע",
   },
   auth: {
+    tagline: "The Home of Football Nights.",
     loginSubtitle: "התחברות לקבוצה שלכם",
     signupTitle: "יצירת חשבון",
     signupSubtitle: "הצטרפו לקבוצה או צרו אחת בהמשך",
@@ -397,7 +400,7 @@ const he = {
     resetLinkInvalidAction: "בקשת קישור חדש",
   },
   group: {
-    onboardingTitle: "ברוכים הבאים ל-FC Rival",
+    onboardingTitle: "ברוכים הבאים ל-Couch League",
     onboardingSubtitle: "עקבו אחר משחקים, דירוגים וזכויות התרברבות עם הקבוצה שלכם. צרו קבוצה חדשה או הצטרפו לקבוצה קיימת עם קוד הזמנה כדי להתחיל.",
     createGroupAction: "יצירת קבוצה",
     joinGroupAction: "הצטרפות עם קוד הזמנה",

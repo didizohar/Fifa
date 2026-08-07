@@ -134,6 +134,8 @@ const en = {
   },
   settings: {
     title: "Settings",
+    aboutAppName: "Couch League",
+    aboutTagline: "The Home of Football Nights.",
     signedInAs: "Signed in as",
     currentGroup: "Current group",
     groupManagement: "Group management",
@@ -153,7 +155,7 @@ const en = {
     roleOwner: "Owner",
     roleAdmin: "Admin",
     roleMember: "Member",
-    shareInviteMessage: 'Join my FC Rival group "{groupName}" with invite code: {code}',
+    shareInviteMessage: 'Join my Couch League group "{groupName}" with invite code: {code}',
     shareInviteA11y: "Share invite code {code}",
     shareInvite: "Share invite",
   },
@@ -358,6 +360,7 @@ const en = {
     unknownClub: "Unknown club",
   },
   auth: {
+    tagline: "The Home of Football Nights.",
     loginSubtitle: "Sign in to your group",
     signupTitle: "Create your account",
     signupSubtitle: "Join or start a group afterward",
@@ -400,7 +403,7 @@ const en = {
     resetLinkInvalidAction: "Request a new link",
   },
   group: {
-    onboardingTitle: "Welcome to FC Rival",
+    onboardingTitle: "Welcome to Couch League",
     onboardingSubtitle: "Track matches, ratings, and bragging rights with your group. Create a new group or join one with an invite code to get started.",
     createGroupAction: "Create a group",
     joinGroupAction: "Join with invite code",

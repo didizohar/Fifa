@@ -134,6 +134,11 @@ export default function SettingsScreen() {
           <Text style={styles.dangerZoneHint}>{t("settings.deleteAccountHint")}</Text>
           <Button label={t("deleteAccount.entryButtonLabel")} variant="danger" onPress={() => router.push("/delete-account")} />
         </Card>
+
+        <View style={styles.about}>
+          <Text style={styles.aboutAppName}>{t("settings.aboutAppName")}</Text>
+          <Text style={styles.aboutTagline}>{t("settings.aboutTagline")}</Text>
+        </View>
       </ScrollView>
     </Screen>
   );
@@ -233,6 +238,19 @@ const styles = StyleSheet.create({
     color: colors.danger,
   },
   dangerZoneHint: {
+    ...typography.small,
+    color: colors.textSecondary,
+  },
+  about: {
+    alignItems: "center",
+    marginTop: spacing.md,
+    gap: 2,
+  },
+  aboutAppName: {
+    ...typography.small,
+    color: colors.textSecondary,
+  },
+  aboutTagline: {
     ...typography.small,
     color: colors.textSecondary,
   },
