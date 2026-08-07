@@ -22,7 +22,7 @@
       "package": "com.fcrival.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0A0D0B"
+        "backgroundColor": "#2563EB"
       }
     },
     "extra": {
@@ -40,7 +40,7 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 220,
           "resizeMode": "contain",
-          "backgroundColor": "#0A0D0B"
+          "backgroundColor": "#FFFFFF"
         }
       ],
       "expo-font",
