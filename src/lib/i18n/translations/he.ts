@@ -619,6 +619,7 @@ const he = {
     swapClubsAction: "⇄ החלף קבוצות",
     previousMatchPreview: "משחק קודם: {side1} 🆚 {side2}",
     backToHome: "חזרה לבית",
+    nextMatchCancelAction: "חזרה הביתה",
     duplicateClubWarning: "לצד 1 ולצד 2 לא יכול להיות אותו מועדון.",
     side1Label: "צד 1",
     side2Label: "צד 2",

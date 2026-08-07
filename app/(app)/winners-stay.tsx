@@ -508,7 +508,7 @@ export default function WinnersStayScreen() {
               drawRotation: t("rotation.drawRotationLabel"),
               acceptNextMatch: t("rotation.acceptNextMatch"),
               redrawPartner: t("rotation.redrawPartnerLabel"),
-              cancel: t("common.cancel"),
+              cancel: t("rotation.nextMatchCancelAction"),
             }}
             onAccept={handleAccept}
             onRedrawPartner={session.pendingRotation.selectionSource === "randomFromLosers" ? handleRedraw : undefined}

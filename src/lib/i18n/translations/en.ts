@@ -622,6 +622,7 @@ const en = {
     swapClubsAction: "⇄ Swap Clubs",
     previousMatchPreview: "Previous match: {side1} vs {side2}",
     backToHome: "Back to Home",
+    nextMatchCancelAction: "Back to Home",
     duplicateClubWarning: "Side 1 and Side 2 can't use the same club.",
     side1Label: "Side 1",
     side2Label: "Side 2",
