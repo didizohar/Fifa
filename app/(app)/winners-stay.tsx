@@ -27,6 +27,7 @@ import {
   canAdvanceSession,
   cleanupInactiveQueueEntries,
   computeSessionSummary,
+  continueSameMatchup,
   drawInitialSingleSides,
   drawRandomInitialPairs,
   endSession,
@@ -461,6 +462,20 @@ export default function WinnersStayScreen() {
 
   const handleRedraw = () => setSession(redrawSessionPartner(session));
 
+  // The universal continuation action (see continueSameMatchup): valid the
+  // instant a pendingRotation exists, regardless of whether it has an
+  // opposingPair -- session progression must never depend on
+  // waitingQueue.length. Replays the just-finished matchup unchanged.
+  const handleContinueSameMatchup = () => {
+    const continued = continueSameMatchup(session, new Date());
+    setSession(continued);
+    const matchType = session.format === "group" ? "doubles" : "singles";
+    router.push({
+      pathname: "/record-match",
+      params: { ...buildMatchPrefillParams(matchType, [continued.currentPairA.players, continued.currentPairB!.players], null), source: "winnersStay" },
+    });
+  };
+
   const handleRetry = () => setSession(retryPendingRotation(session, playersById, new Date()));
 
   const handleUndo = () => setSession(undoLastRotation(session, new Date()));
@@ -493,27 +508,36 @@ export default function WinnersStayScreen() {
         {matchQuery.isError ? <ErrorState /> : null}
 
         {session.pendingRotation ? (
-          <NextMatchPreviewCard
-            result={session.pendingRotation}
-            playersById={playersById}
-            explanation={t(session.pendingRotation.reason.key, session.pendingRotation.reason.params)}
-            labels={{
-              title: t("rotation.nextMatchLabel"),
-              winningPair: t("rotation.winningPairLabel"),
-              incomingPair: t("rotation.incomingPairLabel"),
-              waitingQueue: t("rotation.waitingQueueLabel"),
-              emptyQueue: t("rotation.emptyQueueMessage"),
-              notEnoughPlayersTitle: t("rotation.notEnoughPlayersTitle"),
-              notEnoughPlayersMessage: t("rotation.notEnoughPlayersMessage"),
-              drawRotation: t("rotation.drawRotationLabel"),
-              acceptNextMatch: t("rotation.acceptNextMatch"),
-              redrawPartner: t("rotation.redrawPartnerLabel"),
-              cancel: t("rotation.nextMatchCancelAction"),
-            }}
-            onAccept={handleAccept}
-            onRedrawPartner={session.pendingRotation.selectionSource === "randomFromLosers" ? handleRedraw : undefined}
-            onCancel={() => router.back()}
-          />
+          <>
+            <NextMatchPreviewCard
+              result={session.pendingRotation}
+              playersById={playersById}
+              explanation={t(session.pendingRotation.reason.key, session.pendingRotation.reason.params)}
+              labels={{
+                title: t("rotation.nextMatchLabel"),
+                winningPair: t("rotation.winningPairLabel"),
+                incomingPair: t("rotation.incomingPairLabel"),
+                waitingQueue: t("rotation.waitingQueueLabel"),
+                emptyQueue: t("rotation.emptyQueueMessage"),
+                notEnoughPlayersTitle: t("rotation.notEnoughPlayersTitle"),
+                notEnoughPlayersMessage: t("rotation.notEnoughPlayersMessage"),
+                drawRotation: t("rotation.drawRotationLabel"),
+                acceptNextMatch: t("rotation.acceptNextMatch"),
+                continueSameMatchup: t("rotation.continueSameMatchupAction"),
+                redrawPartner: t("rotation.redrawPartnerLabel"),
+                cancel: t("rotation.nextMatchCancelAction"),
+              }}
+              onAccept={handleAccept}
+              onContinueSameMatchup={handleContinueSameMatchup}
+              onRedrawPartner={session.pendingRotation.selectionSource === "randomFromLosers" ? handleRedraw : undefined}
+              onCancel={() => router.back()}
+            />
+            {!session.pendingRotation.opposingPair ? (
+              <Text style={styles.linkAction} onPress={handleRetry}>
+                {t("common.retry")}
+              </Text>
+            ) : null}
+          </>
         ) : session.currentPairB ? (
           <Card style={styles.matchCard}>
             <Text style={styles.subLabel}>{t("rotation.currentMatch")}</Text>
@@ -522,12 +546,7 @@ export default function WinnersStayScreen() {
             <Text style={styles.body}>{t("rotation.waitingForResult")}</Text>
             <Button label={t("rotation.recordResult")} onPress={handleRecordCurrentMatch} />
           </Card>
-        ) : (
-          <Card style={styles.matchCard}>
-            <InfoBanner tone="warning" message={t("rotation.notEnoughPlayersMessage")} />
-            <Button label={t("common.retry")} variant="secondary" onPress={handleRetry} />
-          </Card>
-        )}
+        ) : null}
 
         {session.format !== "duo" ? (
           <Card style={styles.queueCard}>

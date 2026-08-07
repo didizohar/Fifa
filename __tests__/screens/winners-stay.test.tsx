@@ -236,6 +236,94 @@ describe("active duo session rendering", () => {
   });
 });
 
+describe("Case 4 fix -- session progression must never be blocked when nobody is waiting", () => {
+  function activeGroupSessionWithPendingRotation(hasOpposingPair: boolean): WinnersStaySession {
+    const player = (id: string, name: string) => ({ id, display_name: name, avatar_url: null, custom_color: "#111" });
+    const winner = { players: [player("p1", "Alice"), player("p2", "Bob")], consecutiveMatchesPlayed: 2 };
+    const loser = { players: [player("p3", "Cleo"), player("p4", "Dan")], consecutiveMatchesPlayed: 1 };
+    return {
+      id: "group-1",
+      groupId: "group-1",
+      format: "group",
+      activePlayerIds: ["p1", "p2", "p3", "p4"],
+      currentPairA: winner,
+      currentPairB: null,
+      pendingRotation: hasOpposingPair
+        ? {
+            stayingPair: winner.players,
+            opposingPair: [player("p5", "Eve"), player("p6", "Fay")],
+            waitingPlayers: [],
+            rotatedOutPlayers: loser.players,
+            selectionSource: "waitingQueue",
+            reason: { key: "rotation.reasonWaitingEnter", params: {} },
+            drawRotationApplied: false,
+          }
+        : {
+            stayingPair: winner.players,
+            opposingPair: null,
+            waitingPlayers: [],
+            rotatedOutPlayers: [],
+            selectionSource: "none",
+            reason: { key: "rotation.reasonNotEnoughWaiting", params: {} },
+            drawRotationApplied: false,
+          },
+      waitingQueue: [],
+      roundNumber: 1,
+      startedAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      lastRecordedMatchId: "m1",
+      status: "active",
+      longestWinningRun: 2,
+      previousSnapshot: { currentPairA: winner, currentPairB: loser, waitingQueue: [], roundNumber: 0, lastRecordedMatchId: null, updatedAt: "2026-01-01T00:00:00.000Z" },
+    };
+  }
+
+  it("Case A (waiting players exist): shows both the Winners Stay (accept) and the Next Match actions", () => {
+    mockSession = activeGroupSessionWithPendingRotation(true);
+    const renderer = renderScreen();
+    expect(() => findByAccessibilityLabel(renderer, "rotation.acceptNextMatch")).not.toThrow();
+    expect(() => findByAccessibilityLabel(renderer, "rotation.continueSameMatchupAction")).not.toThrow();
+  });
+
+  it("Case B (no waiting players): hides Winners Stay (accept), but Next Match is still available -- never blocked", () => {
+    mockSession = activeGroupSessionWithPendingRotation(false);
+    const renderer = renderScreen();
+    expect(() => findByAccessibilityLabel(renderer, "rotation.acceptNextMatch")).toThrow();
+    expect(() => findByAccessibilityLabel(renderer, "rotation.continueSameMatchupAction")).not.toThrow();
+  });
+
+  it("Next Match replays the same matchup (the pair that just lost), keeps the session id, and never touches the score", () => {
+    mockSession = activeGroupSessionWithPendingRotation(false);
+    const renderer = renderScreen();
+    act(() => {
+      findByAccessibilityLabel(renderer, "rotation.continueSameMatchupAction").props.onPress();
+    });
+
+    expect(mockSession!.id).toBe("group-1");
+    expect(mockSession!.currentPairA.players.map((p) => p.id)).toEqual(["p1", "p2"]); // winner unchanged
+    expect(mockSession!.currentPairB!.players.map((p) => p.id)).toEqual(["p3", "p4"]); // the pair that just lost
+    expect(mockSession!.roundNumber).toBe(1); // unchanged -- no new round/match implied by this choice alone
+    expect(mockSession!.lastRecordedMatchId).toBe("m1"); // unchanged -- no duplicate match created
+
+    expect(mockRouter.push).toHaveBeenCalledTimes(1);
+    const call = mockRouter.push.mock.calls[0]![0];
+    expect(call.pathname).toBe("/record-match");
+    expect(call.params).toMatchObject({ matchType: "doubles", source: "winnersStay", side1Players: "p1,p2", side2Players: "p3,p4" });
+    expect(call.params.side1Score).toBeUndefined(); // record-match always starts its own score fresh at 0
+    expect(call.params.side2Score).toBeUndefined();
+  });
+
+  it("Next Match is also available when waiting players exist -- it's the universal continuation, not exclusive to Case 4", () => {
+    mockSession = activeGroupSessionWithPendingRotation(true);
+    const renderer = renderScreen();
+    act(() => {
+      findByAccessibilityLabel(renderer, "rotation.continueSameMatchupAction").props.onPress();
+    });
+    // Replays the just-finished matchup, NOT the queue-based rotation that was on offer.
+    expect(mockSession!.currentPairB!.players.map((p) => p.id)).toEqual(["p3", "p4"]);
+  });
+});
+
 describe("first-match validity -- Task 3 draft lifecycle", () => {
   it("duo: recording the first match calls setLastParticipants exactly once with the session's original participants, and advances via the duo path (currentPairB unchanged)", () => {
     const player = (id: string, name: string) => ({ id, display_name: name, avatar_url: null, custom_color: "#111" });

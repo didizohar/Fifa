@@ -4,8 +4,10 @@ import {
   advanceDuoSession,
   advanceWinnersStaySession,
   canAdvanceSession,
+  canUseWinnersStay,
   cleanupInactiveQueueEntries,
   computeSessionSummary,
+  continueSameMatchup,
   drawInitialSingleSides,
   drawRandomInitialPairs,
   endSession,
@@ -243,6 +245,94 @@ describe("retryPendingRotation (Case 4 recovery)", () => {
   });
 });
 
+describe("canUseWinnersStay / continueSameMatchup (session progression must never depend on waitingQueue.length)", () => {
+  it("canUseWinnersStay is true only when a queue-based rotation is actually ready to accept", () => {
+    let session = freshSession(new Date(), ["e", "f"]);
+    session = advanceWinnersStaySession({ session, matchId: "m1", result: "sideA", playersById: playersById(ALL), activePlayerIds: ALL, now: new Date() });
+    expect(canUseWinnersStay(session)).toBe(true);
+  });
+
+  it("canUseWinnersStay is false in Case 4 (nobody waiting) -- Winners Stay is a rotation option, not the only way to continue", () => {
+    let session = freshSession(new Date(), []);
+    session = advanceWinnersStaySession({ session, matchId: "m1", result: "sideA", playersById: playersById(ALL), activePlayerIds: ALL, now: new Date() });
+    expect(canUseWinnersStay(session)).toBe(false);
+  });
+
+  it("continueSameMatchup replays the exact matchup that just finished when nobody is waiting -- session is never blocked", () => {
+    let session = freshSession(new Date(), []);
+    session = advanceWinnersStaySession({ session, matchId: "m1", result: "sideA", playersById: playersById(ALL), activePlayerIds: ALL, now: new Date() });
+    expect(session.currentPairB).toBeNull(); // the old stuck state
+
+    const continued = continueSameMatchup(session, new Date());
+    expect(continued.currentPairA.players.map((p) => p.id)).toEqual(["a", "b"]); // winner unchanged
+    expect(continued.currentPairB!.players.map((p) => p.id)).toEqual(["c", "d"]); // the pair that just lost returns
+    expect(continued.currentPairB!.consecutiveMatchesPlayed).toBe(2); // incremented, not reset -- they never left the court
+    expect(continued.pendingRotation).toBeNull();
+  });
+
+  it("continueSameMatchup is available even when a queue-based rotation WAS on offer -- Next Match is the universal fallback, not exclusive to Case 4", () => {
+    let session = freshSession(new Date(), ["e", "f"]);
+    session = advanceWinnersStaySession({ session, matchId: "m1", result: "sideA", playersById: playersById(ALL), activePlayerIds: ALL, now: new Date() });
+    expect(session.pendingRotation!.opposingPair).not.toBeNull(); // a rotation WAS available
+
+    const continued = continueSameMatchup(session, new Date());
+    expect(continued.currentPairB!.players.map((p) => p.id)).toEqual(["c", "d"]); // same matchup replayed, not the queue rotation
+    expect(continued.waitingQueue).toEqual(session.waitingQueue); // queue untouched -- e/f never entered
+  });
+
+  it("keeps the same session id and never advances the round or touches lastRecordedMatchId -- no match is duplicated by choosing it", () => {
+    let session = freshSession(new Date(), []);
+    session = advanceWinnersStaySession({ session, matchId: "m1", result: "sideA", playersById: playersById(ALL), activePlayerIds: ALL, now: new Date() });
+    const continued = continueSameMatchup(session, new Date());
+    expect(continued.id).toBe(session.id);
+    expect(continued.roundNumber).toBe(session.roundNumber);
+    expect(continued.lastRecordedMatchId).toBe(session.lastRecordedMatchId);
+  });
+
+  it("supports a fixed 4-player group with an always-empty waiting queue playing indefinitely -- never gets stuck", () => {
+    let session = freshSession(new Date(), []); // exactly 4 participants, nobody ever waits
+    for (let i = 0; i < 5; i++) {
+      session = advanceWinnersStaySession({ session, matchId: `m${i}`, result: "sideA", playersById: playersById(ALL), activePlayerIds: ALL, now: new Date() });
+      expect(canUseWinnersStay(session)).toBe(false); // never a queue rotation to accept
+      session = continueSameMatchup(session, new Date());
+      expect(session.currentPairB).not.toBeNull(); // always a valid way to continue
+    }
+  });
+
+  it("works for a trio session (1-player sides) exactly like group -- format-agnostic engine", () => {
+    let session = startWinnersStaySession({
+      id: "trio-session",
+      groupId: "group-1",
+      format: "trio",
+      pairA: [player("a")],
+      pairB: [player("b")],
+      waitingPlayers: [player("c")],
+      activePlayerIds: ["a", "b", "c"],
+      now: new Date(),
+    });
+    session = advanceWinnersStaySession({ session, matchId: "m1", result: "sideA", playersById: playersById(["a", "b", "c"]), activePlayerIds: ["a", "b", "c"], now: new Date() });
+    expect(session.pendingRotation!.opposingPair).not.toBeNull(); // "c" was available to rotate in
+
+    const continued = continueSameMatchup(session, new Date());
+    expect(continued.currentPairA.players.map((p) => p.id)).toEqual(["a"]); // winner
+    expect(continued.currentPairB!.players.map((p) => p.id)).toEqual(["b"]); // same matchup replayed, not "c"
+    expect(continued.waitingQueue.map((q) => q.playerId)).toEqual(["c"]); // "c" never entered, queue untouched
+  });
+
+  it("throws if there is no just-finished matchup to replay yet", () => {
+    const session = freshSession();
+    expect(() => continueSameMatchup(session, new Date())).toThrow();
+  });
+
+  it("does not mutate the input session", () => {
+    let session = freshSession(new Date(), []);
+    session = advanceWinnersStaySession({ session, matchId: "m1", result: "sideA", playersById: playersById(ALL), activePlayerIds: ALL, now: new Date() });
+    const snapshot = JSON.parse(JSON.stringify(session));
+    continueSameMatchup(session, new Date());
+    expect(session).toEqual(snapshot);
+  });
+});
+
 describe("redrawSessionPartner", () => {
   it("only changes which loser partners the waiting player, never the winning pair", () => {
     let session = freshSession(new Date(), ["e"]);
@@ -466,6 +556,14 @@ describe("duo sessions (2 participants -- 1v1, no rotation ever)", () => {
 
     const duoSession = freshDuoSession();
     expect(() => advanceWinnersStaySession({ session: duoSession, matchId: "m1", result: "sideA", playersById: playersById(["a", "b"]), activePlayerIds: ["a", "b"], now: new Date() })).toThrow();
+  });
+
+  it("Next Match availability never depends on a waiting queue -- canAdvanceSession stays true for every round, since duo has no queue at all", () => {
+    let session = freshDuoSession();
+    for (const matchId of ["m1", "m2", "m3"]) {
+      expect(canAdvanceSession(session, matchId)).toBe(true);
+      session = advanceDuoSession(session, matchId, new Date());
+    }
   });
 
   it("undoLastRotation reverts a duo round exactly like a group round", () => {

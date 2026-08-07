@@ -558,6 +558,7 @@ const he = {
     randomPartnerLabel: "בן זוג אקראי",
     redrawPartnerLabel: "הגרל בן זוג מחדש",
     acceptNextMatch: "אשר משחק הבא",
+    continueSameMatchupAction: "משחק הבא",
     drawRotationLabel: "רוטציה לאחר תיקו",
     notEnoughPlayersTitle: "אין מספיק שחקנים",
     notEnoughPlayersMessage: "נדרש לפחות שחקן ממתין אחד.",

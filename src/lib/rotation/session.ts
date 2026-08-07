@@ -254,6 +254,47 @@ export function redrawSessionPartner(session: WinnersStaySession, random: Random
   return { ...session, pendingRotation: { ...pending, opposingPair: [waitingHalf, picked.selected], rotatedOutPlayers: [picked.remaining] } };
 }
 
+/**
+ * True only when there's an actual queue-based rotation ready to accept --
+ * i.e. Case 4 ("nobody waiting") never satisfies this, so a caller can use
+ * it to decide whether a "Winners Stay" rotate action makes sense to offer
+ * at all, as opposed to continueSameMatchup below (the always-available
+ * fallback).
+ */
+export function canUseWinnersStay(session: WinnersStaySession): boolean {
+  return !!session.pendingRotation?.opposingPair;
+}
+
+/**
+ * The universal continuation action: replays the exact matchup that just
+ * finished instead of rotating anyone in or out -- valid regardless of
+ * whether anyone is waiting (per the rule that session progression must
+ * never depend on waitingQueue.length). currentPairA (the winner, already
+ * updated by advanceSessionAfterMatch) is left as-is; the side that just
+ * lost -- recovered from previousSnapshot, the state captured the instant
+ * this round's result was recorded -- returns as currentPairB with its own
+ * streak incremented by one, since it never actually left the court. Never
+ * touches the waiting queue: nobody enters or leaves it. Clears any
+ * pendingRotation, so a declined Case 1-3 rotation (or a Case 4 "nobody
+ * waiting" notice) is simply dropped. Throws if there's no just-finished
+ * matchup to replay (nothing has been recorded yet this round).
+ */
+export function continueSameMatchup(session: WinnersStaySession, now: Date): WinnersStaySession {
+  const snap = session.previousSnapshot;
+  if (!snap?.currentPairB) {
+    throw new Error("There is no just-finished matchup to continue.");
+  }
+  const winningIds = new Set(session.currentPairA.players.map((p) => p.id));
+  const lastLoser = snap.currentPairA.players.some((p) => winningIds.has(p.id)) ? snap.currentPairB : snap.currentPairA;
+
+  return {
+    ...session,
+    currentPairB: incrementConsecutiveMatches(lastLoser),
+    pendingRotation: null,
+    updatedAt: now.toISOString(),
+  };
+}
+
 /** Commits the current pendingRotation into currentPairB/waitingQueue. Throws if there's nothing to accept (no pending rotation, or Case 4's "not enough players" with no opposing pair). */
 export function acceptPendingRotation(session: WinnersStaySession, now: Date): WinnersStaySession {
   if (!session.pendingRotation?.opposingPair) {

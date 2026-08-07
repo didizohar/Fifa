@@ -20,19 +20,29 @@ interface NextMatchPreviewCardProps {
     notEnoughPlayersMessage: string;
     drawRotation: string;
     acceptNextMatch: string;
+    continueSameMatchup: string;
     redrawPartner: string;
     cancel: string;
   };
   /** Pre-resolved via t(result.reason.key, result.reason.params) -- this component never calls a translation function itself. */
   explanation: string;
+  /** Only rendered when result.opposingPair is set -- accepting the queue-based rotation. */
   onAccept: () => void;
+  /**
+   * Always rendered, regardless of result.opposingPair -- replays the
+   * matchup that just finished instead of rotating anyone in. This is the
+   * universal continuation action: session progression must never depend
+   * on a waiting player being available (Case 4's "not enough players"
+   * notice above is informational, not a dead end).
+   */
+  onContinueSameMatchup: () => void;
   /** Present only when result.selectionSource === "randomFromLosers" -- redrawing only re-picks the randomly-selected losing player, never the winning pair. */
   onRedrawPartner?: () => void;
   onCancel: () => void;
 }
 
 /** "Next Match" preview for the Winners Stay rotation mode -- winning pair, incoming pair (or a "not enough players" notice), waiting queue, a plain-language explanation, and the Accept/Redraw/Cancel actions. */
-export function NextMatchPreviewCard({ result, playersById, labels, explanation, onAccept, onRedrawPartner, onCancel }: NextMatchPreviewCardProps) {
+export function NextMatchPreviewCard({ result, playersById, labels, explanation, onAccept, onContinueSameMatchup, onRedrawPartner, onCancel }: NextMatchPreviewCardProps) {
   return (
     <Card style={styles.container}>
       <Text style={styles.title}>{labels.title}</Text>
@@ -66,6 +76,7 @@ export function NextMatchPreviewCard({ result, playersById, labels, explanation,
 
       <View style={styles.actions}>
         {result.opposingPair ? <Button label={labels.acceptNextMatch} onPress={onAccept} /> : null}
+        <Button label={labels.continueSameMatchup} variant={result.opposingPair ? "secondary" : "primary"} onPress={onContinueSameMatchup} />
         {result.opposingPair && onRedrawPartner ? <Button label={labels.redrawPartner} variant="secondary" onPress={onRedrawPartner} /> : null}
         <Button label={labels.cancel} variant="secondary" onPress={onCancel} />
       </View>

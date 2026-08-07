@@ -561,6 +561,7 @@ const en = {
     randomPartnerLabel: "Random Partner",
     redrawPartnerLabel: "Redraw Partner",
     acceptNextMatch: "Accept Next Match",
+    continueSameMatchupAction: "Next Match",
     drawRotationLabel: "Draw Rotation",
     notEnoughPlayersTitle: "Not Enough Players",
     notEnoughPlayersMessage: "At least one waiting player is required.",
