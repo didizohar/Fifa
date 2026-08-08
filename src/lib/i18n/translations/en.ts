@@ -129,7 +129,7 @@ const en = {
     loadError: "Couldn't load your dashboard. Check your connection and try again.",
     quickMatchTitle: "Quick Match",
     quickMatchNoClubSelected: "No club selected",
-    quickMatchNextMatchAction: "Next Match",
+    quickMatchSaveResultAction: "Save Result",
     quickMatchRecordAction: "Full Record Match",
   },
   settings: {

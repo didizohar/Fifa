@@ -294,6 +294,55 @@ describe("club actions", () => {
     const badges = renderer.root.findAllByType(ClubBadge);
     expect(badges.map((b) => b.props.name)).toEqual(["Club d", "Club a"]);
   });
+
+  it("Small Clubs then Save Result works without reopening Record Match", async () => {
+    mockSession = baseSession({ roundNumber: 3, lastRecordedMatchId: "m-old" });
+    const renderer = renderCard();
+    act(() => {
+      findButton(renderer, "home.quickClubDrawPoolSmall").props.onPress();
+    });
+    await pressButton(renderer, "home.quickMatchSaveResultAction");
+
+    expect(mockMutateAsync).toHaveBeenCalledTimes(1);
+    const payload = mockMutateAsync.mock.calls[0]![0] as { sides: { clubVersionId: string }[] };
+    const usedClub = CLUB_VERSIONS.find((cv) => cv.id === payload.sides[0]!.clubVersionId);
+    expect([3.5, 4]).toContain(usedClub!.star_rating);
+    expect(mockSetSession).toHaveBeenCalled();
+  });
+
+  it("Same Clubs then Save Result submits exactly the reused clubs", async () => {
+    mockSession = baseSession({ roundNumber: 3, lastRecordedMatchId: "m-old" });
+    mockPreviousMatches = [
+      { sides: [{ club_version_id: "cv-a", club: { name: "Club a" } }, { club_version_id: "cv-d", club: { name: "Club d" } }] },
+    ];
+    const renderer = renderCard();
+    act(() => {
+      findButton(renderer, "rotation.sameClubsAction").props.onPress();
+    });
+    await pressButton(renderer, "home.quickMatchSaveResultAction");
+
+    expect(mockMutateAsync).toHaveBeenCalledTimes(1);
+    const payload = mockMutateAsync.mock.calls[0]![0] as { sides: { clubVersionId: string }[] };
+    expect(payload.sides[0]!.clubVersionId).toBe("cv-a");
+    expect(payload.sides[1]!.clubVersionId).toBe("cv-d");
+  });
+
+  it("Swap Clubs then Save Result submits the swapped clubs", async () => {
+    mockSession = baseSession({ roundNumber: 3, lastRecordedMatchId: "m-old" });
+    mockPreviousMatches = [
+      { sides: [{ club_version_id: "cv-a", club: { name: "Club a" } }, { club_version_id: "cv-d", club: { name: "Club d" } }] },
+    ];
+    const renderer = renderCard();
+    act(() => {
+      findButton(renderer, "rotation.swapClubsAction").props.onPress();
+    });
+    await pressButton(renderer, "home.quickMatchSaveResultAction");
+
+    expect(mockMutateAsync).toHaveBeenCalledTimes(1);
+    const payload = mockMutateAsync.mock.calls[0]![0] as { sides: { clubVersionId: string }[] };
+    expect(payload.sides[0]!.clubVersionId).toBe("cv-d");
+    expect(payload.sides[1]!.clubVersionId).toBe("cv-a");
+  });
 });
 
 describe("'תיעוד משחק' -- opens the exact primary Record Match route, no new implementation", () => {
@@ -357,7 +406,7 @@ describe("binding to the exact active session (never a stale or different one)",
     act(() => {
       findButton(renderer, "home.quickClubDrawPoolLarge").props.onPress();
     });
-    await pressButton(renderer, "home.quickMatchNextMatchAction");
+    await pressButton(renderer, "home.quickMatchSaveResultAction");
 
     const payload = mockMutateAsync.mock.calls[0]![0] as { sides: { playerIds: string[] }[] };
     expect(payload.sides[0]!.playerIds).toEqual(["p1"]);
@@ -371,7 +420,7 @@ describe("binding to the exact active session (never a stale or different one)",
     act(() => {
       findButton(renderer, "home.quickClubDrawPoolLarge").props.onPress();
     });
-    await pressButton(renderer, "home.quickMatchNextMatchAction");
+    await pressButton(renderer, "home.quickMatchSaveResultAction");
 
     const payload = mockMutateAsync.mock.calls[0]![0] as { sides: { playerIds: string[] }[] };
     expect(payload.sides[0]!.playerIds).toEqual(["p1"]);
@@ -385,7 +434,7 @@ describe("binding to the exact active session (never a stale or different one)",
     act(() => {
       findButton(renderer, "home.quickClubDrawPoolLarge").props.onPress();
     });
-    await pressButton(renderer, "home.quickMatchNextMatchAction");
+    await pressButton(renderer, "home.quickMatchSaveResultAction");
 
     const payload = mockMutateAsync.mock.calls[0]![0] as { sides: { playerIds: string[] }[] };
     expect(payload.sides[0]!.playerIds).toEqual(["p1", "p2"]);
@@ -482,10 +531,24 @@ describe("saving a result", () => {
     }
   }
 
+  it("score changes stay local -- no mutation and no session write until Save is actually pressed", () => {
+    mockSession = baseSession();
+    const renderer = renderCard();
+    setClubs(renderer);
+    bumpScore(renderer, 0, 3);
+    bumpScore(renderer, 1, 2);
+
+    const steppers = renderer.root.findAllByType(ScoreStepper);
+    expect(steppers[0]!.props.value).toBe(3);
+    expect(steppers[1]!.props.value).toBe(2);
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+    expect(mockSetSession).not.toHaveBeenCalled();
+  });
+
   it("Save is disabled until both clubs are assigned", () => {
     mockSession = baseSession();
     const renderer = renderCard();
-    expect(findButton(renderer, "home.quickMatchNextMatchAction").props.disabled).toBe(true);
+    expect(findButton(renderer, "home.quickMatchSaveResultAction").props.disabled).toBe(true);
   });
 
   it("reuses the exact useRecordMatch mutation with the session's current matchup", async () => {
@@ -494,7 +557,7 @@ describe("saving a result", () => {
     setClubs(renderer);
     bumpScore(renderer, 0, 2);
 
-    await pressButton(renderer, "home.quickMatchNextMatchAction");
+    await pressButton(renderer, "home.quickMatchSaveResultAction");
 
     expect(mockMutateAsync).toHaveBeenCalledTimes(1);
     const payload = mockMutateAsync.mock.calls[0]![0] as { matchType: string; sides: { playerIds: string[]; score: number; result: string }[] };
@@ -512,7 +575,7 @@ describe("saving a result", () => {
     setClubs(renderer);
     bumpScore(renderer, 0, 1);
 
-    await pressButton(renderer, "home.quickMatchNextMatchAction");
+    await pressButton(renderer, "home.quickMatchSaveResultAction");
 
     expect(mockSetSession).toHaveBeenCalled();
     expect(mockSession!.roundNumber).toBe(4);
@@ -528,7 +591,7 @@ describe("saving a result", () => {
     setClubs(renderer);
     bumpScore(renderer, 0, 1); // p1 (Alice) wins clearly, so the draw tiebreak can't decide who stays
 
-    await pressButton(renderer, "home.quickMatchNextMatchAction");
+    await pressButton(renderer, "home.quickMatchSaveResultAction");
     renderer = rerender(renderer);
 
     // p1 won and stays, p3 (the only waiter) enters -- p2 now waits.
@@ -542,7 +605,7 @@ describe("saving a result", () => {
     let renderer = renderCard();
     setClubs(renderer);
 
-    await pressButton(renderer, "home.quickMatchNextMatchAction");
+    await pressButton(renderer, "home.quickMatchSaveResultAction");
     renderer = rerender(renderer);
 
     expect(renderer.toJSON()).toBeNull();
@@ -553,7 +616,7 @@ describe("saving a result", () => {
     const renderer = renderCard();
     setClubs(renderer);
 
-    await pressButton(renderer, "home.quickMatchNextMatchAction");
+    await pressButton(renderer, "home.quickMatchSaveResultAction");
 
     expect(mockSetLastParticipants).toHaveBeenCalledTimes(1);
     expect(mockLastParticipantIds).toEqual(expect.arrayContaining(["p1", "p2"]));
@@ -564,7 +627,7 @@ describe("saving a result", () => {
     const renderer = renderCard();
     setClubs(renderer);
 
-    await pressButton(renderer, "home.quickMatchNextMatchAction");
+    await pressButton(renderer, "home.quickMatchSaveResultAction");
 
     expect(mockSetLastParticipants).not.toHaveBeenCalled();
   });
@@ -577,7 +640,7 @@ describe("saving a result", () => {
     setClubs(renderer);
 
     await act(async () => {
-      const btn = findButton(renderer, "home.quickMatchNextMatchAction");
+      const btn = findButton(renderer, "home.quickMatchSaveResultAction");
       btn.props.onPress();
       btn.props.onPress();
       btn.props.onPress();
@@ -593,29 +656,36 @@ describe("saving a result", () => {
     });
   });
 
-  it("a failed save shows an error, does not advance the session, and re-enables Save for retry", async () => {
+  it("a failed save shows an error, preserves the entered score and matchup, does not advance the session, and re-enables Save for retry", async () => {
     mockSession = baseSession({ roundNumber: 3, lastRecordedMatchId: "m-old" });
     mockRecordMatchImpl = () => Promise.reject(new Error("network exploded"));
     const renderer = renderCard();
     setClubs(renderer);
+    bumpScore(renderer, 0, 3);
 
-    await pressButton(renderer, "home.quickMatchNextMatchAction");
+    await pressButton(renderer, "home.quickMatchSaveResultAction");
 
     expect(mockSetSession).not.toHaveBeenCalled();
     const texts = renderer.root.findAllByType(Text).map((n) => n.props.children);
     expect(texts).toContain("network exploded");
+    // The score the user entered is still there -- not reset by the failed attempt.
+    expect(renderer.root.findAllByType(ScoreStepper)[0]!.props.value).toBe(3);
+    // The button itself is enabled again (not stuck disabled/loading after the failure).
+    expect(findButton(renderer, "home.quickMatchSaveResultAction").props.disabled).toBeFalsy();
 
-    // Retry is possible -- the guard was released.
+    // Retry is possible -- the guard was released, and the SAME score is resubmitted.
     mockRecordMatchImpl = async () => "new-match-id";
-    await pressButton(renderer, "home.quickMatchNextMatchAction");
+    await pressButton(renderer, "home.quickMatchSaveResultAction");
     expect(mockSetSession).toHaveBeenCalled();
+    const retryPayload = mockMutateAsync.mock.calls[mockMutateAsync.mock.calls.length - 1]![0] as { sides: { score: number }[] };
+    expect(retryPayload.sides[0]!.score).toBe(3);
   });
 
   it("never issues a duplicate match save even across a slow first attempt followed by a second tap", async () => {
     mockSession = baseSession({ roundNumber: 3, lastRecordedMatchId: "m-old" });
     const renderer = renderCard();
     setClubs(renderer);
-    await pressButton(renderer, "home.quickMatchNextMatchAction");
+    await pressButton(renderer, "home.quickMatchSaveResultAction");
     expect(mockMutateAsync).toHaveBeenCalledTimes(1);
   });
 
@@ -629,7 +699,7 @@ describe("saving a result", () => {
       renderer = rerender(renderer);
       setClubs(renderer);
       // eslint-disable-next-line no-await-in-loop
-      await pressButton(renderer, "home.quickMatchNextMatchAction");
+      await pressButton(renderer, "home.quickMatchSaveResultAction");
       expect(mockMutateAsync).toHaveBeenCalledTimes(round);
       expect(mockSession!.roundNumber).toBe(round);
       expect(mockSession!.currentPairA.players.map((p) => p.id)).toEqual(["p1"]);

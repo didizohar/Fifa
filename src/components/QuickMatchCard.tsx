@@ -300,7 +300,7 @@ export const QuickMatchCard = memo(function QuickMatchCard({ groupId, gameVersio
       {errors.length > 0 ? <Text style={styles.errorText}>{errors[0]}</Text> : null}
 
       <Button label={t("home.quickMatchRecordAction")} variant="secondary" onPress={openFullRecordMatch} />
-      <Button label={t("home.quickMatchNextMatchAction")} onPress={handleSave} loading={recordMatch.isPending} disabled={!canSave} />
+      <Button label={t("home.quickMatchSaveResultAction")} onPress={handleSave} loading={recordMatch.isPending} disabled={!canSave} />
     </Card>
   );
 });
