@@ -13,8 +13,9 @@ jest.mock("../src/lib/supabase", () => ({
 }));
 
 import { supabase } from "../src/lib/supabase";
-import { deleteAccountConfirmationMatches, deleteOwnAccount, exchangeRecoveryCode, requestPasswordReset, signOut, updatePassword } from "../src/lib/auth";
+import { deleteAccountConfirmationMatches, deleteOwnAccount, exchangeRecoveryCode, requestPasswordReset, signOut, signUpWithEmail, updatePassword } from "../src/lib/auth";
 
+const mockSignUp = supabase.auth.signUp as jest.Mock;
 const mockResetPasswordForEmail = supabase.auth.resetPasswordForEmail as jest.Mock;
 const mockExchangeCodeForSession = supabase.auth.exchangeCodeForSession as jest.Mock;
 const mockUpdateUser = supabase.auth.updateUser as jest.Mock;
@@ -22,11 +23,43 @@ const mockSignOut = supabase.auth.signOut as jest.Mock;
 const mockRpc = supabase.rpc as jest.Mock;
 
 beforeEach(() => {
+  mockSignUp.mockReset();
   mockResetPasswordForEmail.mockReset();
   mockExchangeCodeForSession.mockReset();
   mockUpdateUser.mockReset();
   mockSignOut.mockReset();
   mockRpc.mockReset();
+});
+
+describe("signUpWithEmail", () => {
+  it("passes emailRedirectTo through to the provider so the confirmation link opens the app, not the project's Site URL", async () => {
+    mockSignUp.mockResolvedValue({ data: { session: null }, error: null });
+    await signUpWithEmail("real@example.com", "password123", "fcrival://auth/callback");
+    expect(mockSignUp).toHaveBeenCalledWith({
+      email: "real@example.com",
+      password: "password123",
+      options: { emailRedirectTo: "fcrival://auth/callback" },
+    });
+  });
+
+  it("omits options entirely when no redirect is given, rather than sending emailRedirectTo: undefined", async () => {
+    mockSignUp.mockResolvedValue({ data: { session: null }, error: null });
+    await signUpWithEmail("real@example.com", "password123");
+    expect(mockSignUp).toHaveBeenCalledWith({ email: "real@example.com", password: "password123", options: undefined });
+  });
+
+  it("reports hasSession accurately (false when email confirmation is required, true when auto-confirmed)", async () => {
+    mockSignUp.mockResolvedValueOnce({ data: { session: null }, error: null });
+    await expect(signUpWithEmail("real@example.com", "password123")).resolves.toEqual({ hasSession: false });
+
+    mockSignUp.mockResolvedValueOnce({ data: { session: {} }, error: null });
+    await expect(signUpWithEmail("real@example.com", "password123")).resolves.toEqual({ hasSession: true });
+  });
+
+  it("throws on a genuine provider error", async () => {
+    mockSignUp.mockResolvedValue({ data: null, error: { message: "User already registered" } });
+    await expect(signUpWithEmail("real@example.com", "password123")).rejects.toThrow("User already registered");
+  });
 });
 
 describe("requestPasswordReset", () => {

@@ -401,6 +401,9 @@ const en = {
     resetLinkInvalidTitle: "This link is no longer valid",
     resetLinkInvalidMessage: "Password reset links expire after a while, or may have already been used. Request a new one.",
     resetLinkInvalidAction: "Request a new link",
+    confirmLinkInvalidTitle: "This link is no longer valid",
+    confirmLinkInvalidMessage: "Confirmation links expire after a while, or may have already been used. Try signing in, or sign up again.",
+    confirmLinkInvalidAction: "Back to sign in",
   },
   group: {
     onboardingTitle: "Welcome to Couch League",

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import * as Linking from "expo-linking";
 import { Link } from "expo-router";
+import { useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Button } from "../../src/components/Button";
 import { Screen } from "../../src/components/Screen";
@@ -25,7 +26,7 @@ export default function SignupScreen() {
     setError(null);
     setIsSubmitting(true);
     try {
-      const result = await signUpWithEmail(email.trim(), password);
+      const result = await signUpWithEmail(email.trim(), password, Linking.createURL("auth/callback"));
       if (!result.hasSession) {
         // Email confirmation is required on this project -- no session yet.
         setNeedsConfirmation(true);

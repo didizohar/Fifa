@@ -10,8 +10,14 @@ export interface SignUpResult {
   hasSession: boolean;
 }
 
-export async function signUpWithEmail(email: string, password: string): Promise<SignUpResult> {
-  const { data, error } = await supabase.auth.signUp({ email, password });
+/**
+ * `emailRedirectTo` is optional only for callers (e.g. tests) that don't
+ * care where the confirmation link points -- every real call site should
+ * pass one (see signup.tsx), or Supabase falls back to the project's Site
+ * URL, which is a web address, not this app.
+ */
+export async function signUpWithEmail(email: string, password: string, emailRedirectTo?: string): Promise<SignUpResult> {
+  const { data, error } = await supabase.auth.signUp({ email, password, options: emailRedirectTo ? { emailRedirectTo } : undefined });
   if (error) throw new Error(error.message);
   return { hasSession: data.session !== null };
 }

@@ -398,6 +398,9 @@ const he = {
     resetLinkInvalidTitle: "הקישור הזה כבר אינו בתוקף",
     resetLinkInvalidMessage: "קישורי איפוס סיסמה פגים לאחר זמן מה, או שכבר נעשה בהם שימוש. בקשו קישור חדש.",
     resetLinkInvalidAction: "בקשת קישור חדש",
+    confirmLinkInvalidTitle: "הקישור הזה כבר אינו בתוקף",
+    confirmLinkInvalidMessage: "קישורי אימות פגים לאחר זמן מה, או שכבר נעשה בהם שימוש. נסו להתחבר, או הירשמו מחדש.",
+    confirmLinkInvalidAction: "חזרה להתחברות",
   },
   group: {
     onboardingTitle: "ברוכים הבאים ל-Couch League",
