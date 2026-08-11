@@ -2,7 +2,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import type { ComponentProps, ReactNode } from "react";
 import { useCallback, useMemo, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { AnimatedNumber } from "../../../src/components/AnimatedNumber";
 import { Avatar } from "../../../src/components/Avatar";
 import { Badge, rankBadgeTone } from "../../../src/components/Badge";
@@ -16,6 +16,7 @@ import { MatchRow } from "../../../src/components/MatchRow";
 import { QuickActionCard } from "../../../src/components/QuickActionCard";
 import { QuickClubDrawCard } from "../../../src/components/QuickClubDrawCard";
 import { QuickMatchCard } from "../../../src/components/QuickMatchCard";
+import { RankingRow } from "../../../src/components/RankingRow";
 import { Screen } from "../../../src/components/Screen";
 import { SkeletonList } from "../../../src/components/Skeleton";
 import { StatTile } from "../../../src/components/StatTile";
@@ -30,6 +31,7 @@ import { usePlayers } from "../../../src/hooks/usePlayers";
 import { useSeasons } from "../../../src/hooks/useSeasons";
 import { type DiscoveryItemType, selectHomeHighlights } from "../../../src/lib/discovery";
 import { useTranslation } from "../../../src/lib/i18n";
+import { computeIndividualStandings } from "../../../src/lib/leagueStandings";
 import { selectInsightOfTheDay } from "../../../src/lib/leagueInsights";
 import { computeLeagueSummary } from "../../../src/lib/leagueStats";
 import { matchSideLabel, formatRelativeDate, formatStreakLabel } from "../../../src/lib/format";
@@ -40,7 +42,16 @@ import { calculateLeagueTrendSummary } from "../../../src/lib/trends/leagueTrend
 import type { PlayerTrendMetrics } from "../../../src/lib/trends/types";
 import type { MatchSummary } from "../../../src/lib/matches";
 import type { PlayerProfile } from "../../../src/lib/types/database";
-import { colors, radius, spacing, typography } from "../../../src/theme";
+import type { ThemeColors } from "../../../src/theme/colors";
+import { useTheme, type ThemeValue } from "../../../src/theme/ThemeContext";
+
+const RECENT_ACTIVITY_COUNT = 3;
+
+/** Same calendar day as `now`, in the device's local timezone -- the grounded, no-schema-change reading of "Tonight's Standings": there's no session_id FK linking matches to a Winners Stay session (session state is ephemeral JSONB, not a persisted grouping), so calendar-day is the closest honest proxy for "this evening's matches" the existing data model supports. */
+function isSameLocalDay(isoA: string, isoB: Date): boolean {
+  const a = new Date(isoA);
+  return a.getFullYear() === isoB.getFullYear() && a.getMonth() === isoB.getMonth() && a.getDate() === isoB.getDate();
+}
 
 const TRENDING_PREVIEW = 3;
 const HIGHLIGHTS_COUNT = 4;
@@ -63,6 +74,8 @@ export default function HomeScreen() {
   // inline-binding a fresh closure per row per render.
   const handlePressPlayer = useCallback((playerId: string) => router.push(`/player/${playerId}`), [router]);
   const { t } = useTranslation();
+  const { colors, radius, spacing, typography } = useTheme();
+  const styles = useDashboardStyles(colors, radius, spacing, typography);
   const { user } = useAuth();
   const { currentGroup } = useGroup();
   const groupId = currentGroup?.id ?? null;
@@ -95,6 +108,20 @@ export default function HomeScreen() {
   const myStats = useMemo(() => (myPlayer ? computePlayerStats(myPlayer.id, allMatches) : null), [myPlayer, allMatches]);
   const myRank = useMemo(() => (myPlayer ? computeWinRateRank(myPlayer.id, roster, allMatches) : null), [myPlayer, roster, allMatches]);
   const leagueSummary = useMemo(() => computeLeagueSummary(roster, allMatches), [roster, allMatches]);
+
+  // "Tonight's Standings" -- see isSameLocalDay's own comment for why
+  // calendar-day (not a literal session grouping, which the data model has
+  // no FK for) is what this is grounded in.
+  const tonightsStandings = useMemo(() => {
+    const now = new Date();
+    const tonightsMatches = allMatches.filter((m) => isSameLocalDay(m.played_at, now));
+    return computeIndividualStandings(roster, tonightsMatches).map((row) => ({
+      ...row,
+      form: computeLastNStats(row.id, tonightsMatches, 3).form.map((f) => f.result),
+    }));
+    // "now" intentionally not listed -- same day-stable rationale as insightOfTheDay/highlights below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roster, allMatches]);
 
   // Stage 7 M4 trends engine -- every dashboard trend card below reads
   // straight from this one memoized summary, never recalculating stats itself.
@@ -178,6 +205,11 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl tintColor={colors.accent} refreshing={isRefetching} onRefresh={handleRefresh} />}
       >
+        {/* The active football night belongs at the very top, above any
+            personal/historical stats -- QuickMatchCard is the "LIVE SESSION"
+            hero (session status, current matchup, Quick Result CTA). */}
+        <QuickMatchCard groupId={groupId} gameVersionId={currentGroup?.default_game_version_id} />
+
         <FadeIn>
         <LinearGradient colors={[colors.surfaceElevated, colors.surface]} style={styles.hero}>
           {myPlayer ? (
@@ -235,7 +267,27 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <QuickMatchCard groupId={groupId} gameVersionId={currentGroup?.default_game_version_id} />
+        {tonightsStandings.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{t("home.tonightsStandings")}</Text>
+            <View style={styles.sectionList}>
+              {tonightsStandings.map((row, index) => (
+                <RankingRow
+                  key={row.id}
+                  playerId={row.id}
+                  rank={index + 1}
+                  name={row.name}
+                  avatarUrl={roster.find((p) => p.id === row.id)?.avatar_url}
+                  color={roster.find((p) => p.id === row.id)?.custom_color ?? colors.accent}
+                  value={row.points}
+                  detail={t("home.leagueTableCardRowDetail", { gd: row.goalDifference > 0 ? `+${row.goalDifference}` : String(row.goalDifference), played: String(row.played) })}
+                  onPress={handlePressPlayer}
+                  form={row.form}
+                />
+              ))}
+            </View>
+          </View>
+        ) : null}
 
         <QuickClubDrawCard groupId={groupId} gameVersionId={currentGroup?.default_game_version_id} />
 
@@ -298,25 +350,32 @@ export default function HomeScreen() {
 
             {latestMatch ? (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>{t("home.latestMatch")}</Text>
-                <MatchRow
-                  matchType={latestMatch.match_type}
-                  isPenalties={latestMatch.is_penalties}
-                  playedAtLabel={formatRelativeDate(latestMatch.played_at, t)}
-                  side1={{
-                    label: matchSideLabel(latestMatch.sides[0].players.map((p) => p.display_name)),
-                    clubName: latestMatch.sides[0].club?.name ?? t("common.unknownClub"),
-                    score: latestMatch.sides[0].score,
-                    result: latestMatch.sides[0].result,
-                  }}
-                  side2={{
-                    label: matchSideLabel(latestMatch.sides[1].players.map((p) => p.display_name)),
-                    clubName: latestMatch.sides[1].club?.name ?? t("common.unknownClub"),
-                    score: latestMatch.sides[1].score,
-                    result: latestMatch.sides[1].result,
-                  }}
-                  onPress={() => router.push(`/match/${latestMatch.id}`)}
-                />
+                <Text style={styles.sectionTitle}>{t("home.recentActivity")}</Text>
+                <View style={styles.sectionList}>
+                  {allMatches.slice(0, RECENT_ACTIVITY_COUNT).map((match) => (
+                    <MatchRow
+                      key={match.id}
+                      matchType={match.match_type}
+                      isPenalties={match.is_penalties}
+                      playedAtLabel={formatRelativeDate(match.played_at, t)}
+                      side1={{
+                        label: matchSideLabel(match.sides[0].players.map((p) => p.display_name)),
+                        clubName: match.sides[0].club?.name ?? t("common.unknownClub"),
+                        clubLogoUrl: match.sides[0].club?.logo_url,
+                        score: match.sides[0].score,
+                        result: match.sides[0].result,
+                      }}
+                      side2={{
+                        label: matchSideLabel(match.sides[1].players.map((p) => p.display_name)),
+                        clubName: match.sides[1].club?.name ?? t("common.unknownClub"),
+                        clubLogoUrl: match.sides[1].club?.logo_url,
+                        score: match.sides[1].score,
+                        result: match.sides[1].result,
+                      }}
+                      onPress={() => router.push(`/match/${match.id}`)}
+                    />
+                  ))}
+                </View>
               </View>
             ) : null}
 
@@ -411,6 +470,8 @@ function Section({
   emptyProps: ComponentProps<typeof EmptyState>;
   children: ReactNode;
 }) {
+  const { colors, radius, spacing, typography } = useTheme();
+  const styles = useDashboardStyles(colors, radius, spacing, typography);
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
@@ -426,176 +487,49 @@ function Section({
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    gap: spacing.lg,
-    paddingVertical: spacing.lg,
-    paddingBottom: spacing.xxl,
-  },
-  hero: {
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    padding: spacing.lg,
-  },
-  heroTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  heroInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  heroGreeting: {
-    ...typography.caption,
-  },
-  heroName: {
-    ...typography.title,
-  },
-  heroStatsRow: {
-    flexDirection: "row",
-    gap: spacing.xl,
-    marginTop: spacing.lg,
-  },
-  heroStat: {
-    gap: spacing.xs,
-  },
-  heroEyebrow: {
-    ...typography.eyebrow,
-  },
-  heroValue: {
-    ...typography.display,
-    fontSize: 24,
-  },
-  heroValueRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-  },
-  greeting: {
-    ...typography.title,
-  },
-  subtitle: {
-    ...typography.caption,
-  },
-  highlightsSection: {
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    backgroundColor: colors.surface,
-  },
-  highlightsTitle: {
-    ...typography.heading,
-  },
-  highlightCardRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.sm,
-  },
-  highlightIcon: {
-    fontSize: 18,
-    lineHeight: 20,
-  },
-  highlightText: {
-    ...typography.body,
-    flex: 1,
-    flexShrink: 1,
-  },
-  quickActions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  statTileRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-  },
-  insightCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  insightIconBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.pill,
-    backgroundColor: colors.accentSubtle,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  insightIcon: {
-    fontSize: 18,
-    lineHeight: 20,
-  },
-  insightText: {
-    ...typography.bodyStrong,
-    flex: 1,
-    flexShrink: 1,
-  },
-  section: {
-    gap: spacing.sm,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  sectionTitle: {
-    ...typography.heading,
-  },
-  seeAll: {
-    ...typography.caption,
-    color: colors.accent,
-    fontWeight: "600",
-  },
-  sectionList: {
-    gap: spacing.sm,
-  },
-  trendCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    padding: spacing.sm,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    backgroundColor: colors.surface,
-  },
-  trendCardPressed: {
-    backgroundColor: colors.surfaceElevated,
-  },
-  trendCardInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  trendCardNameRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: spacing.xs,
-  },
-  trendCardName: {
-    ...typography.bodyStrong,
-    flexShrink: 1,
-  },
-  trendCardCaption: {
-    ...typography.small,
-    color: colors.textSecondary,
-  },
-  trendCardExplanation: {
-    ...typography.small,
-  },
-  trendCardScoreCol: {
-    alignItems: "flex-end",
-    gap: 4,
-  },
-  trendCardScore: {
-    ...typography.bodyStrong,
-    color: colors.accent,
-  },
-  trendCardChange: {
-    ...typography.small,
-    fontWeight: "700",
-  },
-});
+function useDashboardStyles(colors: ThemeColors, radius: ThemeValue["radius"], spacing: ThemeValue["spacing"], typography: ThemeValue["typography"]) {
+  return useMemo(
+    () => ({
+      content: { gap: spacing.lg, paddingVertical: spacing.lg, paddingBottom: spacing.xxl },
+      hero: { borderRadius: radius.lg, borderWidth: 1, borderColor: colors.borderSubtle, padding: spacing.lg },
+      heroTop: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.md },
+      heroInfo: { flex: 1, gap: 2 },
+      heroGreeting: { ...typography.caption },
+      heroName: { ...typography.title },
+      heroStatsRow: { flexDirection: "row" as const, gap: spacing.xl, marginTop: spacing.lg },
+      heroStat: { gap: spacing.xs },
+      heroEyebrow: { ...typography.eyebrow },
+      heroValue: { ...typography.display, fontSize: 24 },
+      heroValueRow: { flexDirection: "row" as const, alignItems: "baseline" as const },
+      greeting: { ...typography.title },
+      subtitle: { ...typography.caption },
+      highlightsSection: { gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.borderSubtle, backgroundColor: colors.surface },
+      highlightsTitle: { ...typography.heading },
+      highlightCardRow: { flexDirection: "row" as const, alignItems: "flex-start" as const, gap: spacing.sm },
+      highlightIcon: { fontSize: 18, lineHeight: 20 },
+      highlightText: { ...typography.body, flex: 1, flexShrink: 1 },
+      quickActions: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: spacing.sm },
+      statTileRow: { flexDirection: "row" as const, gap: spacing.sm },
+      insightCard: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.md },
+      insightIconBadge: { width: 40, height: 40, borderRadius: radius.pill, backgroundColor: colors.accentSubtle, alignItems: "center" as const, justifyContent: "center" as const },
+      insightIcon: { fontSize: 18, lineHeight: 20 },
+      insightText: { ...typography.bodyStrong, flex: 1, flexShrink: 1 },
+      section: { gap: spacing.sm },
+      sectionHeader: { flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const },
+      sectionTitle: { ...typography.heading },
+      seeAll: { ...typography.caption, color: colors.accent, fontWeight: "600" as const },
+      sectionList: { gap: spacing.sm },
+      trendCard: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.sm, padding: spacing.sm, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderSubtle, backgroundColor: colors.surface },
+      trendCardPressed: { backgroundColor: colors.surfaceElevated },
+      trendCardInfo: { flex: 1, gap: 2 },
+      trendCardNameRow: { flexDirection: "row" as const, alignItems: "baseline" as const, gap: spacing.xs },
+      trendCardName: { ...typography.bodyStrong, flexShrink: 1 },
+      trendCardCaption: { ...typography.small, color: colors.textSecondary },
+      trendCardExplanation: { ...typography.small },
+      trendCardScoreCol: { alignItems: "flex-end" as const, gap: 4 },
+      trendCardScore: { ...typography.bodyStrong, color: colors.accent },
+      trendCardChange: { ...typography.small, fontWeight: "700" as const },
+    }),
+    [colors, radius, spacing, typography],
+  );
+}

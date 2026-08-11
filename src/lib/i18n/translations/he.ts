@@ -2,6 +2,7 @@ import type { TranslationKeys } from "./en";
 
 const he = {
   common: {
+    or: "או",
     save: "שמור",
     cancel: "ביטול",
     close: "סגור",
@@ -71,9 +72,9 @@ const he = {
   nav: {
     home: "בית",
     players: "שחקנים",
-    leaderboards: "טבלאות",
+    leaderboards: "ליגה",
     history: "היסטוריה",
-    settings: "הגדרות",
+    settings: "עוד",
   },
   home: {
     dashboard: "לוח בקרה",
@@ -103,6 +104,8 @@ const he = {
     statCurrentLeader: "מוביל",
     noLeaderYet: "אין עדיין מוביל",
     latestMatch: "המשחק האחרון",
+    recentActivity: "פעילות אחרונה",
+    tonightsStandings: "הטבלה הערב",
     trendsTitle: "מגמות",
     notEnoughTrendData: "אין עדיין מספיק משחקים כדי להציג מגמות.",
     rising: "במגמת עלייה",
@@ -125,9 +128,12 @@ const he = {
     quickClubDrawNotEnoughPoolClubs: "אין מספיק מועדונים בקבוצה הזו להגרלה.",
     loadError: "לא ניתן היה לטעון את לוח הבקרה. בדקו את החיבור ונסו שוב.",
     quickMatchTitle: "תוצאה מהירה",
+    quickMatchLiveLabel: "ערב פעיל",
+    quickMatchRoundLabel: "משחק {{number}}",
     quickMatchNoClubSelected: "לא נבחר מועדון",
-    quickMatchSaveResultAction: "שמור תוצאה",
+    quickMatchSaveResultAction: "תוצאה מהירה",
     quickMatchRecordAction: "תיעוד משחק",
+    quickMatchWinnersStayAction: "המנצחים נשארים",
     quickMatchStaleSubmission: "המשחק הזה כבר הושלם על ידי שחקן אחר. הסשן עבר למשחק הבא.",
     quickMatchSessionEnded: "הסשן הזה הסתיים על ידי שחקן אחר.",
   },
@@ -360,7 +366,10 @@ const he = {
   },
   auth: {
     tagline: "The Home of Football Nights.",
-    loginSubtitle: "התחברות לקבוצה שלכם",
+    welcomeBack: "ברוכים השבים!",
+    loginSubtitle: "המשיכו את ערב הכדורגל שלכם",
+    securePrivateFooter: "מאובטח • פרטי • נבנה לחברים",
+    createAccountAction: "יצירת חשבון",
     signupTitle: "יצירת חשבון",
     signupSubtitle: "הצטרפו לקבוצה או צרו אחת בהמשך",
     emailLabel: "אימייל",

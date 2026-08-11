@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
-import { memo, useCallback } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { memo, useCallback, useMemo } from "react";
+import { Pressable, Text, View } from "react-native";
 import { getTopRankTone } from "../lib/rankTone";
-import { colors, radius, spacing, typography } from "../theme";
+import type { SideResult } from "../lib/types/database";
+import { useTheme } from "../theme/ThemeContext";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { Avatar } from "./Avatar";
+import { FormStrip } from "./FormStrip";
 
 interface RankingRowProps {
   /** Needed so onPress can be a single stable callback shared by every row (see onPress below) instead of each caller inline-binding a fresh closure per row per render, which would defeat this component's memo. */
@@ -23,6 +25,8 @@ interface RankingRowProps {
   highlighted?: boolean;
   /** Positions gained (positive) or lost (negative) since this ranking was last shown this session. Omit or 0 to show nothing. */
   movement?: number;
+  /** Most-recent-first recent-form results (e.g. Dashboard's Tonight's Standings). Omitted everywhere else -- unchanged behavior for every existing caller. */
+  form?: SideResult[];
 }
 
 // Leaderboards/Home/LeagueTableCard all render one of these per ranked
@@ -30,9 +34,28 @@ interface RankingRowProps {
 // by unrelated state (sort mode, filter, a different row's movement)
 // only actually re-renders rows whose own props changed, PROVIDED every
 // caller passes a stable onPress (see the playerId/onPress doc above).
-export const RankingRow = memo(function RankingRow({ playerId, rank, name, avatarUrl, color, value, detail, onPress, highlighted = false, movement = 0 }: RankingRowProps) {
+export const RankingRow = memo(function RankingRow({ playerId, rank, name, avatarUrl, color, value, detail, onPress, highlighted = false, movement = 0, form }: RankingRowProps) {
+  const { colors, radius, spacing, typography } = useTheme();
   const topTone = getTopRankTone(rank);
   const handlePress = useCallback(() => onPress?.(playerId), [onPress, playerId]);
+  const styles = useMemo(
+    () => ({
+      row: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.sm, borderRadius: radius.md, borderWidth: 1, borderColor: "transparent" },
+      highlighted: { backgroundColor: colors.accentSubtle, borderColor: colors.accent },
+      pressed: { backgroundColor: colors.surfaceElevated },
+      rank: { ...typography.bodyStrong, color: colors.textSecondary, width: 24, textAlign: "center" as const },
+      rankTop: { fontWeight: "800" as const, width: 28, height: 28, lineHeight: 28, borderRadius: radius.pill, overflow: "hidden" as const },
+      info: { flex: 1, gap: 2 },
+      nameRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.xs },
+      name: { ...typography.bodyStrong, flexShrink: 1 },
+      movement: { flexDirection: "row" as const, alignItems: "center" as const },
+      movementLabel: { ...typography.small, fontWeight: "700" as const },
+      meta: { ...typography.small },
+      metric: { ...typography.heading, color: colors.accent },
+    }),
+    [colors, radius, spacing, typography],
+  );
+
   return (
     <Pressable
       onPress={onPress ? handlePress : undefined}
@@ -53,69 +76,8 @@ export const RankingRow = memo(function RankingRow({ playerId, rank, name, avata
         </View>
         <Text style={styles.meta}>{detail}</Text>
       </View>
+      {form ? <FormStrip results={form} /> : null}
       <AnimatedNumber value={value} style={styles.metric} />
     </Pressable>
   );
-});
-
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  highlighted: {
-    backgroundColor: colors.accentSubtle,
-    borderColor: colors.accent,
-  },
-  pressed: {
-    backgroundColor: colors.surfaceElevated,
-  },
-  rank: {
-    ...typography.bodyStrong,
-    color: colors.textSecondary,
-    width: 24,
-    textAlign: "center",
-  },
-  rankTop: {
-    fontWeight: "800",
-    width: 28,
-    height: 28,
-    lineHeight: 28,
-    borderRadius: radius.pill,
-    overflow: "hidden",
-  },
-  info: {
-    flex: 1,
-    gap: 2,
-  },
-  nameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  name: {
-    ...typography.bodyStrong,
-    flexShrink: 1,
-  },
-  movement: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  movementLabel: {
-    ...typography.small,
-    fontWeight: "700",
-  },
-  meta: {
-    ...typography.small,
-  },
-  metric: {
-    ...typography.heading,
-    color: colors.accent,
-  },
 });

@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { ComponentProps } from "react";
-import { StyleSheet, Text, ViewStyle } from "react-native";
-import { colors, radius, spacing, typography } from "../theme";
+import { useMemo } from "react";
+import { Text, ViewStyle } from "react-native";
+import { useTheme } from "../theme/ThemeContext";
 import { AnimatedPressable } from "./AnimatedPressable";
 
 interface ChipProps {
@@ -38,6 +39,30 @@ interface ChipProps {
  * this component allowed 2 lines) does not.
  */
 export function Chip({ label, active, onPress, disabled = false, icon, accessibilityRole = "button", style }: ChipProps) {
+  const { colors, radius, spacing, typography } = useTheme();
+  const styles = useMemo(
+    () => ({
+      chip: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        alignSelf: "flex-start" as const,
+        paddingHorizontal: spacing.sm + 4,
+        paddingVertical: spacing.xs + 2,
+        borderRadius: radius.pill,
+        borderWidth: 1,
+        borderColor: colors.border,
+        backgroundColor: colors.surface,
+      },
+      icon: { marginEnd: 4 },
+      chipActive: { borderColor: colors.accent, backgroundColor: colors.accentSubtle },
+      chipDisabled: { opacity: 0.4 },
+      chipPressed: { opacity: 0.7 },
+      label: { ...typography.caption, fontSize: 12 },
+      labelActive: { color: colors.accent, fontWeight: "700" as const },
+    }),
+    [colors, radius, spacing, typography],
+  );
+
   return (
     <AnimatedPressable
       onPress={onPress}
@@ -63,38 +88,3 @@ export function Chip({ label, active, onPress, disabled = false, icon, accessibi
     </AnimatedPressable>
   );
 }
-
-const styles = StyleSheet.create({
-  chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    paddingHorizontal: spacing.sm + 4,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  icon: {
-    marginEnd: 4,
-  },
-  chipActive: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accentSubtle,
-  },
-  chipDisabled: {
-    opacity: 0.4,
-  },
-  chipPressed: {
-    opacity: 0.7,
-  },
-  label: {
-    ...typography.caption,
-    fontSize: 12,
-  },
-  labelActive: {
-    color: colors.accent,
-    fontWeight: "700",
-  },
-});

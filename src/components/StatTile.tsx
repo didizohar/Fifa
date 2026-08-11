@@ -1,6 +1,7 @@
 import type { ComponentProps } from "react";
-import { StyleSheet, Text, ViewStyle } from "react-native";
-import { colors, typography } from "../theme";
+import { useMemo } from "react";
+import { Text, ViewStyle } from "react-native";
+import { useTheme } from "../theme/ThemeContext";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { Card } from "./Card";
 
@@ -15,6 +16,16 @@ interface StatTileProps {
 
 /** Compact metric card -- used in stat-tile rows on Home and the player profile. */
 export function StatTile({ label, value, style, variant }: StatTileProps) {
+  const { colors, typography } = useTheme();
+  const styles = useMemo(
+    () => ({
+      tile: { flex: 1, alignItems: "center" as const },
+      value: { ...typography.stat, fontSize: 22, color: colors.accent },
+      label: { ...typography.small, marginTop: 2 },
+    }),
+    [colors, typography],
+  );
+
   return (
     <Card compact variant={variant} style={[styles.tile, style]}>
       <AnimatedNumber value={value} style={styles.value} />
@@ -22,19 +33,3 @@ export function StatTile({ label, value, style, variant }: StatTileProps) {
     </Card>
   );
 }
-
-const styles = StyleSheet.create({
-  tile: {
-    flex: 1,
-    alignItems: "center",
-  },
-  value: {
-    ...typography.stat,
-    fontSize: 22,
-    color: colors.accent,
-  },
-  label: {
-    ...typography.small,
-    marginTop: 2,
-  },
-});

@@ -1,7 +1,7 @@
-import { ReactNode } from "react";
-import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, TouchableWithoutFeedback, View, ViewStyle } from "react-native";
+import { ReactNode, useMemo } from "react";
+import { Keyboard, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, View, ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { colors, spacing } from "../theme";
+import { useTheme } from "../theme/ThemeContext";
 
 interface ScreenProps {
   children: ReactNode;
@@ -20,6 +20,18 @@ interface ScreenProps {
 }
 
 export function Screen({ children, style, padded = true, avoidKeyboard = false }: ScreenProps) {
+  const { colors, spacing } = useTheme();
+  const styles = useMemo(
+    () => ({
+      safe: { flex: 1, backgroundColor: colors.background },
+      container: { flex: 1 },
+      padded: { paddingHorizontal: spacing.lg },
+      webCenter: { flex: 1, alignItems: (Platform.OS === "web" ? "center" : "stretch") as "center" | "stretch" },
+      webMaxWidth: { width: "100%" as const, maxWidth: Platform.OS === "web" ? 560 : undefined },
+    }),
+    [colors, spacing],
+  );
+
   const inner = (
     <View style={styles.webCenter}>
       <View style={[styles.container, styles.webMaxWidth, padded && styles.padded, style]}>{children}</View>
@@ -54,27 +66,3 @@ export function Screen({ children, style, padded = true, avoidKeyboard = false }
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  container: {
-    flex: 1,
-  },
-  padded: {
-    paddingHorizontal: spacing.lg,
-  },
-  // On web, content stays centered with a sensible max width instead of
-  // stretching cards/charts across a wide browser window; native platforms
-  // are unaffected (width: "100%" is a no-op at any mobile screen size).
-  webCenter: {
-    flex: 1,
-    alignItems: Platform.OS === "web" ? "center" : "stretch",
-  },
-  webMaxWidth: {
-    width: "100%",
-    maxWidth: Platform.OS === "web" ? 560 : undefined,
-  },
-});

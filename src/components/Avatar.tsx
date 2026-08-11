@@ -1,6 +1,7 @@
 import { Image } from "expo-image";
-import { StyleSheet, Text, View } from "react-native";
-import { colors } from "../theme";
+import { useMemo } from "react";
+import { Text, View } from "react-native";
+import { useTheme } from "../theme/ThemeContext";
 
 interface AvatarProps {
   uri?: string | null;
@@ -16,45 +17,27 @@ function getInitials(name: string): string {
   return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
 }
 
-export function Avatar({ uri, name, color = colors.accent, size = 44 }: AvatarProps) {
-  const dimensionStyle = { width: size, height: size, borderRadius: size / 2 };
-
-  if (uri) {
-    return (
-      <Image
-        source={{ uri }}
-        style={[styles.image, dimensionStyle]}
-        contentFit="cover"
-        transition={150}
-      />
-    );
-  }
-
-  return (
-    <View style={[styles.fallback, dimensionStyle, { backgroundColor: withAlpha(color) }]}>
-      <Text style={[styles.initials, { fontSize: size * 0.38, color }]}>{getInitials(name)}</Text>
-    </View>
-  );
-}
-
-function withAlpha(hex: string): string {
+function withAlpha(hex: string, fallback: string): string {
   const normalized = hex.replace("#", "");
-  if (normalized.length !== 6) return colors.accentSubtle;
+  if (normalized.length !== 6) return fallback;
   const r = parseInt(normalized.slice(0, 2), 16);
   const g = parseInt(normalized.slice(2, 4), 16);
   const b = parseInt(normalized.slice(4, 6), 16);
   return `rgba(${r}, ${g}, ${b}, 0.18)`;
 }
 
-const styles = StyleSheet.create({
-  image: {
-    backgroundColor: colors.surfaceElevated,
-  },
-  fallback: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  initials: {
-    fontWeight: "700",
-  },
-});
+export function Avatar({ uri, name, color, size = 44 }: AvatarProps) {
+  const { colors } = useTheme();
+  const resolvedColor = color ?? colors.accent;
+  const dimensionStyle = useMemo(() => ({ width: size, height: size, borderRadius: size / 2 }), [size]);
+
+  if (uri) {
+    return <Image source={{ uri }} style={[dimensionStyle, { backgroundColor: colors.surfaceElevated }]} contentFit="cover" transition={150} />;
+  }
+
+  return (
+    <View style={[dimensionStyle, { alignItems: "center", justifyContent: "center", backgroundColor: withAlpha(resolvedColor, colors.accentSubtle) }]}>
+      <Text style={{ fontWeight: "700", fontSize: size * 0.38, color: resolvedColor }}>{getInitials(name)}</Text>
+    </View>
+  );
+}

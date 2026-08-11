@@ -1,15 +1,19 @@
-import { useState } from "react";
-import { Link } from "expo-router";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useMemo, useState } from "react";
+import { Link, useRouter } from "expo-router";
+import { ScrollView, Text, View } from "react-native";
 import { Button } from "../../src/components/Button";
 import { Screen } from "../../src/components/Screen";
 import { TextField } from "../../src/components/TextField";
 import { signInWithEmail } from "../../src/lib/auth";
 import { useTranslation } from "../../src/lib/i18n";
-import { colors, spacing, typography } from "../../src/theme";
+import { useTheme } from "../../src/theme/ThemeContext";
 
 export default function LoginScreen() {
   const { t } = useTranslation();
+  const router = useRouter();
+  const { colors, radius, spacing, typography } = useTheme();
+  const styles = useAuthStyles(colors, radius, spacing, typography);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -40,14 +44,24 @@ export default function LoginScreen() {
     <Screen avoidKeyboard>
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Text style={styles.logo}>⚽️</Text>
-          <Text style={styles.title}>Couch League</Text>
+          <View style={styles.logoBadge}>
+            <Ionicons name="football" size={40} color={colors.background} />
+          </View>
+          <Text style={styles.title}>
+            <Text style={styles.titleCouch}>Couch</Text>
+            <Text style={styles.titleLeague}>League</Text>
+          </Text>
           <Text style={styles.tagline}>{t("auth.tagline")}</Text>
+        </View>
+
+        <View style={styles.welcomeBlock}>
+          <Text style={styles.welcome}>{t("auth.welcomeBack")}</Text>
           <Text style={styles.subtitle}>{t("auth.loginSubtitle")}</Text>
         </View>
+
         <View style={styles.form}>
           <TextField
-            label={t("auth.emailLabel")}
+            icon="mail-outline"
             placeholder={t("auth.emailPlaceholder")}
             value={email}
             onChangeText={setEmail}
@@ -57,7 +71,7 @@ export default function LoginScreen() {
             returnKeyType="next"
           />
           <TextField
-            label={t("auth.passwordLabel")}
+            icon="lock-closed-outline"
             placeholder={t("auth.passwordPlaceholder")}
             value={password}
             onChangeText={setPassword}
@@ -67,58 +81,58 @@ export default function LoginScreen() {
             onSubmitEditing={handleLogin}
             error={error}
           />
+          <Button label={t("auth.signIn")} onPress={handleLogin} loading={isSubmitting} disabled={isSubmitting} />
           <Link href="/(auth)/forgot-password" style={styles.forgotLink}>
             <Text style={styles.linkAccent}>{t("auth.forgotPassword")}</Text>
           </Link>
-          <Button label={t("auth.signIn")} onPress={handleLogin} loading={isSubmitting} disabled={isSubmitting} />
         </View>
-        <Link href="/(auth)/signup" style={styles.link}>
-          <Text style={styles.linkText}>
-            {t("auth.noAccountPrompt")}
-            <Text style={styles.linkAccent}>{t("auth.signUp")}</Text>
-          </Text>
-        </Link>
+
+        <View style={styles.dividerRow}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>{t("common.or")}</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <Button label={t("auth.createAccountAction")} variant="secondary" onPress={() => router.push("/(auth)/signup")} />
+
+        <View style={styles.footerRow}>
+          <Ionicons name="shield-checkmark-outline" size={14} color={colors.textMuted} />
+          <Text style={styles.footerText}>{t("auth.securePrivateFooter")}</Text>
+        </View>
       </ScrollView>
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  header: {
-    marginTop: spacing.xxl,
-    marginBottom: spacing.xxl,
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  logo: {
-    fontSize: 48,
-    marginBottom: spacing.sm,
-  },
-  title: {
-    ...typography.display,
-  },
-  tagline: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  subtitle: {
-    ...typography.caption,
-  },
-  form: {
-    gap: spacing.lg,
-  },
-  forgotLink: {
-    alignSelf: "flex-end",
-  },
-  link: {
-    marginTop: spacing.xl,
-    alignSelf: "center",
-  },
-  linkText: {
-    ...typography.caption,
-  },
-  linkAccent: {
-    color: colors.accent,
-    fontWeight: "700",
-  },
-});
+export function useAuthStyles(colors: ReturnType<typeof useTheme>["colors"], radius: ReturnType<typeof useTheme>["radius"], spacing: ReturnType<typeof useTheme>["spacing"], typography: ReturnType<typeof useTheme>["typography"]) {
+  return useMemo(
+    () => ({
+      header: { marginTop: spacing.xxl, alignItems: "center" as const, gap: spacing.xs },
+      logoBadge: {
+        width: 72,
+        height: 72,
+        borderRadius: 36,
+        backgroundColor: colors.accent,
+        alignItems: "center" as const,
+        justifyContent: "center" as const,
+        marginBottom: spacing.sm,
+      },
+      title: { ...typography.display, fontWeight: "800" as const },
+      titleCouch: { color: colors.textPrimary },
+      titleLeague: { color: colors.accent },
+      tagline: { ...typography.caption, color: colors.accentOrange, fontWeight: "700" as const },
+      welcomeBlock: { alignItems: "center" as const, gap: 2, marginTop: spacing.xxl, marginBottom: spacing.xl },
+      welcome: { ...typography.title },
+      subtitle: { ...typography.caption, color: colors.textSecondary },
+      form: { gap: spacing.md },
+      forgotLink: { alignSelf: "center" as const, marginTop: spacing.xs },
+      dividerRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.sm, marginVertical: spacing.lg },
+      dividerLine: { flex: 1, height: 1, backgroundColor: colors.borderSubtle },
+      dividerText: { ...typography.small, color: colors.textMuted },
+      linkAccent: { color: colors.accent, fontWeight: "700" as const },
+      footerRow: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: spacing.xs, marginTop: spacing.xl, marginBottom: spacing.lg },
+      footerText: { ...typography.small, color: colors.textMuted },
+    }),
+    [colors, radius, spacing, typography],
+  );
+}

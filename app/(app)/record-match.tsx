@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Stack, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Pressable, ScrollView, Switch, Text, View } from "react-native";
 import { AppChipGroup, type ChipOption } from "../../src/components/AppChipGroup";
 import { Button } from "../../src/components/Button";
 import { Card } from "../../src/components/Card";
@@ -51,7 +51,8 @@ import {
 import { validateMatchForm, type ComputedMatchResult } from "../../src/lib/validation/matchForm";
 import { useSeasons } from "../../src/hooks/useSeasons";
 import { useWinnersStaySession } from "../../src/hooks/useWinnersStaySession";
-import { colors, radius, spacing, typography } from "../../src/theme";
+import type { ThemeColors } from "../../src/theme/colors";
+import { useTheme, type ThemeValue } from "../../src/theme/ThemeContext";
 
 const MIN_PLAYERS_TO_RECORD = 2;
 
@@ -84,6 +85,8 @@ function mergePickablePlayers(roster: PickablePlayer[], matchPlayers: PickablePl
 export default function RecordMatchScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const { colors, radius, spacing, typography } = useTheme();
+  const styles = useRecordMatchStyles(colors, radius, spacing, typography);
   const rawParams = useLocalSearchParams();
   const prefillParams: MatchPrefillRouteParams = {
     matchType: typeof rawParams.matchType === "string" ? rawParams.matchType : undefined,
@@ -771,6 +774,7 @@ export default function RecordMatchScreen() {
           maxSelected={requiredCount}
           score={side2Score}
           onScoreChange={setSide2Score}
+          tone="accentOrange"
         />
 
         <Card style={styles.optionsCard}>
@@ -900,6 +904,8 @@ export default function RecordMatchScreen() {
 /** Opens the production ClubPickerSheet -- shows the currently selected club (or a placeholder prompt) as a single tappable row. This is the only club-selection entry point in match setup; there is no other, older selector left in this screen. */
 const ClubSelectButton = memo(function ClubSelectButton({ clubVersion, onPress }: { clubVersion: ClubVersion | null; onPress: () => void }) {
   const { t } = useTranslation();
+  const { colors, radius, spacing, typography } = useTheme();
+  const styles = useRecordMatchStyles(colors, radius, spacing, typography);
   return (
     <Pressable onPress={onPress} style={styles.clubSelectButton} accessibilityRole="button" accessibilityLabel={clubVersion?.club.name ?? t("clubPicker.title")}>
       {clubVersion ? (
@@ -924,6 +930,8 @@ interface MatchSideCardProps {
   maxSelected: number;
   score: number;
   onScoreChange: (value: number) => void;
+  /** "primary" (default, blue) for side 1, "accentOrange" for side 2 -- matches the concept's two-tone scoreboard split. */
+  tone?: "primary" | "accentOrange";
 }
 
 /**
@@ -951,8 +959,11 @@ const MatchSideCard = memo(function MatchSideCard({
   maxSelected,
   score,
   onScoreChange,
+  tone = "primary",
 }: MatchSideCardProps) {
   const { t } = useTranslation();
+  const { colors, radius, spacing, typography } = useTheme();
+  const styles = useRecordMatchStyles(colors, radius, spacing, typography);
   return (
     <Card style={styles.sideCard}>
       <Text style={styles.sideTitle}>{title}</Text>
@@ -962,12 +973,14 @@ const MatchSideCard = memo(function MatchSideCard({
       ) : (
         <PlayerPicker players={pickablePlayers} selectedIds={selectedIds} onToggle={onToggle} disabledIds={disabledIds} maxSelected={maxSelected} />
       )}
-      <ScoreStepper label={t("common.scoreLabel")} value={score} onChange={onScoreChange} />
+      <ScoreStepper label={t("common.scoreLabel")} value={score} onChange={onScoreChange} tone={tone} />
     </Card>
   );
 });
 
 function ClubDrawResult({ label, playerNames, clubVersion }: { label: string; playerNames: string; clubVersion: ClubVersion | null }) {
+  const { colors, radius, spacing, typography } = useTheme();
+  const styles = useRecordMatchStyles(colors, radius, spacing, typography);
   return (
     <View style={styles.clubDrawResult}>
       <Text style={styles.clubDrawResultLabel}>{label}</Text>
@@ -979,128 +992,48 @@ function ClubDrawResult({ label, playerNames, clubVersion }: { label: string; pl
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    gap: spacing.lg,
-    paddingVertical: spacing.lg,
-    paddingBottom: spacing.xxl,
-  },
-  prefillBanner: {
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    backgroundColor: colors.accentSubtle,
-    padding: spacing.md,
-  },
-  prefillBannerText: {
-    ...typography.small,
-    color: colors.accent,
-    textAlign: "center",
-  },
-  sideCard: {
-    gap: spacing.md,
-  },
-  sideTitle: {
-    ...typography.heading,
-  },
-  clubSelectButton: {
-    alignSelf: "flex-start",
-  },
-  clubSelectPlaceholder: {
-    ...typography.body,
-    color: colors.accent,
-    fontWeight: "700",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    backgroundColor: colors.accentSubtle,
-  },
-  clubDrawCard: {
-    gap: spacing.md,
-  },
-  chipRow: {
-    gap: spacing.sm,
-  },
-  quickActionsCard: {
-    gap: spacing.sm,
-  },
-  quickActionsRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-  },
-  quickActionButton: {
-    flex: 1,
-  },
-  previousMatchPreview: {
-    ...typography.small,
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-  clubDrawResultRow: {
-    flexDirection: "row",
-    gap: spacing.md,
-  },
-  clubDrawResult: {
-    flex: 1,
-    alignItems: "center",
-    gap: spacing.xs,
-    padding: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: colors.surfaceElevated,
-  },
-  clubDrawResultLabel: {
-    ...typography.small,
-    color: colors.textSecondary,
-  },
-  clubDrawResultNames: {
-    ...typography.bodyStrong,
-    textAlign: "center",
-  },
-  optionsCard: {
-    gap: spacing.md,
-  },
-  switchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  switchLabel: {
-    ...typography.body,
-  },
-  switchLabelDisabled: {
-    color: colors.textMuted,
-  },
-  hint: {
-    ...typography.small,
-    marginTop: -spacing.xs,
-  },
-  penaltyRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    paddingTop: spacing.sm,
-  },
-  dateTimeRow: {
-    flexDirection: "row",
-    gap: spacing.md,
-  },
-  dateTimeField: {
-    flex: 1,
-  },
-  dateTimeErrorText: {
-    ...typography.caption,
-    color: colors.danger,
-    marginTop: -spacing.xs,
-  },
-  errorBox: {
-    backgroundColor: colors.dangerSubtle,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.xs,
-  },
-  errorText: {
-    ...typography.caption,
-    color: colors.danger,
-  },
-});
+function useRecordMatchStyles(colors: ThemeColors, radius: ThemeValue["radius"], spacing: ThemeValue["spacing"], typography: ThemeValue["typography"]) {
+  return useMemo(
+    () => ({
+      content: { gap: spacing.lg, paddingVertical: spacing.lg, paddingBottom: spacing.xxl },
+      prefillBanner: { borderRadius: radius.md, borderWidth: 1, borderColor: colors.accent, backgroundColor: colors.accentSubtle, padding: spacing.md },
+      prefillBannerText: { ...typography.small, color: colors.accent, textAlign: "center" as const },
+      sideCard: { gap: spacing.md },
+      sideTitle: { ...typography.heading },
+      clubSelectButton: { alignSelf: "flex-start" as const },
+      clubSelectPlaceholder: {
+        ...typography.body,
+        color: colors.accent,
+        fontWeight: "700" as const,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        borderRadius: radius.md,
+        borderWidth: 1,
+        borderColor: colors.accent,
+        backgroundColor: colors.accentSubtle,
+      },
+      clubDrawCard: { gap: spacing.md },
+      chipRow: { gap: spacing.sm },
+      quickActionsCard: { gap: spacing.sm },
+      quickActionsRow: { flexDirection: "row" as const, gap: spacing.sm },
+      quickActionButton: { flex: 1 },
+      previousMatchPreview: { ...typography.small, color: colors.textSecondary, textAlign: "center" as const },
+      clubDrawResultRow: { flexDirection: "row" as const, gap: spacing.md },
+      clubDrawResult: { flex: 1, alignItems: "center" as const, gap: spacing.xs, padding: spacing.sm, borderRadius: radius.md, backgroundColor: colors.surfaceElevated },
+      clubDrawResultLabel: { ...typography.small, color: colors.textSecondary },
+      clubDrawResultNames: { ...typography.bodyStrong, textAlign: "center" as const },
+      optionsCard: { gap: spacing.md },
+      switchRow: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const },
+      switchLabel: { ...typography.body },
+      switchLabelDisabled: { color: colors.textMuted },
+      hint: { ...typography.small, marginTop: -spacing.xs },
+      penaltyRow: { flexDirection: "row" as const, justifyContent: "space-around" as const, paddingTop: spacing.sm },
+      dateTimeRow: { flexDirection: "row" as const, gap: spacing.md },
+      dateTimeField: { flex: 1 },
+      dateTimeErrorText: { ...typography.caption, color: colors.danger, marginTop: -spacing.xs },
+      errorBox: { backgroundColor: colors.dangerSubtle, borderRadius: radius.md, padding: spacing.md, gap: spacing.xs },
+      errorText: { ...typography.caption, color: colors.danger },
+    }),
+    [colors, radius, spacing, typography],
+  );
+}

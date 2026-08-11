@@ -1,10 +1,11 @@
 import { Tabs } from "expo-router";
 import { TabBarIcon } from "../../../src/components/TabBarIcon";
 import { useTranslation } from "../../../src/lib/i18n";
-import { colors, iconSize } from "../../../src/theme";
+import { useTheme } from "../../../src/theme/ThemeContext";
 
 export default function TabsLayout() {
   const { t } = useTranslation();
+  const { colors, iconSize } = useTheme();
 
   return (
     <Tabs
@@ -32,15 +33,10 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, focused }) => <TabBarIcon name="home" outlineName="home-outline" focused={focused} color={color} size={iconSize.xl} />,
         }}
       />
-      <Tabs.Screen
-        name="players"
-        options={{
-          title: t("nav.players"),
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name="people" outlineName="people-outline" focused={focused} color={color} size={iconSize.xl} />
-          ),
-        }}
-      />
+      {/* Visual order/labels match the Couch League concept's bottom nav
+          (Home, League, History, Players, More) -- same 5 existing routes,
+          only reordered and relabeled (see nav.leaderboards/nav.settings
+          translation values), nothing removed or restructured. */}
       <Tabs.Screen
         name="leaderboards"
         options={{
@@ -58,11 +54,20 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="players"
+        options={{
+          title: t("nav.players"),
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name="people" outlineName="people-outline" focused={focused} color={color} size={iconSize.xl} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: t("nav.settings"),
           tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name="settings" outlineName="settings-outline" focused={focused} color={color} size={iconSize.xl} />
+            <TabBarIcon name="ellipsis-horizontal" outlineName="ellipsis-horizontal-outline" focused={focused} color={color} size={iconSize.xl} />
           ),
         }}
       />

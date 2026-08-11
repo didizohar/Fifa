@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { colors, spacing, typography } from "../theme";
+import { useMemo } from "react";
+import { Pressable, Text, View } from "react-native";
+import { useTheme } from "../theme/ThemeContext";
 
 interface StarRatingProps {
   /** 0-5, half-star increments supported for display (club ratings are NUMERIC(2,1)). */
@@ -16,6 +17,15 @@ const MAX_STARS = 5;
 
 /** Read-only (with half-star rendering) or interactive (whole-star tap-to-set) star display. */
 export function StarRating({ value, onChange, size = 16, showValue = !onChange }: StarRatingProps) {
+  const { colors, spacing, typography } = useTheme();
+  const styles = useMemo(
+    () => ({
+      row: { flexDirection: "row" as const, alignItems: "center" as const, gap: 2 },
+      value: { ...typography.small, marginStart: spacing.xs },
+      missing: { ...typography.small },
+    }),
+    [spacing, typography],
+  );
   const interactive = !!onChange;
 
   if (value === null && !interactive) {
@@ -66,18 +76,3 @@ export function StarRating({ value, onChange, size = 16, showValue = !onChange }
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-  },
-  value: {
-    ...typography.small,
-    marginStart: spacing.xs,
-  },
-  missing: {
-    ...typography.small,
-  },
-});

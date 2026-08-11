@@ -1,6 +1,6 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { useClubVersions } from "../hooks/useClubVersions";
 import { useLastWinnersStayParticipants } from "../hooks/useLastWinnersStayParticipants";
 import { useMatches } from "../hooks/useMatches";
@@ -22,11 +22,14 @@ import { acceptPendingRotation, advanceSessionAfterMatch, getSessionParticipantI
 import type { MatchResult, RotationPlayer } from "../lib/rotation/types";
 import type { MatchType } from "../lib/types/database";
 import { validateMatchForm } from "../lib/validation/matchForm";
-import { colors, spacing, typography } from "../theme";
+import { useTheme } from "../theme/ThemeContext";
+import { Avatar } from "./Avatar";
 import { Button } from "./Button";
 import { Card } from "./Card";
 import { ClubBadge } from "./ClubBadge";
+import { ClubCrest } from "./ClubCrest";
 import { InfoBanner } from "./InfoBanner";
+import { LiveBadge } from "./LiveBadge";
 import { ScoreStepper } from "./ScoreStepper";
 
 interface QuickMatchCardProps {
@@ -51,6 +54,7 @@ interface QuickMatchCardProps {
 export const QuickMatchCard = memo(function QuickMatchCard({ groupId, gameVersionId }: QuickMatchCardProps) {
   const { t } = useTranslation();
   const router = useRouter();
+  const styles = useStyles();
 
   const { session, version, isHydrated, setSession, adoptSession, refetch } = useWinnersStaySession(groupId);
   const roster = usePlayers(groupId);
@@ -284,99 +288,96 @@ export const QuickMatchCard = memo(function QuickMatchCard({ groupId, gameVersio
     });
   };
 
-  return (
-    <Card variant="elevated" style={styles.card}>
-      <Text style={styles.title}>{t("home.quickMatchTitle")}</Text>
+  const goToWinnersStay = () => router.push("/winners-stay");
 
-      <View style={styles.matchupRow}>
-        <Text style={styles.playerName} numberOfLines={1}>
-          {side1Label}
-        </Text>
-        <Text style={styles.vs}>{t("home.quickClubDrawVs")}</Text>
-        <Text style={styles.playerName} numberOfLines={1}>
-          {side2Label}
-        </Text>
+  return (
+    <Card variant="strong" style={styles.card}>
+      <View style={styles.headerRow}>
+        <LiveBadge label={t("home.quickMatchLiveLabel")} />
+        <Text style={styles.roundLabel}>{t("home.quickMatchRoundLabel", { number: session.roundNumber + 1 })}</Text>
       </View>
 
-      <View style={styles.clubRow}>
-        <View style={styles.clubCol}>{side1Club ? <ClubBadge name={side1Club.club.name} starRating={side1Club.star_rating} size="sm" /> : <Text style={styles.noClub}>{t("home.quickMatchNoClubSelected")}</Text>}</View>
-        <View style={styles.clubCol}>{side2Club ? <ClubBadge name={side2Club.club.name} starRating={side2Club.star_rating} size="sm" /> : <Text style={styles.noClub}>{t("home.quickMatchNoClubSelected")}</Text>}</View>
+      <View style={styles.matchupRow}>
+        <View style={styles.sideCol}>
+          <View style={styles.avatarRow}>
+            {side1Players.map((p) => (
+              <Avatar key={p.id} uri={p.avatar_url} name={p.display_name} color={p.custom_color} size={40} />
+            ))}
+          </View>
+          <Text style={[styles.playerName, styles.playerNamePrimary]} numberOfLines={1}>
+            {side1Label}
+          </Text>
+          <ClubCrest logoUrl={side1Club?.club.logo_url} size={28} />
+          {side1Club ? <ClubBadge name={side1Club.club.name} starRating={side1Club.star_rating} size="sm" /> : <Text style={styles.noClub}>{t("home.quickMatchNoClubSelected")}</Text>}
+        </View>
+
+        <Text style={styles.vs}>{t("home.quickClubDrawVs")}</Text>
+
+        <View style={styles.sideCol}>
+          <View style={styles.avatarRow}>
+            {side2Players.map((p) => (
+              <Avatar key={p.id} uri={p.avatar_url} name={p.display_name} color={p.custom_color} size={40} />
+            ))}
+          </View>
+          <Text style={[styles.playerName, styles.playerNameAccent]} numberOfLines={1}>
+            {side2Label}
+          </Text>
+          <ClubCrest logoUrl={side2Club?.club.logo_url} size={28} />
+          {side2Club ? <ClubBadge name={side2Club.club.name} starRating={side2Club.star_rating} size="sm" /> : <Text style={styles.noClub}>{t("home.quickMatchNoClubSelected")}</Text>}
+        </View>
       </View>
 
       <View style={styles.scoreRow}>
-        <ScoreStepper label={side1Label} value={side1Score} onChange={setSide1Score} />
-        <ScoreStepper label={side2Label} value={side2Score} onChange={setSide2Score} />
+        <ScoreStepper label={side1Label} value={side1Score} onChange={setSide1Score} tone="primary" />
+        <Text style={styles.scoreSeparator}>:</Text>
+        <ScoreStepper label={side2Label} value={side2Score} onChange={setSide2Score} tone="accentOrange" />
       </View>
 
       {clubDrawFailed ? <InfoBanner tone="warning" message={t("rotation.notEnoughClubsOverall")} /> : null}
 
       <View style={styles.actionsRow}>
-        <Button label={t("home.quickClubDrawPoolLarge")} variant="secondary" size="md" style={styles.actionButton} onPress={() => drawPool("large")} />
-        <Button label={t("home.quickClubDrawPoolSmall")} variant="secondary" size="md" style={styles.actionButton} onPress={() => drawPool("small")} />
+        <Button label={t("home.quickClubDrawPoolLarge")} variant="secondary" size="sm" style={styles.actionButton} onPress={() => drawPool("large")} />
+        <Button label={t("home.quickClubDrawPoolSmall")} variant="secondary" size="sm" style={styles.actionButton} onPress={() => drawPool("small")} />
       </View>
 
       <View style={styles.actionsRow}>
-        <Button label={t("rotation.sameClubsAction")} variant="secondary" size="md" style={styles.actionButton} onPress={applySameClubs} disabled={!canApplyPreviousClubs} />
-        <Button label={t("rotation.swapClubsAction")} variant="secondary" size="md" style={styles.actionButton} onPress={applySwapClubs} disabled={!canApplyPreviousClubs} />
+        <Button label={t("rotation.sameClubsAction")} variant="secondary" size="sm" style={styles.actionButton} onPress={applySameClubs} disabled={!canApplyPreviousClubs} />
+        <Button label={t("rotation.swapClubsAction")} variant="secondary" size="sm" style={styles.actionButton} onPress={applySwapClubs} disabled={!canApplyPreviousClubs} />
       </View>
 
       {errors.length > 0 ? <Text style={styles.errorText}>{errors[0]}</Text> : null}
 
-      <Button label={t("home.quickMatchRecordAction")} variant="secondary" onPress={openFullRecordMatch} />
       <Button label={t("home.quickMatchSaveResultAction")} onPress={handleSave} loading={recordMatch.isPending} disabled={!canSave} />
+
+      <View style={styles.actionsRow}>
+        <Button label={t("home.quickMatchRecordAction")} variant="secondary" size="sm" style={styles.actionButton} onPress={openFullRecordMatch} />
+        <Button label={t("home.quickMatchWinnersStayAction")} variant="secondary" size="sm" style={styles.actionButton} onPress={goToWinnersStay} />
+      </View>
     </Card>
   );
 });
 
-const styles = StyleSheet.create({
-  card: {
-    gap: spacing.sm,
-  },
-  title: {
-    ...typography.heading,
-  },
-  matchupRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-  },
-  playerName: {
-    ...typography.bodyStrong,
-    flex: 1,
-    textAlign: "center",
-  },
-  vs: {
-    ...typography.small,
-    color: colors.textMuted,
-  },
-  clubRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-  },
-  clubCol: {
-    flex: 1,
-    alignItems: "center",
-  },
-  noClub: {
-    ...typography.small,
-    color: colors.textMuted,
-    paddingVertical: spacing.sm,
-  },
-  scoreRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-  },
-  actionsRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-  },
-  actionButton: {
-    flex: 1,
-  },
-  errorText: {
-    ...typography.caption,
-    color: colors.danger,
-    textAlign: "center",
-  },
-});
+function useStyles() {
+  const { colors, radius, spacing, typography } = useTheme();
+  return useMemo(
+    () => ({
+      card: { gap: spacing.md },
+      headerRow: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const },
+      roundLabel: { ...typography.caption, color: colors.textSecondary, fontWeight: "700" as const },
+      matchupRow: { flexDirection: "row" as const, alignItems: "flex-start" as const, justifyContent: "center" as const, gap: spacing.sm },
+      sideCol: { flex: 1, alignItems: "center" as const, gap: spacing.xs },
+      avatarRow: { flexDirection: "row" as const, gap: 4 },
+      playerName: { ...typography.bodyStrong, textAlign: "center" as const },
+      playerNamePrimary: { color: colors.accent },
+      playerNameAccent: { color: colors.accentOrange },
+      vs: { ...typography.small, color: colors.textMuted, marginTop: spacing.xl },
+      noClub: { ...typography.small, color: colors.textMuted, paddingVertical: spacing.sm },
+      scoreRow: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: spacing.md },
+      scoreSeparator: { ...typography.stat, color: colors.textMuted },
+      actionsRow: { flexDirection: "row" as const, gap: spacing.sm },
+      actionButton: { flex: 1 },
+      errorText: { ...typography.caption, color: colors.danger, textAlign: "center" as const },
+    }),
+    [colors, radius, spacing, typography],
+  );
+}

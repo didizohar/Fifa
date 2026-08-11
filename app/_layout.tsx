@@ -13,6 +13,7 @@ import { queryClient } from "../src/lib/queryClient";
 import { useAuth } from "../src/hooks/useAuth";
 import { useGroup } from "../src/hooks/useGroup";
 import { colors } from "../src/theme";
+import { ThemeProvider } from "../src/theme/ThemeContext";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -65,18 +66,20 @@ export default function RootLayout() {
     // This was previously missing entirely.
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary>
-        <LocaleProvider>
-          <QueryClientProvider client={queryClient}>
-            <AuthProvider>
-              <GroupProvider>
-                <ToastProvider>
-                  <StatusBar style="dark" />
-                  <RootNavigator />
-                </ToastProvider>
-              </GroupProvider>
-            </AuthProvider>
-          </QueryClientProvider>
-        </LocaleProvider>
+        <ThemeProvider>
+          <LocaleProvider>
+            <QueryClientProvider client={queryClient}>
+              <AuthProvider>
+                <GroupProvider>
+                  <ToastProvider>
+                    <StatusBar style="dark" />
+                    <RootNavigator />
+                  </ToastProvider>
+                </GroupProvider>
+              </AuthProvider>
+            </QueryClientProvider>
+          </LocaleProvider>
+        </ThemeProvider>
       </ErrorBoundary>
     </GestureHandlerRootView>
   );

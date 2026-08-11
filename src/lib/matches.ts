@@ -16,7 +16,10 @@ export interface MatchSideSummary {
   result: SideResult;
   /** Optional so existing test fixtures built before match editing don't all need updating -- real fetches always populate it. */
   club_version_id?: string | null;
-  club: { id: string; name: string } | null;
+  // logo_url optional for the same reason as club_version_id above -- real
+  // fetches always populate it, existing test fixtures built before club
+  // crests were wired in don't need updating just to keep compiling.
+  club: { id: string; name: string; logo_url?: string | null } | null;
   players: MatchSidePlayer[];
 }
 
@@ -42,7 +45,7 @@ const MATCH_SELECT = `
   id, match_type, is_overtime, is_penalties, notes, played_at, created_at, updated_at, created_by, game_version_id, season_id,
   match_sides (
     id, side_number, score, penalty_score, result, club_version_id,
-    club_version:club_versions ( club:clubs ( id, name ) ),
+    club_version:club_versions ( club:clubs ( id, name, logo_url ) ),
     match_players ( player:player_profiles ( id, display_name, avatar_url, custom_color ) )
   )
 `;
@@ -68,7 +71,7 @@ interface RawMatch {
     penalty_score: number | null;
     result: SideResult;
     club_version_id: string | null;
-    club_version: { club: { id: string; name: string } | null } | null;
+    club_version: { club: { id: string; name: string; logo_url: string | null } | null } | null;
     match_players: { player: MatchSidePlayer | null }[];
   }[];
 }

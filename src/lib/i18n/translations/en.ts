@@ -5,6 +5,7 @@
  */
 const en = {
   common: {
+    or: "OR",
     save: "Save",
     cancel: "Cancel",
     close: "Close",
@@ -74,9 +75,12 @@ const en = {
   nav: {
     home: "Home",
     players: "Players",
-    leaderboards: "Leaderboards",
+    // Tab-bar labels only (verified: these two keys are used nowhere else
+    // in the app) -- relabeled to match the Couch League concept's bottom
+    // nav without touching the routes/content underneath.
+    leaderboards: "League",
     history: "History",
-    settings: "Settings",
+    settings: "More",
   },
   home: {
     dashboard: "Dashboard",
@@ -106,6 +110,8 @@ const en = {
     statCurrentLeader: "Leader",
     noLeaderYet: "No leader yet",
     latestMatch: "Latest Match",
+    recentActivity: "Recent Activity",
+    tonightsStandings: "Tonight's Standings",
     trendsTitle: "Trends",
     notEnoughTrendData: "Not enough matches yet to show trends.",
     rising: "Rising",
@@ -128,9 +134,12 @@ const en = {
     quickClubDrawNotEnoughPoolClubs: "Not enough clubs in this pool to draw from.",
     loadError: "Couldn't load your dashboard. Check your connection and try again.",
     quickMatchTitle: "Quick Match",
+    quickMatchLiveLabel: "Live Session",
+    quickMatchRoundLabel: "Match {{number}}",
     quickMatchNoClubSelected: "No club selected",
-    quickMatchSaveResultAction: "Save Result",
+    quickMatchSaveResultAction: "Quick Result",
     quickMatchRecordAction: "Full Record Match",
+    quickMatchWinnersStayAction: "Winners Stay",
     quickMatchStaleSubmission: "This match was already completed by another player. The session has moved to the next match.",
     quickMatchSessionEnded: "This session was ended by another player.",
   },
@@ -363,7 +372,10 @@ const en = {
   },
   auth: {
     tagline: "The Home of Football Nights.",
-    loginSubtitle: "Sign in to your group",
+    welcomeBack: "Welcome back!",
+    loginSubtitle: "Continue your football night",
+    securePrivateFooter: "Secure • Private • Made for Friends",
+    createAccountAction: "Create Account",
     signupTitle: "Create your account",
     signupSubtitle: "Join or start a group afterward",
     emailLabel: "Email",
