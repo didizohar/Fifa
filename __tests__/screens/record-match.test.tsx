@@ -65,7 +65,20 @@ const CLUB_VERSIONS = [
 jest.mock("../../src/hooks/usePlayers", () => ({ usePlayers: () => ({ data: PLAYERS, isLoading: false }) }));
 jest.mock("../../src/hooks/useClubVersions", () => ({ useClubVersions: () => ({ data: CLUB_VERSIONS, isLoading: false }) }));
 jest.mock("../../src/hooks/useSeasons", () => ({ useSeasons: () => ({ data: [] }) }));
-jest.mock("../../src/hooks/useWinnersStaySession", () => ({ useWinnersStaySession: () => ({ session: null, setSession: jest.fn() }) }));
+const mockWinnersStaySetSession = jest.fn();
+const mockWinnersStayAdoptSession = jest.fn();
+const mockWinnersStayRefetch = jest.fn();
+let mockWinnersStaySession: unknown = null;
+let mockWinnersStayVersion: number | null = null;
+jest.mock("../../src/hooks/useWinnersStaySession", () => ({
+  useWinnersStaySession: () => ({
+    session: mockWinnersStaySession,
+    version: mockWinnersStayVersion,
+    setSession: mockWinnersStaySetSession,
+    adoptSession: mockWinnersStayAdoptSession,
+    refetch: mockWinnersStayRefetch,
+  }),
+}));
 jest.mock("../../src/hooks/useClubFavorites", () => ({ useClubFavorites: () => ({ favoriteIds: [], toggleFavorite: jest.fn() }) }));
 jest.mock("../../src/hooks/useRecentlyUsedClubs", () => ({ useRecentlyUsedClubs: () => ({ recentIds: [], recordUsage: jest.fn() }) }));
 jest.mock("../../src/hooks/useNationalTeamsPreference", () => ({
@@ -91,8 +104,12 @@ const PREVIOUS_MATCH = {
 
 const mockRecordMutateAsync = jest.fn();
 const mockEditMutateAsync = jest.fn();
+const mockRecordAndAdvanceMutateAsync = jest.fn();
 jest.mock("../../src/hooks/useRecordMatch", () => ({ useRecordMatch: () => ({ mutateAsync: mockRecordMutateAsync, isPending: false }) }));
 jest.mock("../../src/hooks/useEditMatch", () => ({ useEditMatch: () => ({ mutateAsync: mockEditMutateAsync, isPending: false }) }));
+jest.mock("../../src/hooks/useRecordMatchAndAdvanceSession", () => ({
+  useRecordMatchAndAdvanceSession: () => ({ mutateAsync: mockRecordAndAdvanceMutateAsync, isPending: false }),
+}));
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const RecordMatchScreen = require("../../app/(app)/record-match").default;
@@ -152,6 +169,8 @@ beforeEach(() => {
   capturedBeforeRemove = null;
   mockMatchQuery = { data: undefined, isLoading: false, isError: false, error: null, refetch: jest.fn() };
   mockPreviousMatches = [];
+  mockWinnersStaySession = null;
+  mockWinnersStayVersion = null;
 });
 
 describe("RecordMatchScreen -- save flow (create mode)", () => {
@@ -266,6 +285,146 @@ describe("RecordMatchScreen -- draw results save correctly (main Record Match sc
     });
 
     expect(mockRecordMutateAsync).toHaveBeenCalledTimes(1);
+  });
+});
+
+const WINNERS_STAY_SESSION = {
+  id: "session-1",
+  groupId: "group-1",
+  format: "duo" as const,
+  activePlayerIds: ["p1", "p2"],
+  currentPairA: { players: [{ id: "p1", display_name: "Alice", avatar_url: null, custom_color: "#111" }], consecutiveMatchesPlayed: 1 },
+  currentPairB: { players: [{ id: "p2", display_name: "Bob", avatar_url: null, custom_color: "#222" }], consecutiveMatchesPlayed: 1 },
+  pendingRotation: null,
+  waitingQueue: [],
+  roundNumber: 3,
+  startedAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+  lastRecordedMatchId: null,
+  status: "active" as const,
+  longestWinningRun: 1,
+  previousSnapshot: null,
+};
+
+const WINNERS_STAY_PREFILL = { ...VALID_PREFILL, source: "winnersStay" };
+
+describe("RecordMatchScreen -- session-linked create-mode save (atomic RPC, source=winnersStay)", () => {
+  it("uses the atomic recordMatchAndAdvanceSession RPC instead of the plain recordMatch mutation when a session is active", async () => {
+    mockWinnersStaySession = WINNERS_STAY_SESSION;
+    mockWinnersStayVersion = 5;
+    mockRecordAndAdvanceMutateAsync.mockResolvedValue({ ok: true, matchId: "new-match-id", version: 6 });
+    const renderer = await renderScreen(WINNERS_STAY_PREFILL);
+
+    await tapSave(renderer);
+
+    expect(mockRecordAndAdvanceMutateAsync).toHaveBeenCalledTimes(1);
+    expect(mockRecordMutateAsync).not.toHaveBeenCalled();
+    const args = mockRecordAndAdvanceMutateAsync.mock.calls[0]![0] as { expectedVersion: number; nextSession: unknown };
+    expect(args.expectedVersion).toBe(5);
+    expect(args.nextSession).toBeTruthy();
+  });
+
+  it("on success, adopts the server-confirmed session/version locally and navigates to the new match", async () => {
+    mockWinnersStaySession = WINNERS_STAY_SESSION;
+    mockWinnersStayVersion = 5;
+    mockRecordAndAdvanceMutateAsync.mockResolvedValue({ ok: true, matchId: "new-match-id", version: 6 });
+    const renderer = await renderScreen(WINNERS_STAY_PREFILL);
+
+    await tapSave(renderer);
+
+    expect(mockWinnersStayAdoptSession).toHaveBeenCalledTimes(1);
+    const [adoptedSession, adoptedVersion] = mockWinnersStayAdoptSession.mock.calls[0]!;
+    expect(adoptedVersion).toBe(6);
+    expect((adoptedSession as { lastRecordedMatchId: string }).lastRecordedMatchId).toBe("new-match-id");
+    expect(mockRouter.replace).toHaveBeenCalledWith("/match/new-match-id");
+  });
+
+  it("does not auto-accept a pending rotation the way QuickMatchCard does -- leaves review to the Winners Stay screen", async () => {
+    mockWinnersStaySession = WINNERS_STAY_SESSION;
+    mockWinnersStayVersion = 5;
+    mockRecordAndAdvanceMutateAsync.mockResolvedValue({ ok: true, matchId: "new-match-id", version: 6 });
+    const renderer = await renderScreen(WINNERS_STAY_PREFILL);
+
+    await tapSave(renderer);
+
+    const args = mockRecordAndAdvanceMutateAsync.mock.calls[0]![0] as { nextSession: { pendingRotation: unknown } };
+    const [adoptedSession] = mockWinnersStayAdoptSession.mock.calls[0]!;
+    // Whatever the rotation engine proposed is passed straight through --
+    // never separately "accepted" here (no acceptPendingRotation call).
+    expect((adoptedSession as { pendingRotation: unknown }).pendingRotation).toEqual(args.nextSession.pendingRotation);
+  });
+
+  it("a stale rejection shows the friendly message, refetches, and does not navigate away", async () => {
+    mockWinnersStaySession = WINNERS_STAY_SESSION;
+    mockWinnersStayVersion = 5;
+    mockRecordAndAdvanceMutateAsync.mockResolvedValue({ ok: "stale" });
+    const renderer = await renderScreen(WINNERS_STAY_PREFILL);
+
+    await tapSave(renderer);
+
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+    expect(mockWinnersStayAdoptSession).not.toHaveBeenCalled();
+    expect(mockWinnersStayRefetch).toHaveBeenCalledTimes(1);
+    const errorTexts = renderer.root.findAllByType(require("react-native").Text).map((n) => n.props.children);
+    expect(errorTexts.flat().join(" ")).toContain("home.quickMatchStaleSubmission");
+  });
+
+  it("a no_session rejection (session ended concurrently) shows the friendly message, refetches, and does not navigate away", async () => {
+    mockWinnersStaySession = WINNERS_STAY_SESSION;
+    mockWinnersStayVersion = 5;
+    mockRecordAndAdvanceMutateAsync.mockResolvedValue({ ok: "no_session" });
+    const renderer = await renderScreen(WINNERS_STAY_PREFILL);
+
+    await tapSave(renderer);
+
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+    expect(mockWinnersStayAdoptSession).not.toHaveBeenCalled();
+    expect(mockWinnersStayRefetch).toHaveBeenCalledTimes(1);
+    const errorTexts = renderer.root.findAllByType(require("react-native").Text).map((n) => n.props.children);
+    expect(errorTexts.flat().join(" ")).toContain("home.quickMatchSessionEnded");
+  });
+
+  it("repeated save taps on a session-linked match do not create duplicate matches", async () => {
+    mockWinnersStaySession = WINNERS_STAY_SESSION;
+    mockWinnersStayVersion = 5;
+    let resolveMutation!: (outcome: { ok: true; matchId: string; version: number }) => void;
+    mockRecordAndAdvanceMutateAsync.mockReturnValue(new Promise((resolve) => (resolveMutation = resolve)));
+    const renderer = await renderScreen(WINNERS_STAY_PREFILL);
+
+    const button = findByAccessibilityLabel(renderer, "editMatch.saveMatchAction");
+    await act(async () => {
+      button.props.onPress();
+      button.props.onPress();
+      resolveMutation({ ok: true, matchId: "only-match-id", version: 6 });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockRecordAndAdvanceMutateAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the plain recordMatch mutation when not linked to an active session (no session)", async () => {
+    mockWinnersStaySession = null;
+    mockWinnersStayVersion = null;
+    mockRecordMutateAsync.mockResolvedValue("new-match-id");
+    const renderer = await renderScreen(WINNERS_STAY_PREFILL);
+
+    await tapSave(renderer);
+
+    expect(mockRecordMutateAsync).toHaveBeenCalledTimes(1);
+    expect(mockRecordAndAdvanceMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the plain recordMatch mutation for a normal (non-winnersStay) create-mode save even if a session happens to be active", async () => {
+    mockWinnersStaySession = WINNERS_STAY_SESSION;
+    mockWinnersStayVersion = 5;
+    mockRecordMutateAsync.mockResolvedValue("new-match-id");
+    const renderer = await renderScreen(VALID_PREFILL);
+
+    await tapSave(renderer);
+
+    expect(mockRecordMutateAsync).toHaveBeenCalledTimes(1);
+    expect(mockRecordAndAdvanceMutateAsync).not.toHaveBeenCalled();
   });
 });
 

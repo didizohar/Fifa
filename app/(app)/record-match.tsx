@@ -25,6 +25,7 @@ import { useNationalTeamsPreference } from "../../src/hooks/useNationalTeamsPref
 import { usePlayers } from "../../src/hooks/usePlayers";
 import { useRecentlyUsedClubs } from "../../src/hooks/useRecentlyUsedClubs";
 import { useRecordMatch } from "../../src/hooks/useRecordMatch";
+import { useRecordMatchAndAdvanceSession } from "../../src/hooks/useRecordMatchAndAdvanceSession";
 import { confirmAction, notify } from "../../src/lib/confirm";
 import { filterClubsByPool, type ClubPoolMode } from "../../src/lib/clubPools";
 import { filterClubVersionsForRandomGeneration } from "../../src/lib/clubRepository";
@@ -32,11 +33,12 @@ import { matchSideLabel } from "../../src/lib/format";
 import { useTranslation } from "../../src/lib/i18n";
 import { type MatchPrefillRouteParams, validateMatchPrefill } from "../../src/lib/matchPrefill";
 import { EditMatchError } from "../../src/lib/matchService";
-import { toPickablePlayer, type PickablePlayer } from "../../src/lib/players";
+import { toPickablePlayer, toRotationPlayer, type PickablePlayer } from "../../src/lib/players";
 import { getPreviousMatchClubs, swapPreviousMatchClubs } from "../../src/lib/previousMatchClubs";
 import { filterValidClubVersions } from "../../src/lib/random/clubs";
 import { drawClubsForMatch } from "../../src/lib/random/matchClubDraw";
-import { isMatchLinkedToActiveWinnersStaySession } from "../../src/lib/rotation/session";
+import { advanceSessionAfterMatch, isMatchLinkedToActiveWinnersStaySession } from "../../src/lib/rotation/session";
+import type { MatchResult, RotationPlayer } from "../../src/lib/rotation/types";
 import type { ClubVersion, MatchType } from "../../src/lib/types/database";
 import {
   buildEditableMatchForm,
@@ -107,6 +109,11 @@ export default function RecordMatchScreen() {
   const { data: seasons } = useSeasons(currentGroup?.id ?? null);
   const activeSeasonId = (seasons ?? []).find((s) => s.is_active)?.id ?? null;
   const recordMatch = useRecordMatch(currentGroup?.id ?? null);
+  // The concurrency-safe path: used instead of recordMatch whenever this
+  // create-mode save is linked to a currently-active Winners Stay session
+  // (see handleSubmit) -- see recordMatchAndAdvanceSession's own comment
+  // for why a plain record_match call isn't enough there.
+  const recordMatchAndAdvance = useRecordMatchAndAdvanceSession(currentGroup?.id ?? null);
   const editMatch = useEditMatch(currentGroup?.id ?? null);
   const winnersStaySession = useWinnersStaySession(currentGroup?.id ?? null);
   // "Same Clubs"/"Swap Clubs" only make sense when starting a brand-new
@@ -397,7 +404,11 @@ export default function RecordMatchScreen() {
     return unsubscribe;
   }, [navigation, isDirty, t]);
 
-  const isSubmitting = isEditMode ? editMatch.isPending : recordMatch.isPending;
+  // Session-linked create-mode saves go through the atomic RPC instead of
+  // the plain recordMatch mutation (see handleSubmit) -- isSubmitting must
+  // reflect whichever one is actually in flight.
+  const isSessionLinkedCreate = !isEditMode && isFromWinnersStay && !!winnersStaySession.session && winnersStaySession.version !== null;
+  const isSubmitting = isEditMode ? editMatch.isPending : isSessionLinkedCreate ? recordMatchAndAdvance.isPending : recordMatch.isPending;
 
   const saveEdit = async (computed: ComputedMatchResult) => {
     if (!currentGroup || !matchId || submitGuardRef.current) return;
@@ -478,7 +489,81 @@ export default function RecordMatchScreen() {
     setErrors([]);
     submitGuardRef.current = true;
 
+    const sides: [
+      { clubVersionId: string; score: number; penaltyScore: number | null; result: "win" | "loss" | "draw"; playerIds: string[] },
+      { clubVersionId: string; score: number; penaltyScore: number | null; result: "win" | "loss" | "draw"; playerIds: string[] },
+    ] = [
+      {
+        clubVersionId: side1ClubId!,
+        score: side1Score,
+        penaltyScore: isPenalties ? penaltyScore1 : null,
+        result: validation.side1Result,
+        playerIds: side1PlayerIds,
+      },
+      {
+        clubVersionId: side2ClubId!,
+        score: side2Score,
+        penaltyScore: isPenalties ? penaltyScore2 : null,
+        result: validation.side2Result,
+        playerIds: side2PlayerIds,
+      },
+    ];
+
     try {
+      // Same reasoning as saveEdit above: this is the app navigating away
+      // after a save the user just asked for, not an accidental exit --
+      // the unsaved-changes guard must not intercept it. This is the exact
+      // line that was missing before: without it, isDirty was still true
+      // (a brand-new match's originalDraft is permanently BLANK_CREATE_DRAFT,
+      // so it never "catches up" to a filled-in form on its own), so
+      // router.replace's own beforeRemove event was blocked by the guard
+      // and the unsaved-changes dialog appeared immediately on every save.
+      if (isSessionLinkedCreate) {
+        const session = winnersStaySession.session!;
+        // Same computation QuickMatchCard's own handleSave uses, minus the
+        // auto-accept of a resulting pendingRotation -- a user who came
+        // through the full Winners Stay flow (source=winnersStay) expects
+        // to land back on that screen for the normal Accept/Redraw review
+        // step, not to have the next matchup silently pre-accepted here.
+        const result: MatchResult = validation.side1Result === "win" ? "sideA" : validation.side2Result === "win" ? "sideB" : "draw";
+        const playersById: Record<string, RotationPlayer> = {};
+        for (const p of players ?? []) playersById[p.id] = toRotationPlayer(p);
+        for (const p of [...session.currentPairA.players, ...(session.currentPairB?.players ?? [])]) playersById[p.id] ??= p;
+        const activePlayerIds = (players ?? []).map((p) => p.id);
+        const proposedNext = advanceSessionAfterMatch({ session, matchId: "pending", result, playersById, activePlayerIds, now: new Date() });
+
+        const outcome = await recordMatchAndAdvance.mutateAsync({
+          payload: {
+            groupId: currentGroup.id,
+            seasonId: activeSeasonId,
+            gameVersionId: currentGroup.default_game_version_id!,
+            matchType,
+            isOvertime,
+            isPenalties,
+            penaltyWinnerSide: validation.penaltyWinnerSide,
+            sides,
+          },
+          expectedVersion: winnersStaySession.version!,
+          nextSession: proposedNext,
+        });
+
+        if (outcome.ok === "stale" || outcome.ok === "no_session") {
+          // Another member already completed this round (or ended the
+          // session) first -- nothing was written for this submission.
+          // Converge on the current shared state and leave the form as-is
+          // rather than navigating away, so the user can see what happened.
+          setErrors([outcome.ok === "stale" ? t("home.quickMatchStaleSubmission") : t("home.quickMatchSessionEnded")]);
+          await winnersStaySession.refetch();
+          return;
+        }
+
+        const finalSession = { ...proposedNext, lastRecordedMatchId: outcome.matchId };
+        winnersStaySession.adoptSession(finalSession, outcome.version);
+        skipUnsavedGuardRef.current = true;
+        router.replace(`/match/${outcome.matchId}`);
+        return;
+      }
+
       const newMatchId = await recordMatch.mutateAsync({
         groupId: currentGroup.id,
         // Tags the match with whichever season is currently active (null if
@@ -492,31 +577,8 @@ export default function RecordMatchScreen() {
         isOvertime,
         isPenalties,
         penaltyWinnerSide: validation.penaltyWinnerSide,
-        sides: [
-          {
-            clubVersionId: side1ClubId!,
-            score: side1Score,
-            penaltyScore: isPenalties ? penaltyScore1 : null,
-            result: validation.side1Result,
-            playerIds: side1PlayerIds,
-          },
-          {
-            clubVersionId: side2ClubId!,
-            score: side2Score,
-            penaltyScore: isPenalties ? penaltyScore2 : null,
-            result: validation.side2Result,
-            playerIds: side2PlayerIds,
-          },
-        ],
+        sides,
       });
-      // Same reasoning as saveEdit above: this is the app navigating away
-      // after a save the user just asked for, not an accidental exit --
-      // the unsaved-changes guard must not intercept it. This is the exact
-      // line that was missing before: without it, isDirty was still true
-      // (a brand-new match's originalDraft is permanently BLANK_CREATE_DRAFT,
-      // so it never "catches up" to a filled-in form on its own), so
-      // router.replace's own beforeRemove event was blocked by the guard
-      // and the unsaved-changes dialog appeared immediately on every save.
       skipUnsavedGuardRef.current = true;
       router.replace(`/match/${newMatchId}`);
     } catch (e) {
