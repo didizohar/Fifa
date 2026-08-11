@@ -6,7 +6,7 @@ import { useLastWinnersStayParticipants } from "../hooks/useLastWinnersStayParti
 import { useMatches } from "../hooks/useMatches";
 import { useNationalTeamsPreference } from "../hooks/useNationalTeamsPreference";
 import { usePlayers } from "../hooks/usePlayers";
-import { useRecordMatch } from "../hooks/useRecordMatch";
+import { useRecordMatchAndAdvanceSession } from "../hooks/useRecordMatchAndAdvanceSession";
 import { useSeasons } from "../hooks/useSeasons";
 import { useWinnersStaySession } from "../hooks/useWinnersStaySession";
 import { filterClubsByPool } from "../lib/clubPools";
@@ -18,7 +18,7 @@ import { toRotationPlayer } from "../lib/players";
 import { getPreviousMatchClubs, swapPreviousMatchClubs } from "../lib/previousMatchClubs";
 import { filterValidClubVersions } from "../lib/random/clubs";
 import { drawClubsForMatch } from "../lib/random/matchClubDraw";
-import { acceptPendingRotation, advanceSessionAfterMatch, canAdvanceSession, getSessionParticipantIds } from "../lib/rotation/session";
+import { acceptPendingRotation, advanceSessionAfterMatch, getSessionParticipantIds } from "../lib/rotation/session";
 import type { MatchResult, RotationPlayer } from "../lib/rotation/types";
 import type { MatchType } from "../lib/types/database";
 import { validateMatchForm } from "../lib/validation/matchForm";
@@ -52,14 +52,14 @@ export const QuickMatchCard = memo(function QuickMatchCard({ groupId, gameVersio
   const { t } = useTranslation();
   const router = useRouter();
 
-  const { session, isHydrated, setSession } = useWinnersStaySession(groupId);
+  const { session, version, isHydrated, setSession, adoptSession, refetch } = useWinnersStaySession(groupId);
   const roster = usePlayers(groupId);
   const { data: clubVersions, isLoading: clubsLoading } = useClubVersions(gameVersionId ?? undefined);
   const previousMatchQuery = useMatches(groupId, 1);
   const { includeNationalTeams } = useNationalTeamsPreference(groupId);
   const { data: seasons } = useSeasons(groupId);
   const activeSeasonId = (seasons ?? []).find((s) => s.is_active)?.id ?? null;
-  const recordMatch = useRecordMatch(groupId);
+  const recordMatch = useRecordMatchAndAdvanceSession(groupId);
   const { setParticipantIds: setLastParticipants } = useLastWinnersStayParticipants(groupId);
 
   // Local-only, reset the moment the matchup itself changes (a new round,
@@ -167,7 +167,7 @@ export const QuickMatchCard = memo(function QuickMatchCard({ groupId, gameVersio
   };
 
   const handleSave = async () => {
-    if (!groupId || !gameVersionId || recordMatch.isPending || submitGuardRef.current) return;
+    if (!groupId || !gameVersionId || recordMatch.isPending || submitGuardRef.current || version === null) return;
 
     const validation = validateMatchForm(
       {
@@ -188,37 +188,18 @@ export const QuickMatchCard = memo(function QuickMatchCard({ groupId, gameVersio
     setErrors([]);
     submitGuardRef.current = true;
     try {
-      const newMatchId = await recordMatch.mutateAsync({
-        groupId,
-        seasonId: activeSeasonId,
-        gameVersionId,
-        matchType,
-        isOvertime: false,
-        isPenalties: false,
-        sides: [
-          { clubVersionId: side1ClubId!, score: side1Score, penaltyScore: null, result: validation.side1Result, playerIds: side1PlayerIds },
-          { clubVersionId: side2ClubId!, score: side2Score, penaltyScore: null, result: validation.side2Result, playerIds: side2PlayerIds },
-        ],
-      });
-
-      // Reuse the exact same session-advancement engine winners-stay.tsx's
-      // own "advance session" effect calls -- this never re-derives
-      // rotation/duo logic itself.
-      if (!canAdvanceSession(session, newMatchId)) return;
-      if (session.roundNumber === 0) {
-        // Task 3: a session only becomes "real" (resumable via Continue
-        // Previous Session) once its first match actually saves -- same
-        // rule, same moment, same helper as winners-stay.tsx.
-        setLastParticipants(getSessionParticipantIds(session));
-      }
-
+      // Compute the proposed next session state locally, with the exact
+      // same unmodified rotation engine winners-stay.tsx uses -- the
+      // matchId placeholder here is never actually written; the RPC
+      // overwrites lastRecordedMatchId with the real, just-inserted id
+      // inside its own transaction (see recordMatchAndAdvanceSession).
       const result: MatchResult = validation.side1Result === "win" ? "sideA" : validation.side2Result === "win" ? "sideB" : "draw";
       const playersById: Record<string, RotationPlayer> = {};
       for (const p of roster.data ?? []) playersById[p.id] = toRotationPlayer(p);
       for (const p of [...side1Players, ...side2Players]) playersById[p.id] ??= p;
       const activePlayerIds = (roster.data ?? []).map((p) => p.id);
 
-      let advanced = advanceSessionAfterMatch({ session, matchId: newMatchId, result, playersById, activePlayerIds, now: new Date() });
+      let proposedNext = advanceSessionAfterMatch({ session, matchId: "pending", result, playersById, activePlayerIds, now: new Date() });
       // Quick Match has no room for a separate "review/redraw next matchup"
       // step -- if a valid next matchup was computed, accept it immediately
       // (the exact same acceptPendingRotation the full Winners Stay screen's
@@ -227,10 +208,52 @@ export const QuickMatchCard = memo(function QuickMatchCard({ groupId, gameVersio
       // visibility check above will hide it next render (no valid current
       // matchup), and the user can resolve it from the full Winners Stay
       // screen.
-      if (advanced.pendingRotation?.opposingPair) {
-        advanced = acceptPendingRotation(advanced, new Date());
+      if (proposedNext.pendingRotation?.opposingPair) {
+        proposedNext = acceptPendingRotation(proposedNext, new Date());
       }
-      setSession(advanced);
+
+      const outcome = await recordMatch.mutateAsync({
+        payload: {
+          groupId,
+          seasonId: activeSeasonId,
+          gameVersionId,
+          matchType,
+          isOvertime: false,
+          isPenalties: false,
+          sides: [
+            { clubVersionId: side1ClubId!, score: side1Score, penaltyScore: null, result: validation.side1Result, playerIds: side1PlayerIds },
+            { clubVersionId: side2ClubId!, score: side2Score, penaltyScore: null, result: validation.side2Result, playerIds: side2PlayerIds },
+          ],
+        },
+        expectedVersion: version,
+        nextSession: proposedNext,
+      });
+
+      if (outcome.ok === "stale" || outcome.ok === "no_session") {
+        // Another member already completed this round (or ended the
+        // session) first -- nothing was written for this submission. Show
+        // why, then refetch so this card converges on whatever the shared
+        // session actually is now (a new matchup, or hidden entirely if the
+        // session ended). The locally-entered score is intentionally
+        // dropped here -- it belonged to a matchup that no longer exists.
+        setErrors([outcome.ok === "stale" ? t("home.quickMatchStaleSubmission") : t("home.quickMatchSessionEnded")]);
+        await refetch();
+        return;
+      }
+
+      if (session.roundNumber === 0) {
+        // Task 3: a session only becomes "real" (resumable via Continue
+        // Previous Session) once its first match actually saves -- same
+        // rule, same moment, same helper as winners-stay.tsx.
+        setLastParticipants(getSessionParticipantIds(session));
+      }
+
+      // The atomic RPC already wrote the advanced session server-side --
+      // adopt its result locally rather than writing it again (which would
+      // be a second, redundant, non-atomic write against a session other
+      // members may already be reading).
+      const finalSession = { ...proposedNext, lastRecordedMatchId: outcome.matchId };
+      adoptSession(finalSession, outcome.version);
     } catch (e) {
       setErrors([e instanceof Error ? e.message : t("editMatch.genericError")]);
     } finally {

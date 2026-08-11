@@ -131,6 +131,8 @@ const en = {
     quickMatchNoClubSelected: "No club selected",
     quickMatchSaveResultAction: "Save Result",
     quickMatchRecordAction: "Full Record Match",
+    quickMatchStaleSubmission: "This match was already completed by another player. The session has moved to the next match.",
+    quickMatchSessionEnded: "This session was ended by another player.",
   },
   settings: {
     title: "Settings",

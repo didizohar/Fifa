@@ -128,6 +128,8 @@ const he = {
     quickMatchNoClubSelected: "לא נבחר מועדון",
     quickMatchSaveResultAction: "שמור תוצאה",
     quickMatchRecordAction: "תיעוד משחק",
+    quickMatchStaleSubmission: "המשחק הזה כבר הושלם על ידי שחקן אחר. הסשן עבר למשחק הבא.",
+    quickMatchSessionEnded: "הסשן הזה הסתיים על ידי שחקן אחר.",
   },
   settings: {
     title: "הגדרות",

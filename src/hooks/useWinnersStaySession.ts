@@ -1,18 +1,7 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useIsFocused } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { endActiveSession, fetchActiveSession, startActiveSession, updateActiveSession } from "../lib/activeSessions";
 import type { WinnersStaySession } from "../lib/rotation/types";
-
-function storageKey(groupId: string): string {
-  return `fc-rival:winnersStaySession:${groupId}`;
-}
-
-/** A parsed value is at least shaped like a session -- not a full schema check, just enough to reject garbage/corrupted storage instead of handing a screen a half-formed object. */
-function looksLikeSession(value: unknown): value is WinnersStaySession {
-  if (typeof value !== "object" || value === null) return false;
-  const v = value as Record<string, unknown>;
-  return typeof v.id === "string" && typeof v.groupId === "string" && typeof v.roundNumber === "number" && (v.status === "active" || v.status === "completed");
-}
 
 /** A session persisted before `format` existed (originally every session was the 4+/doubles "group" format) won't have the field -- default it here so the rest of the app can trust session.format is always defined, without a data migration. */
 function normalizeSession(session: WinnersStaySession): WinnersStaySession {
@@ -21,44 +10,63 @@ function normalizeSession(session: WinnersStaySession): WinnersStaySession {
 }
 
 /**
- * AsyncStorage-backed persistence for one Winners Stay session per group --
- * same hydrate-on-mount / write-through pattern as GroupProvider's
- * last-selected-group and the i18n LocaleProvider's locale preference. The
- * screen owns all state TRANSITIONS (via session.ts's pure functions) and
- * just calls setSession with the result; this hook only handles surviving
- * navigation, backgrounding, and reloads.
+ * Supabase-backed shared active session for a group -- every member reads
+ * and writes the SAME `active_sessions` row (see
+ * supabase/migrations/20260811164500_shared_active_sessions.sql), replacing
+ * the previous per-device AsyncStorage persistence. Refetches on every
+ * screen focus (same `useIsFocused` pattern the AsyncStorage version already
+ * used for "another screen may have changed this since I last read it" --
+ * now that "another screen" can genuinely mean another device/user's
+ * screen, this is what lets a member who opens the app see a session
+ * someone else already started, without an app restart).
+ *
+ * `setSession` covers every mutation that never inserts a match (start,
+ * accept/redraw/undo a rotation, edit the waiting queue, end/reset) as a
+ * single optimistic-concurrency write -- see updateActiveSession/
+ * startActiveSession/endActiveSession. Recording a MATCH must go through
+ * recordMatchAndAdvanceSession (src/lib/activeSessions.ts) instead, since
+ * that needs to be atomic with the match insert; once that call succeeds,
+ * the caller should use `adoptSession` (a purely local state update, no
+ * extra network write) to reflect the already-authoritative result.
  */
 export function useWinnersStaySession(groupId: string | null) {
   const isFocused = useIsFocused();
   const [session, setSessionState] = useState<WinnersStaySession | null>(null);
+  const [version, setVersion] = useState<number | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const [isCorrupted, setIsCorrupted] = useState(false);
-  // Tracks which groupId this hook instance has already run its
-  // authoritative first hydration for -- distinguishes "the very first read
-  // for this group" (shows the loading state, flags corrupted storage) from
-  // a later refocus-triggered resync (silent background refresh only).
   const hydratedGroupIdRef = useRef<string | null>(null);
+  const versionRef = useRef<number | null>(null);
+  versionRef.current = version;
+
+  const load = useCallback(async (forGroupId: string, isFirstReadForThisGroup: boolean) => {
+    try {
+      const row = await fetchActiveSession(forGroupId);
+      if (!row) {
+        setSessionState(null);
+        setVersion(null);
+        return;
+      }
+      setSessionState(normalizeSession(row.session));
+      setVersion(row.version);
+    } catch {
+      if (isFirstReadForThisGroup) {
+        setIsCorrupted(true);
+        setSessionState(null);
+        setVersion(null);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (!groupId) {
       setSessionState(null);
+      setVersion(null);
       setIsHydrated(true);
       setIsCorrupted(false);
       hydratedGroupIdRef.current = null;
       return;
     }
-
-    // A tab screen (Dashboard) never unmounts just because Start Evening /
-    // Winners Stay / Record Match was pushed on top of it -- so its OWN
-    // instance of this hook, once mounted, would otherwise keep showing
-    // whatever session existed at that exact moment forever, even after a
-    // DIFFERENT screen has since started, advanced, or ended a session for
-    // the same group. These are independent React state instances,
-    // connected only through this shared AsyncStorage key, not live-synced.
-    // Skipping the read while unfocused (and re-running it every time this
-    // instance regains focus) is what keeps every screen holding this hook
-    // honest about which session is actually active, without polling and
-    // without a second source of truth -- same storage key, same read.
     if (!isFocused) return;
 
     let cancelled = false;
@@ -68,70 +76,73 @@ export function useWinnersStaySession(groupId: string | null) {
       setIsCorrupted(false);
     }
 
-    AsyncStorage.getItem(storageKey(groupId))
-      .then((stored) => {
-        if (cancelled) return;
-        if (!stored) {
-          setSessionState(null);
-          return;
-        }
-        try {
-          const parsed: unknown = JSON.parse(stored);
-          if (looksLikeSession(parsed)) {
-            setSessionState(normalizeSession(parsed));
-          } else if (isFirstReadForThisGroup) {
-            // A refocus resync deliberately does NOT flag corruption or
-            // clear an already-good in-memory session over a single bad
-            // read -- that authoritative check only applies to the first
-            // read for this group.
-            setIsCorrupted(true);
-            setSessionState(null);
-          }
-        } catch {
-          if (isFirstReadForThisGroup) {
-            setIsCorrupted(true);
-            setSessionState(null);
-          }
-        }
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setIsHydrated(true);
-        hydratedGroupIdRef.current = groupId;
-      });
+    load(groupId, isFirstReadForThisGroup).finally(() => {
+      if (cancelled) return;
+      setIsHydrated(true);
+      hydratedGroupIdRef.current = groupId;
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [groupId, isFocused]);
+  }, [groupId, isFocused, load]);
 
-  // Returns a Promise that resolves once the AsyncStorage write/removal has
-  // actually completed -- existing fire-and-forget callers (every in-screen
-  // rotation transition in winners-stay.tsx) are unaffected, since calling
-  // an async function without awaiting it is still valid. It matters for a
-  // caller that navigates to a DIFFERENT screen right after clearing/
-  // setting the session (see start-evening.tsx): that other screen mounts
-  // its own separate instance of this hook, connected to this one only
-  // through the shared AsyncStorage key, not React state -- without
-  // awaiting here first, the navigation could land before the write/removal
-  // actually lands, and the other screen's own hydration read would see
-  // stale data.
+  /** Re-reads the shared session on demand -- used after a stale-write conflict to converge on whatever another member's device just committed. */
+  const refetch = useCallback(async () => {
+    if (!groupId) return;
+    await load(groupId, false);
+  }, [groupId, load]);
+
+  /**
+   * Writes a non-match-recording mutation. `next === null` ends/resets the
+   * session (deletes the shared row). A stale optimistic-concurrency write
+   * (someone else changed the session first) silently refetches instead of
+   * throwing -- every existing caller already treats this as fire-and-forget
+   * (see winners-stay.tsx), so converging on the current shared state here
+   * is safer than surfacing an error for what is, from the user's
+   * perspective, a normal multi-device update.
+   */
   const setSession = useCallback(
     async (next: WinnersStaySession | null) => {
-      setSessionState(next);
-      setIsCorrupted(false);
       if (!groupId) return;
-      if (next) await AsyncStorage.setItem(storageKey(groupId), JSON.stringify(next)).catch(() => {});
-      else await AsyncStorage.removeItem(storageKey(groupId)).catch(() => {});
+      if (next === null) {
+        await endActiveSession(groupId).catch(() => {});
+        setSessionState(null);
+        setVersion(null);
+        return;
+      }
+      if (versionRef.current === null) {
+        const result = await startActiveSession(groupId, next).catch(() => null);
+        if (!result) return;
+        if (result.ok === "stale") {
+          await refetch();
+          return;
+        }
+        setSessionState(next);
+        setVersion(result.version);
+        return;
+      }
+      const result = await updateActiveSession(groupId, versionRef.current, next).catch(() => null);
+      if (!result) return;
+      if (result.ok === "stale") {
+        await refetch();
+        return;
+      }
+      setSessionState(next);
+      setVersion(result.version);
     },
-    [groupId],
+    [groupId, refetch],
   );
 
-  /** Clears a corrupted/stale entry so the screen can fall back to its "no active session" state cleanly. */
+  /** Purely local state update, no network write -- for adopting the result of a call already committed atomically elsewhere (recordMatchAndAdvanceSession). */
+  const adoptSession = useCallback((next: WinnersStaySession, nextVersion: number) => {
+    setSessionState(next);
+    setVersion(nextVersion);
+  }, []);
+
   const discardCorrupted = useCallback(() => {
     setIsCorrupted(false);
-    if (groupId) AsyncStorage.removeItem(storageKey(groupId)).catch(() => {});
-  }, [groupId]);
+  }, []);
 
-  return { session, isHydrated, isCorrupted, setSession, discardCorrupted };
+  return { session, version, isHydrated, isCorrupted, setSession, adoptSession, discardCorrupted, refetch };
 }
