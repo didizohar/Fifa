@@ -13,10 +13,6 @@ jest.mock("../../src/hooks/useClubVersions", () => ({
   useClubVersions: () => ({ data: mockClubVersionsData, isLoading: false }),
 }));
 
-jest.mock("../../src/hooks/useNationalTeamsPreference", () => ({
-  useNationalTeamsPreference: () => ({ includeNationalTeams: true, setIncludeNationalTeams: jest.fn() }),
-}));
-
 let mockPool: "large" | "small" = "large";
 const mockSetPool = jest.fn((next: "large" | "small") => {
   mockPool = next;
@@ -25,8 +21,12 @@ jest.mock("../../src/hooks/useQuickDrawPoolPreference", () => ({
   useQuickDrawPoolPreference: () => ({ pool: mockPool, isHydrated: true, setPool: mockSetPool }),
 }));
 
-function clubVersion(id: string, starRating: number) {
-  return { id: `cv-${id}`, club_id: id, game_version_id: "gv-1", star_rating: starRating, club: { id, name: id, deleted_at: null, group_id: null, league: null } };
+function clubVersion(id: string, starRating: number, league: string | null = null) {
+  return { id: `cv-${id}`, club_id: id, game_version_id: "gv-1", star_rating: starRating, club: { id, name: id, deleted_at: null, group_id: null, league } };
+}
+
+function nationalTeamClubVersion(id: string, starRating: number) {
+  return clubVersion(id, starRating, "National Teams");
 }
 
 /** Large pool = 4.5/5; small pool = 3.5/4. Includes an unrelated 3-star club to prove it's never drawn by either pool. */
@@ -135,5 +135,81 @@ describe("QuickClubDrawCard -- pool selection replaces Random/By Stars", () => {
       const badges = renderer.root.findAllByType(ClubBadge);
       expect(badges[0]!.props.name).not.toBe(badges[1]!.props.name);
     }
+  });
+});
+
+describe("national teams are always excluded from Quick Club Draw", () => {
+  beforeEach(() => {
+    mockPool = "large";
+  });
+
+  it("never draws a national team, even though club teams at the same star rating exist", () => {
+    mockClubVersionsData = [nationalTeamClubVersion("brazil", 5), nationalTeamClubVersion("argentina", 4.5), clubVersion("a", 4.5), clubVersion("b", 5)];
+    const renderer = renderCard();
+    for (let i = 0; i < 15; i++) {
+      pressDraw(renderer);
+      const badges = renderer.root.findAllByType(ClubBadge);
+      expect(badges.map((b) => b.props.name)).not.toContain("brazil");
+      expect(badges.map((b) => b.props.name)).not.toContain("argentina");
+    }
+  });
+
+  it("club teams remain eligible (not accidentally excluded alongside national teams)", () => {
+    mockClubVersionsData = [nationalTeamClubVersion("brazil", 5), clubVersion("a", 4.5), clubVersion("b", 5)];
+    const renderer = renderCard();
+    pressDraw(renderer);
+    const badges = renderer.root.findAllByType(ClubBadge);
+    expect(badges).toHaveLength(2);
+    for (const badge of badges) expect(["a", "b"]).toContain(badge.props.name);
+  });
+
+  it("reports 'not enough clubs' when only national teams are available -- never falls back to drawing them", () => {
+    mockClubVersionsData = [nationalTeamClubVersion("brazil", 5), nationalTeamClubVersion("argentina", 4.5)];
+    const renderer = renderCard();
+    pressDraw(renderer);
+    expect(renderer.root.findAllByType(ClubBadge)).toHaveLength(0);
+    const texts = renderer.root.findAllByType(Text);
+    expect(texts.some((t) => t.props.children === "home.quickClubDrawNotEnoughClubs")).toBe(true);
+  });
+
+  it("Large/Small pool filtering still works correctly with national teams excluded", () => {
+    mockClubVersionsData = [
+      nationalTeamClubVersion("brazil", 4.5),
+      nationalTeamClubVersion("germany", 3.5),
+      clubVersion("small-a", 3.5),
+      clubVersion("small-b", 4),
+      clubVersion("large-a", 4.5),
+      clubVersion("large-b", 5),
+    ];
+
+    mockPool = "small";
+    let renderer = renderCard();
+    pressDraw(renderer);
+    let badges = renderer.root.findAllByType(ClubBadge);
+    expect(badges).toHaveLength(2);
+    for (const badge of badges) {
+      expect([3.5, 4]).toContain(badge.props.starRating);
+      expect(badge.props.name).not.toBe("brazil");
+      expect(badge.props.name).not.toBe("germany");
+    }
+
+    mockPool = "large";
+    renderer = renderCard();
+    pressDraw(renderer);
+    badges = renderer.root.findAllByType(ClubBadge);
+    expect(badges).toHaveLength(2);
+    for (const badge of badges) {
+      expect([4.5, 5]).toContain(badge.props.starRating);
+      expect(badge.props.name).not.toBe("brazil");
+    }
+  });
+
+  it("Bayer Leverkusen (4.0 stars, a club team) resolves to the Small pool and is eligible to draw", () => {
+    mockClubVersionsData = [clubVersion("Bayer Leverkusen", 4.0), clubVersion("small-b", 3.5)];
+    mockPool = "small";
+    const renderer = renderCard();
+    pressDraw(renderer);
+    const badges = renderer.root.findAllByType(ClubBadge);
+    expect(badges.map((b) => b.props.name)).toContain("Bayer Leverkusen");
   });
 });

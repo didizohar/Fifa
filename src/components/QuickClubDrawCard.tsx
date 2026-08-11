@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useClubVersions } from "../hooks/useClubVersions";
-import { useNationalTeamsPreference } from "../hooks/useNationalTeamsPreference";
 import { useQuickDrawPoolPreference } from "../hooks/useQuickDrawPoolPreference";
 import { filterClubsByPool } from "../lib/clubPools";
 import { filterClubVersionsForRandomGeneration } from "../lib/clubRepository";
@@ -28,11 +27,17 @@ interface QuickClubDrawCardProps {
  * the choice is remembered per group via useQuickDrawPoolPreference.
  * Purely a fun/quick reference (which club to play as), so it never writes
  * to any match or session state.
+ *
+ * Always excludes national teams, regardless of the group's own
+ * Include/Exclude National Teams preference (useNationalTeamsPreference) --
+ * unlike every other club-drawing surface (Record Match, the full
+ * /draw/clubs screen, QuickMatchCard, ClubPickerSheet), which all still
+ * respect that preference unchanged. This is a deliberate, narrower default
+ * for the quick one-tap draw specifically, not a global change.
  */
 export function QuickClubDrawCard({ groupId, gameVersionId }: QuickClubDrawCardProps) {
   const { t } = useTranslation();
   const { data: clubVersions } = useClubVersions(gameVersionId ?? undefined);
-  const { includeNationalTeams } = useNationalTeamsPreference(groupId);
   const { pool, setPool } = useQuickDrawPoolPreference(groupId);
   const [result, setResult] = useState<{ clubA: ClubVersion; clubB: ClubVersion } | null>(null);
   const [drawKey, setDrawKey] = useState(0);
@@ -42,7 +47,9 @@ export function QuickClubDrawCard({ groupId, gameVersionId }: QuickClubDrawCardP
   const [failReason, setFailReason] = useState<"general" | "pool" | null>(null);
 
   const draw = () => {
-    const validPool = filterValidClubVersions(filterClubVersionsForRandomGeneration(clubVersions ?? [], { includeNationalTeams }));
+    // includeNationalTeams is deliberately hardcoded false here, not read
+    // from the group's preference -- see the component doc comment above.
+    const validPool = filterValidClubVersions(filterClubVersionsForRandomGeneration(clubVersions ?? [], { includeNationalTeams: false }));
     if (validPool.length < 2) {
       setFailReason("general");
       setResult(null);
