@@ -1,6 +1,7 @@
 import TestRenderer, { act } from "react-test-renderer";
 import { AnimatedPressable } from "../../src/components/AnimatedPressable";
 import { ClubBadge } from "../../src/components/ClubBadge";
+import { ScoreStepper } from "../../src/components/ScoreStepper";
 
 // record-match.tsx statically imports ClubPickerSheet, which pulls in the
 // real Supabase/AsyncStorage chain even though the sheet itself is never
@@ -202,6 +203,61 @@ describe("RecordMatchScreen -- save flow (create mode)", () => {
       // Two taps issued before either has resolved -- isSubmitting (derived
       // from render state) can't have updated between them, so only the
       // synchronous submitGuardRef can prevent a second mutateAsync call.
+      button.props.onPress();
+      button.props.onPress();
+      resolveMutation("only-match-id");
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockRecordMutateAsync).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("RecordMatchScreen -- draw results save correctly (main Record Match screen)", () => {
+  it("a 0-0 draw (create mode's own default score) saves successfully with both sides marked draw", async () => {
+    mockRecordMutateAsync.mockResolvedValue("new-match-id");
+    const renderer = await renderScreen(VALID_PREFILL);
+    // VALID_PREFILL never touches the score -- create mode's own default
+    // (side1Score/side2Score both start at 0) is already a 0-0 draw.
+
+    await tapSave(renderer);
+
+    expect(mockRecordMutateAsync).toHaveBeenCalledTimes(1);
+    const payload = mockRecordMutateAsync.mock.calls[0]![0] as { sides: { score: number; result: string }[] };
+    expect(payload.sides[0]!.score).toBe(0);
+    expect(payload.sides[1]!.score).toBe(0);
+    expect(payload.sides[0]!.result).toBe("draw");
+    expect(payload.sides[1]!.result).toBe("draw");
+    expect(mockRouter.replace).toHaveBeenCalledWith("/match/new-match-id");
+  });
+
+  it("a non-zero draw (2-2) saves successfully with both sides marked draw, not win/loss", async () => {
+    mockRecordMutateAsync.mockResolvedValue("new-match-id");
+    const renderer = await renderScreen(VALID_PREFILL);
+    const steppers = renderer.root.findAllByType(ScoreStepper);
+    act(() => {
+      (steppers[0]!.props.onChange as (v: number) => void)(2);
+      (steppers[1]!.props.onChange as (v: number) => void)(2);
+    });
+
+    await tapSave(renderer);
+
+    expect(mockRecordMutateAsync).toHaveBeenCalledTimes(1);
+    const payload = mockRecordMutateAsync.mock.calls[0]![0] as { sides: { score: number; result: string }[] };
+    expect(payload.sides[0]!.score).toBe(2);
+    expect(payload.sides[1]!.score).toBe(2);
+    expect(payload.sides[0]!.result).toBe("draw");
+    expect(payload.sides[1]!.result).toBe("draw");
+  });
+
+  it("repeated save taps on a draw do not create duplicate matches", async () => {
+    let resolveMutation!: (id: string) => void;
+    mockRecordMutateAsync.mockReturnValue(new Promise((resolve) => (resolveMutation = resolve)));
+    const renderer = await renderScreen(VALID_PREFILL); // 0-0 draw by default
+
+    const button = findByAccessibilityLabel(renderer, "editMatch.saveMatchAction");
+    await act(async () => {
       button.props.onPress();
       button.props.onPress();
       resolveMutation("only-match-id");

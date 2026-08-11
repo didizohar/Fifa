@@ -137,6 +137,17 @@ describe("computeIndividualStandings", () => {
     expect(p3).toMatchObject({ played: 2, wins: 1, draws: 1, losses: 0, goalsFor: 3, goalsAgainst: 2, goalDifference: 1, points: 4 });
   });
 
+  it("a 0-0 draw counts as played + draw with zero goals either way, never a win or loss for either side", () => {
+    const matches = [makeMatch({ playerIds: ["p1"], score: 0, result: "draw" }, { playerIds: ["p2"], score: 0, result: "draw" }, "2026-03-01")];
+    const standings = computeIndividualStandings(roster, matches);
+
+    const p1 = standings.find((r) => r.id === "p1")!;
+    expect(p1).toMatchObject({ played: 1, wins: 0, draws: 1, losses: 0, goalsFor: 0, goalsAgainst: 0, goalDifference: 0, points: 1 });
+
+    const p2 = standings.find((r) => r.id === "p2")!;
+    expect(p2).toMatchObject({ played: 1, wins: 0, draws: 1, losses: 0, goalsFor: 0, goalsAgainst: 0, goalDifference: 0, points: 1 });
+  });
+
   it("orders the returned standings by points/GD/GF/winRate/wins/name", () => {
     const matches = [
       makeMatch({ playerIds: ["p1"], score: 3, result: "win" }, { playerIds: ["p2"], score: 1, result: "loss" }, "2026-03-01"),

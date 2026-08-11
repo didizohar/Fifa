@@ -28,6 +28,18 @@ describe("validateMatchForm", () => {
     expect(result).toEqual({ ok: true, side1Result: "draw", side2Result: "draw", penaltyWinnerSide: undefined });
   });
 
+  it.each([0, 1, 2, 3])("accepts a %i-%i draw as valid -- ok:true with no errors, not just 'well-formed but rejected'", (level) => {
+    const result = validateMatchForm(
+      draft({ side1: { clubVersionId: "cv1", playerIds: ["p1"], score: level }, side2: { clubVersionId: "cv2", playerIds: ["p2"], score: level } }),
+      ROSTER,
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.side1Result).toBe("draw");
+      expect(result.side2Result).toBe("draw");
+    }
+  });
+
   it("rejects the wrong number of players for singles", () => {
     const result = validateMatchForm(draft({ side1: { clubVersionId: "cv1", playerIds: ["p1", "p2"], score: 3 } }), ROSTER);
     expect(result.ok).toBe(false);
