@@ -1,6 +1,6 @@
 import { useIsFocused } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { endActiveSession, fetchActiveSession, startActiveSession, updateActiveSession } from "../lib/activeSessions";
+import { endActiveSession, fetchActiveSession, startActiveSession, subscribeToActiveSession, updateActiveSession } from "../lib/activeSessions";
 import type { WinnersStaySession } from "../lib/rotation/types";
 
 /** A session persisted before `format` existed (originally every session was the 4+/doubles "group" format) won't have the field -- default it here so the rest of the app can trust session.format is always defined, without a data migration. */
@@ -92,6 +92,33 @@ export function useWinnersStaySession(groupId: string | null) {
     if (!groupId) return;
     await load(groupId, false);
   }, [groupId, load]);
+
+  // Phase D: live push updates on top of the refocus resync above, which is
+  // left completely unchanged and still runs -- this only shortens how long
+  // a currently-open, focused screen takes to learn about another member's
+  // change, it isn't what makes that change correct or safe (that's the
+  // atomic RPC's row lock + version check, unaffected by whether this
+  // subscription is connected, stale, or briefly dropped).
+  useEffect(() => {
+    if (!groupId) return;
+    const unsubscribe = subscribeToActiveSession(groupId, (event) => {
+      if (event.type === "delete") {
+        if (versionRef.current === null) return;
+        setSessionState(null);
+        setVersion(null);
+        return;
+      }
+      // Only adopt strictly newer state. This is what keeps a push event
+      // from re-applying an echo of a write this same instance just made
+      // (setSession/adoptSession already updated local state with that
+      // exact version) or a delayed/out-of-order delivery of an event
+      // older than what a later local write already landed.
+      if (versionRef.current !== null && event.version <= versionRef.current) return;
+      setSessionState(normalizeSession(event.session));
+      setVersion(event.version);
+    });
+    return unsubscribe;
+  }, [groupId]);
 
   /**
    * Writes a non-match-recording mutation. `next === null` ends/resets the

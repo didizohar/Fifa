@@ -20,6 +20,19 @@ jest.mock("expo-router", () => ({
  */
 const mockServerRows = new Map<string, { session: WinnersStaySession; version: number }>();
 
+/**
+ * Simulates the Phase D Realtime channel: for each groupId a subscription is
+ * active on, tests can push an event directly via emitActiveSessionEvent
+ * (standing in for a Postgres Changes payload actually arriving over the
+ * socket) instead of going through a real WebSocket.
+ */
+type ActiveSessionRealtimeEvent = { type: "upsert"; session: WinnersStaySession; version: number } | { type: "delete" };
+const mockRealtimeListeners = new Map<string, Set<(event: ActiveSessionRealtimeEvent) => void>>();
+const mockUnsubscribe = jest.fn();
+function emitActiveSessionEvent(groupId: string, event: ActiveSessionRealtimeEvent) {
+  for (const listener of mockRealtimeListeners.get(groupId) ?? []) listener(event);
+}
+
 jest.mock("../../src/lib/activeSessions", () => ({
   fetchActiveSession: jest.fn(async (groupId: string) => mockServerRows.get(groupId) ?? null),
   startActiveSession: jest.fn(async (groupId: string, session: WinnersStaySession) => {
@@ -36,6 +49,14 @@ jest.mock("../../src/lib/activeSessions", () => ({
   }),
   endActiveSession: jest.fn(async (groupId: string) => {
     mockServerRows.delete(groupId);
+  }),
+  subscribeToActiveSession: jest.fn((groupId: string, onEvent: (event: ActiveSessionRealtimeEvent) => void) => {
+    if (!mockRealtimeListeners.has(groupId)) mockRealtimeListeners.set(groupId, new Set());
+    mockRealtimeListeners.get(groupId)!.add(onEvent);
+    return () => {
+      mockUnsubscribe();
+      mockRealtimeListeners.get(groupId)?.delete(onEvent);
+    };
   }),
 }));
 
@@ -82,6 +103,8 @@ async function renderHarness(groupId: string | null) {
 
 beforeEach(() => {
   mockServerRows.clear();
+  mockRealtimeListeners.clear();
+  mockUnsubscribe.mockClear();
   mockIsFocused = true;
   lastHydrated = null;
   lastApi = null;
@@ -323,5 +346,104 @@ describe("useWinnersStaySession -- adoptSession (local-only, for a write already
     // committed it (e.g. record_match_and_advance_session) already wrote
     // it there atomically.
     expect(mockServerRows.get("group-1")?.version).toBe(2);
+  });
+});
+
+describe("useWinnersStaySession -- Phase D live push updates (additive on top of refocus resync)", () => {
+  it("subscribes to the group's channel on mount", async () => {
+    await renderHarness("group-1");
+    expect(mockRealtimeListeners.get("group-1")?.size).toBe(1);
+  });
+
+  it("adopts an upsert event with a newer version than what's currently known -- no refocus needed", async () => {
+    mockServerRows.set("group-1", { session: session({ id: "s1", roundNumber: 1 }), version: 1 });
+    await renderHarness("group-1");
+    expect(lastHydrated!.session?.roundNumber).toBe(1);
+
+    // A different member's device just recorded a match -- pushed here
+    // directly, without this instance ever losing/regaining focus.
+    await act(async () => {
+      emitActiveSessionEvent("group-1", { type: "upsert", session: session({ id: "s1", roundNumber: 2 }), version: 2 });
+    });
+
+    expect(lastHydrated!.session?.roundNumber).toBe(2);
+    expect(lastHydrated!.version).toBe(2);
+  });
+
+  it("adopts a push event even while this instance is unfocused, not gated on isFocused the way the refetch-on-focus path is", async () => {
+    await renderHarness("group-1");
+    await act(async () => {
+      mockIsFocused = false;
+    });
+
+    await act(async () => {
+      emitActiveSessionEvent("group-1", { type: "upsert", session: session({ id: "s1", roundNumber: 9 }), version: 1 });
+    });
+
+    expect(lastHydrated!.session?.roundNumber).toBe(9);
+    expect(lastHydrated!.version).toBe(1);
+  });
+
+  it("ignores an upsert event whose version is not strictly newer -- guards against re-applying an echo of this instance's own just-completed write", async () => {
+    mockServerRows.set("group-1", { session: session({ id: "s1", roundNumber: 5 }), version: 5 });
+    await renderHarness("group-1");
+    const api = lastApi!;
+
+    // adoptSession simulates a write this same instance just committed
+    // atomically elsewhere (e.g. recordMatchAndAdvanceSession) -- version 6.
+    act(() => {
+      api.adoptSession(session({ id: "s1", roundNumber: 6 }), 6);
+    });
+
+    // The Realtime echo of that exact same write arrives afterward.
+    await act(async () => {
+      emitActiveSessionEvent("group-1", { type: "upsert", session: session({ id: "s1", roundNumber: 6 }), version: 6 });
+    });
+
+    // Unaffected -- still round 6, not reset or duplicated.
+    expect(lastHydrated!.session?.roundNumber).toBe(6);
+    expect(lastHydrated!.version).toBe(6);
+
+    // An out-of-order delivery of an OLDER event must not roll state back either.
+    await act(async () => {
+      emitActiveSessionEvent("group-1", { type: "upsert", session: session({ id: "s1", roundNumber: 5 }), version: 5 });
+    });
+    expect(lastHydrated!.session?.roundNumber).toBe(6);
+    expect(lastHydrated!.version).toBe(6);
+  });
+
+  it("a delete event clears the session immediately, without waiting for refocus", async () => {
+    mockServerRows.set("group-1", { session: session({ id: "s1" }), version: 0 });
+    await renderHarness("group-1");
+    expect(lastHydrated!.session).not.toBeNull();
+
+    await act(async () => {
+      emitActiveSessionEvent("group-1", { type: "delete" });
+    });
+
+    expect(lastHydrated!.session).toBeNull();
+    expect(lastHydrated!.version).toBeNull();
+  });
+
+  it("unsubscribes when the group changes", async () => {
+    const renderer = await renderHarness("group-1");
+    expect(mockUnsubscribe).not.toHaveBeenCalled();
+
+    await act(async () => {
+      renderer.update(<Harness groupId="group-2" />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockUnsubscribe).toHaveBeenCalledTimes(1);
+    expect(mockRealtimeListeners.get("group-2")?.size).toBe(1);
+  });
+
+  it("unsubscribes on unmount", async () => {
+    const renderer = await renderHarness("group-1");
+    await act(async () => {
+      renderer.unmount();
+    });
+    expect(mockUnsubscribe).toHaveBeenCalledTimes(1);
   });
 });

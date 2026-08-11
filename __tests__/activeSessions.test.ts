@@ -3,13 +3,21 @@ const mockSelectAfterUpdate = jest.fn();
 const mockInsert = jest.fn();
 const mockDeleteEq = jest.fn();
 const mockRpc = jest.fn();
+const mockChannelFn = jest.fn();
+const mockRemoveChannel = jest.fn();
+const mockSubscribe = jest.fn();
+// Captures the handler subscribeToActiveSession registers via .on(...) so
+// tests can invoke it directly to simulate an incoming Postgres Changes
+// event, the same way the real Realtime client would call it.
+let capturedOnHandler: ((payload: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => void) | null = null;
 
 // Chainable query-builder mock covering exactly the shapes activeSessions.ts
 // actually calls: .select().eq().maybeSingle() (read), .insert() (start),
-// .update().eq().eq().select() (CAS write), .delete().eq() (end). Inlined
-// directly in the factory (not a helper it calls out to) -- jest.mock's
-// factory can't reference out-of-scope variables/functions unless their
-// name starts with "mock".
+// .update().eq().eq().select() (CAS write), .delete().eq() (end), plus
+// .channel().on().subscribe() (Phase D live updates). Inlined directly in
+// the factory (not a helper it calls out to) -- jest.mock's factory can't
+// reference out-of-scope variables/functions unless their name starts with
+// "mock".
 jest.mock("../src/lib/supabase", () => ({
   supabase: {
     from: jest.fn(() => ({
@@ -25,6 +33,8 @@ jest.mock("../src/lib/supabase", () => ({
       delete: jest.fn(() => ({ eq: mockDeleteEq })),
     })),
     rpc: (...args: unknown[]) => mockRpc(...args),
+    channel: (...args: unknown[]) => mockChannelFn(...args),
+    removeChannel: (...args: unknown[]) => mockRemoveChannel(...args),
   },
 }));
 
@@ -33,6 +43,7 @@ import {
   fetchActiveSession,
   recordMatchAndAdvanceSession,
   startActiveSession,
+  subscribeToActiveSession,
   updateActiveSession,
 } from "../src/lib/activeSessions";
 import type { RecordMatchPayload } from "../src/lib/types/database";
@@ -78,6 +89,16 @@ const PAYLOAD: RecordMatchPayload = {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  capturedOnHandler = null;
+  const mockChannelObj: { on: jest.Mock; subscribe: jest.Mock } = {
+    on: jest.fn((_event: string, _filter: unknown, handler: typeof capturedOnHandler): typeof mockChannelObj => {
+      capturedOnHandler = handler;
+      return mockChannelObj;
+    }),
+    subscribe: mockSubscribe,
+  };
+  mockSubscribe.mockReturnValue(mockChannelObj);
+  mockChannelFn.mockReturnValue(mockChannelObj);
 });
 
 describe("fetchActiveSession", () => {
@@ -181,5 +202,44 @@ describe("recordMatchAndAdvanceSession (atomic match insert + session advance)",
   it("throws on any other error (validation, auth, etc.) -- only the two known concurrency codes are swallowed into a typed result", async () => {
     mockRpc.mockResolvedValue({ data: null, error: { code: "42501", message: "Not a member of this group" } });
     await expect(recordMatchAndAdvanceSession({ payload: PAYLOAD, expectedVersion: 5, nextSession: session() })).rejects.toThrow("Not a member of this group");
+  });
+});
+
+describe("subscribeToActiveSession (Phase D live push updates)", () => {
+  it("subscribes to a channel filtered to exactly this group's active_sessions row", () => {
+    subscribeToActiveSession("group-1", jest.fn());
+    expect(mockChannelFn).toHaveBeenCalledWith("active_sessions:group-1");
+    expect(mockSubscribe).toHaveBeenCalledTimes(1);
+    const [eventName, filterConfig] = (mockChannelFn.mock.results[0]!.value.on as jest.Mock).mock.calls[0]!;
+    expect(eventName).toBe("postgres_changes");
+    expect(filterConfig).toEqual({ event: "*", schema: "public", table: "active_sessions", filter: "group_id=eq.group-1" });
+  });
+
+  it("delivers an INSERT/UPDATE payload as an 'upsert' event with the session and version", () => {
+    const onEvent = jest.fn();
+    subscribeToActiveSession("group-1", onEvent);
+    capturedOnHandler!({ eventType: "UPDATE", new: { session: session({ roundNumber: 7 }), version: 9 }, old: {} });
+    expect(onEvent).toHaveBeenCalledWith({ type: "upsert", session: session({ roundNumber: 7 }), version: 9 });
+  });
+
+  it("delivers a DELETE payload as a 'delete' event", () => {
+    const onEvent = jest.fn();
+    subscribeToActiveSession("group-1", onEvent);
+    capturedOnHandler!({ eventType: "DELETE", new: {}, old: { group_id: "group-1" } });
+    expect(onEvent).toHaveBeenCalledWith({ type: "delete" });
+  });
+
+  it("silently ignores a malformed payload instead of throwing inside the event handler", () => {
+    const onEvent = jest.fn();
+    subscribeToActiveSession("group-1", onEvent);
+    expect(() => capturedOnHandler!({ eventType: "UPDATE", new: { session: { garbage: true }, version: 9 }, old: {} })).not.toThrow();
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it("returns an unsubscribe function that removes the channel", () => {
+    const unsubscribe = subscribeToActiveSession("group-1", jest.fn());
+    const channel = mockChannelFn.mock.results[0]!.value;
+    unsubscribe();
+    expect(mockRemoveChannel).toHaveBeenCalledWith(channel);
   });
 });

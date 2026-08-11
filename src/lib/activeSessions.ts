@@ -23,6 +23,50 @@ export async function fetchActiveSession(groupId: string): Promise<ActiveSession
   return { session: data.session, version: data.version };
 }
 
+export type ActiveSessionRealtimeEvent = { type: "upsert"; session: WinnersStaySession; version: number } | { type: "delete" };
+
+/**
+ * Live push updates for one group's active_sessions row (Phase D) --
+ * purely additive on top of the existing refetch-on-focus sync in
+ * useWinnersStaySession: this lets a screen that's currently open/focused
+ * learn about another member's change immediately, instead of waiting for
+ * the next refocus. refetch-on-focus is left completely unchanged and
+ * remains the fallback for a socket that was disconnected/reconnecting
+ * when the change happened -- this subscription is a nice-to-have for
+ * responsiveness, not something later logic depends on for correctness
+ * (that guarantee comes entirely from record_match_and_advance_session's
+ * row locking + version check).
+ *
+ * Malformed/unrecognized payloads are silently ignored rather than thrown
+ * -- this runs inside a background event handler with no caller to catch
+ * an exception, and the existing refetch-on-focus path is always there to
+ * recover the correct state regardless.
+ *
+ * Returns an unsubscribe function.
+ */
+export function subscribeToActiveSession(groupId: string, onEvent: (event: ActiveSessionRealtimeEvent) => void): () => void {
+  const channel = supabase
+    .channel(`active_sessions:${groupId}`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "active_sessions", filter: `group_id=eq.${groupId}` },
+      (payload: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => {
+        if (payload.eventType === "DELETE") {
+          onEvent({ type: "delete" });
+          return;
+        }
+        const row = payload.new;
+        if (!looksLikeSession(row.session) || typeof row.version !== "number") return;
+        onEvent({ type: "upsert", session: row.session, version: row.version });
+      },
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+
 export type WriteSessionResult = { ok: true; version: number } | { ok: "stale" };
 
 /**

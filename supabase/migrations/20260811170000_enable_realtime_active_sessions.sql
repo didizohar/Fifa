@@ -1,0 +1,20 @@
+-- Couch League: enable Supabase Realtime (Postgres Changes) for active_sessions.
+--
+-- Phase D: adds a live push channel on top of the existing refetch-on-focus
+-- sync (src/hooks/useWinnersStaySession.ts) -- refetch-on-focus stays
+-- exactly as-is and remains the fallback for a screen that was
+-- backgrounded/disconnected when a change happened. This migration only
+-- makes the row's changes visible to Realtime subscribers at all; nothing
+-- about correctness changes -- that guarantee already comes entirely from
+-- record_match_and_advance_session's row locking + optimistic-concurrency
+-- version check (see 20260811164500_shared_active_sessions.sql), not from
+-- how a client learns about a change.
+--
+-- No REPLICA IDENTITY change needed: the default (primary key only) is
+-- sufficient because every client here only ever reads `new` (the row
+-- after the change), never diffs against `old`. RLS already scopes what
+-- each client receives -- Realtime enforces the table's existing
+-- `active_sessions_select` policy (is_group_member(group_id)) per
+-- subscriber, so this grants no visibility beyond what fetchActiveSession
+-- already allows via the REST API.
+alter publication supabase_realtime add table public.active_sessions;
