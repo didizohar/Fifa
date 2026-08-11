@@ -1,4 +1,3 @@
-import * as Linking from "expo-linking";
 import { Link } from "expo-router";
 import { useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
@@ -7,6 +6,7 @@ import { Screen } from "../../src/components/Screen";
 import { TextField } from "../../src/components/TextField";
 import { requestPasswordReset } from "../../src/lib/auth";
 import { isValidEmail } from "../../src/lib/authValidation";
+import { authDeepLink } from "../../src/lib/deepLink";
 import { useTranslation } from "../../src/lib/i18n";
 import { colors, spacing, typography } from "../../src/theme";
 
@@ -27,7 +27,7 @@ export default function ForgotPasswordScreen() {
     setError(null);
     setIsSubmitting(true);
     try {
-      await requestPasswordReset(trimmed, Linking.createURL("reset-password"));
+      await requestPasswordReset(trimmed, authDeepLink("reset-password"));
       setIsSent(true);
     } catch (e) {
       setError(e instanceof Error && e.message ? e.message : t("auth.genericError"));
